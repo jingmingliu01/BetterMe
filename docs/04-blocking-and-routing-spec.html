@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>阻断与路由规格 Blocking and Routing Spec · BetterMe Docs</title>
+  <style>
+    :root { color-scheme: light; --text:#17202a; --muted:#607080; --line:#dbe4ee; --bg:#f8fafc; --panel:#ffffff; --code:#edf3f8; --accent:#2563eb; --accent-soft:#eff6ff; }
+    * { box-sizing: border-box; } html { scroll-behavior: smooth; } body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.72; color:var(--text); background:radial-gradient(circle at 16% 0%, #eaf2ff 0, transparent 28%), linear-gradient(180deg,#f8fafc 0%,#ffffff 42%,#f8fafc 100%); }
+    .shell { display:grid; grid-template-columns:minmax(0, 1fr) 250px; gap:32px; max-width:1220px; margin:0 auto; padding:34px 22px 86px; } main { min-width:0; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:14px; padding:36px 44px; box-shadow:0 20px 60px rgba(15,23,42,.07); animation: pageIn .42s ease both; } nav { position:sticky; top:24px; align-self:start; background:rgba(255,255,255,.92); backdrop-filter: blur(10px); border:1px solid var(--line); border-radius:14px; padding:18px; max-height:calc(100vh - 48px); overflow:auto; animation: pageIn .52s ease both; } nav h2 { margin:0 0 8px; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border:0; padding:0; } nav ul { margin:0; padding-left:18px; } nav li { margin:7px 0; font-size:14px; } .top-link { display:inline-block; margin-bottom:18px; color:var(--accent); text-decoration:none; font-size:14px; }
+    h1 { font-size:36px; line-height:1.16; margin:0 0 22px; color:#0f172a; letter-spacing:0; } h2 { font-size:24px; line-height:1.28; margin:40px 0 14px; padding-top:24px; border-top:1px solid var(--line); color:#0f172a; } h3 { font-size:18px; margin:28px 0 10px; color:#111827; } h4,h5,h6{ margin:22px 0 8px; } p { margin:12px 0; } a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; } code { background:var(--code); padding:2px 6px; border-radius:6px; font-size:.92em; } pre { background:#0f172a; color:#e5e7eb; padding:17px; border-radius:10px; overflow:auto; line-height:1.55; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); } pre code { background:transparent; padding:0; color:inherit; } ul,ol { padding-left:24px; } li { margin:6px 0; } blockquote { margin:18px 0; padding:14px 17px; border-left:4px solid #60a5fa; background:var(--accent-soft); color:#1e3a8a; border-radius:8px; } .table-wrap { overflow-x:auto; margin:17px 0; border-radius:10px; border:1px solid var(--line); } table { width:100%; border-collapse:collapse; background:#fff; } th,td { border-bottom:1px solid var(--line); padding:11px 13px; vertical-align:top; text-align:left; } th { background:#f1f5f9; font-weight:650; color:#0f172a; } tr:last-child td{border-bottom:0;} main > * { animation: fadeUp .34s ease both; } @keyframes pageIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } } @keyframes fadeUp { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } } @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } } @media (max-width: 920px) { .shell { display:block; padding:18px 14px 58px; } main { padding:24px 18px; } nav { position:static; margin-top:18px; } h1 { font-size:28px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <main>
+      <a class="top-link" href="../README.html">Back to documentation home</a>
+      <h1 id="阻断与路由规格-blocking-and-routing-spec">阻断与路由规格 Blocking and Routing Spec</h1>
+<h2 id="1-目标">1. 目标</h2>
+<p>Blocking system 必须：</p>
+<ul>
+<li>Privacy-first。</li>
+<li>不读取 page content。</li>
+<li>不读取 full browser history。</li>
+<li>稳定阻断用户定义的 target。</li>
+<li>Redirect 到 BetterMe Block Page。</li>
+<li>支持 temporary unlock、cooldown、delay、block hold。</li>
+</ul>
+<h2 id="2-target-types">2. Target Types</h2>
+<h3 id="2-1-domain-target">2.1 Domain Target</h3>
+<p>用户输入：</p>
+<pre><code class="language-text">youtube.com
+https://youtube.com
+https://www.youtube.com/watch?v=abc</code></pre>
+<p>如果用户选择 domain blocking，normalize 成：</p>
+<pre><code class="language-ts">interface DomainTarget {
+  type: &quot;domain&quot;;
+  domain: &quot;youtube.com&quot;;
+  includeSubdomains: true;
+}</code></pre>
+<p>匹配：</p>
+<ul>
+<li><code>youtube.com</code></li>
+<li><code>www.youtube.com</code></li>
+<li><code>m.youtube.com</code></li>
+<li><code>music.youtube.com</code></li>
+</ul>
+<p>不匹配：</p>
+<ul>
+<li><code>notyoutube.com</code></li>
+<li><code>youtube.com.example.com</code></li>
+</ul>
+<h3 id="2-2-exact-url-target">2.2 Exact URL Target</h3>
+<p>用户输入：</p>
+<pre><code class="language-text">https://www.youtube.com/shorts/abc123</code></pre>
+<p>如果用户选择 exact URL blocking，normalize 成：</p>
+<pre><code class="language-ts">interface ExactUrlTarget {
+  type: &quot;exactUrl&quot;;
+  url: &quot;https://www.youtube.com/shorts/abc123&quot;;
+}</code></pre>
+<p>MVP 规则：</p>
+<ul>
+<li>Exact only。</li>
+<li>不支持 wildcard。</li>
+<li>不支持 path prefix。</li>
+<li>Query params 默认保留。</li>
+</ul>
+<h2 id="3-add-current-page-ui">3. Add Current Page UI</h2>
+<p>默认 UI：</p>
+<pre><code class="language-text">Block this site
+[Add youtube.com and subdomains]</code></pre>
+<p>Advanced 展开后：</p>
+<pre><code class="language-text">Advanced
+[Only block this exact URL]</code></pre>
+<p>原因：</p>
+<ul>
+<li>大多数用户想阻断整个 domain。</li>
+<li>Exact URL 是小众需求，不应该干扰默认流程。</li>
+</ul>
+<h2 id="4-dnr-redirect">4. DNR Redirect</h2>
+<p>使用 <code>chrome.declarativeNetRequest</code> dynamic rules，把匹配的 main-frame request redirect 到：</p>
+<pre><code class="language-text">chrome-extension://{extensionId}/block.html?targetId={targetId}&amp;url={encodedOriginalUrl}</code></pre>
+<p>Block Page 显示 normalized target：</p>
+<ul>
+<li>Domain：<code>youtube.com</code></li>
+<li>Exact URL：<code>youtube.com/shorts/abc123</code></li>
+</ul>
+<p>不要默认展示很长的 tracking query。</p>
+<p>官方文档：</p>
+<ul>
+<li><a href="https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest">chrome.declarativeNetRequest</a></li>
+<li><a href="https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns">Match patterns</a></li>
+</ul>
+<h2 id="5-temporary-unlock">5. Temporary Unlock</h2>
+<p>当 AI decision 是 <code>ALLOW</code>，创建 temporary unlock。</p>
+<pre><code class="language-ts">interface TemporaryUnlock {
+  id: string;
+  targetId: string;
+  targetType: &quot;domain&quot; | &quot;exactUrl&quot;;
+  normalizedTarget: string;
+  createdAt: string;
+  expiresAt: string;
+  sourceTrackId: string;
+}</code></pre>
+<p>行为：</p>
+<ul>
+<li>unlock 期间 target 可以访问。</li>
+<li>到期后自动恢复阻断。</li>
+<li>浏览器重启后，只要没过期仍然有效。</li>
+</ul>
+<p>实现选项：</p>
+<ol>
+<li>暂时 remove/disable 对应 DNR rule，到期 restore。</li>
+<li>添加 higher-priority allow rule。</li>
+</ol>
+<p>MVP 可以先选更简单、可测试的实现。</p>
+<h2 id="6-basic-cooldown">6. Basic Cooldown</h2>
+<p>Basic Cooldown 是一个免费、非 AI 的冷静倒计时。</p>
+<p>默认：</p>
+<ul>
+<li>5 分钟。</li>
+</ul>
+<p>流程：</p>
+<ol>
+<li>用户点击 <code>Start Cooldown</code>。</li>
+<li>Block Page 显示 5 分钟 countdown。</li>
+<li>Target 继续被阻断。</li>
+<li>倒计时结束后，用户可以继续选择：</li>
+</ol>
+<ul>
+<li><code>Leave Site</code></li>
+<li><code>Start AI Check</code></li>
+<li>再来一次 cooldown</li>
+</ul>
+<p>Basic Cooldown 不会：</p>
+<ul>
+<li>调用 LLM。</li>
+<li>要求 license。</li>
+<li>创建 AI Track。</li>
+<li>更新 Pattern Memory。</li>
+</ul>
+<h2 id="7-delay-timer">7. Delay Timer</h2>
+<p>Delay Timer 是状态，不是单独功能。</p>
+<p>来源：</p>
+<ul>
+<li>用户主动开始 Basic Cooldown。</li>
+<li>AI decision 返回 <code>DELAY</code>。</li>
+</ul>
+<p>如果来自 AI <code>DELAY</code>：</p>
+<ul>
+<li>保持同一个 AI Track。</li>
+<li>等待 <code>delaySeconds</code>。</li>
+<li>倒计时结束后，用户可以继续在同一个 track 里聊天。</li>
+<li>不创建新 track。</li>
+</ul>
+<h2 id="8-block-until-next-day">8. BLOCK Until Next Day</h2>
+<p>当 AI decision 是 <code>BLOCK</code>，BetterMe 阻断当前 target 到用户本地时间第二天 00:00。</p>
+<p>例子：</p>
+<ul>
+<li>当前本地时间：2026-05-10 21:15。</li>
+<li>block expiry：2026-05-11 00:00 local time。</li>
+</ul>
+<p>数据：</p>
+<pre><code class="language-ts">interface BlockHold {
+  id: string;
+  targetId: string;
+  sourceTrackId: string;
+  createdAt: string;
+  expiresAt: string;
+  reason: &quot;ai_block_until_next_day&quot;;
+}</code></pre>
+<p>Block hold 期间：</p>
+<ul>
+<li>同一个 target 不能开始新的 AI Track。</li>
+<li>UI 显示剩余时间。</li>
+<li>用户仍然可以 <code>Leave Site</code>。</li>
+</ul>
+<h2 id="9-leave-site-close-tab">9. Leave Site / Close Tab</h2>
+<p>主逃离按钮必须免费、明显。</p>
+<p>推荐 label：</p>
+<ul>
+<li>如果实现是关闭 tab：<code>Close Tab</code>。</li>
+<li>如果实现是跳转离开：<code>Leave Site</code>。</li>
+</ul>
+<p>不要用：</p>
+<ul>
+<li><code>Close to Live</code>，英文不自然。</li>
+</ul>
+<h2 id="10-block-page-layout">10. Block Page Layout</h2>
+<pre><code class="language-text">----------------------------------------------------
+| Left action area       | Right AI Check area       |
+| target                 | opening message           |
+| status                 | conversation              |
+| Leave Site / Close Tab | input box                 |
+| Start Cooldown         | turns/time remaining      |
+| Settings               | final decision            |
+----------------------------------------------------</code></pre>
+<p>Free 状态：</p>
+<ul>
+<li>右侧 AI Check visible but locked。</li>
+<li>显示为什么 locked。</li>
+<li>显示 Lifetime unlock entry。</li>
+</ul>
+<p>Lifetime BYOK 状态：</p>
+<ul>
+<li>key ready：显示本地 opening message。</li>
+<li>key missing：显示 provider setup prompt。</li>
+</ul>
+<h2 id="11-edge-cases">11. Edge Cases</h2>
+<div class="table-wrap"><table><thead><tr><th>Case</th><th>Expected behavior</th></tr></thead><tbody><tr><td>用户删除当前 target</td><td>显示 target no longer blocked，并提供 settings/home。</td></tr><tr><td>unlock 过期</td><td>下一次 navigation 重新 blocked。</td></tr><tr><td>DNR rule update 失败</td><td>显示错误，保留旧 rules。</td></tr><tr><td>exact URL 有 query</td><td>MVP exact match，UI 要说明。</td></tr><tr><td>invalid domain</td><td>拒绝并显示 validation error。</td></tr><tr><td>unsupported protocol</td><td>MVP 只支持 <code>http</code> 和 <code>https</code>。</td></tr></tbody></table></div>
+    </main>
+    <nav><h2>On this page</h2><ul><li class="toc-l2"><a href="#1-目标">1. 目标</a></li><li class="toc-l2"><a href="#2-target-types">2. Target Types</a></li><li class="toc-l2"><a href="#3-add-current-page-ui">3. Add Current Page UI</a></li><li class="toc-l2"><a href="#4-dnr-redirect">4. DNR Redirect</a></li><li class="toc-l2"><a href="#5-temporary-unlock">5. Temporary Unlock</a></li><li class="toc-l2"><a href="#6-basic-cooldown">6. Basic Cooldown</a></li><li class="toc-l2"><a href="#7-delay-timer">7. Delay Timer</a></li><li class="toc-l2"><a href="#8-block-until-next-day">8. BLOCK Until Next Day</a></li><li class="toc-l2"><a href="#9-leave-site-close-tab">9. Leave Site / Close Tab</a></li><li class="toc-l2"><a href="#10-block-page-layout">10. Block Page Layout</a></li><li class="toc-l2"><a href="#11-edge-cases">11. Edge Cases</a></li></ul></nav>
+  </div>
+</body>
+</html>

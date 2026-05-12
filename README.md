@@ -1,58 +1,83 @@
-# BetterMe Documentation
+# BetterMe 文档入口
 
-BetterMe is a Chrome-only Manifest V3 browser extension for self-control around user-defined high-dopamine websites.
+BetterMe 是一个 Chrome-only Manifest V3 浏览器插件，用来帮助用户在访问自己定义的高刺激网站前，通过一个 AI Checkpoint 做自控判断。
 
-The current MVP direction is:
+核心定位：
 
-- Free tier: unlimited blocked sites, no usable AI Check, but AI Check UI is present and locked.
-- Lifetime BYOK tier: unlocks AI Check, Pattern Memory, advanced Strictness, and local LLM API key configuration.
-- No cloud backend in MVP, except a future license endpoint. LLM calls are made from the extension background service worker using the user's own API key.
-- Future cloud subscription can add login, Stripe, hosted AI, monthly AI checks, top-ups, and account recovery.
+> Convince the AI before you continue, and it remembers your excuses.
 
-## Recommended Reading Order
+当前 MVP 方向已经从“手写代码练习”调整为“AI Native PM 面试展示基石”：
 
-1. [Browser Extension Introduction](docs/00-browser-extension-introduction.html)  
-   Read this first if you know web/iOS development but not extension development.
+- Free tier：无限 Blocked Sites，AI Check UI 已经存在但锁住。
+- Lifetime BYOK tier：解锁 AI Check、Pattern Memory、Advanced Strictness，并允许用户配置自己的 LLM API Key。
+- MVP 不依赖 BetterMe Cloud Backend。LLM 请求由插件的 `background service worker` 在用户浏览器本地发出。
+- 未来 Cloud Subscription 可以加入登录、Stripe、hosted AI、monthly AI checks、top-up 和 account recovery。
+- 新增 AI PM Review Workspace：把 AI Check 结果标注为 bad case，并转换成 eval case，用来展示 AI 产品经理的 review/eval 工作流。
 
-2. [Product PRD](docs/01-product-prd.md)  
-   Product positioning, user tiers, MVP scope, and user flows.
+## 当前可运行 MVP
 
-3. [Decision Record](docs/02-decision-record.md)  
-   Fixed product and technical decisions from the discussion.
+源码在 `apps/extension`，是一个 React + TypeScript + Manifest V3 extension。
 
-4. [Extension Architecture](docs/03-extension-architecture.md)  
-   Manifest V3, service worker, React pages, storage, and message passing.
+本地开发：
 
-5. [Blocking and Routing Spec](docs/04-blocking-and-routing-spec.md)  
-   Domain matching, exact URL blocking, DNR redirect, cooldown, delay, block, and unlock rules.
+```bash
+npm install
+npm run dev
+```
 
-6. [AI Check Spec](docs/05-ai-check-spec.md)  
-   AI Track state machine, opening message, decisions, memory, and unavailable states.
+生产构建：
 
-7. [LLM Provider Spec](docs/06-llm-provider-spec.md)  
-   OpenAI, DeepSeek, and Kimi through OpenAI-compatible Chat Completions.
+```bash
+npm run build
+```
 
-8. [Local Security and License Spec](docs/07-local-security-and-license.md)  
-   API key encryption, local license mock, and future license endpoint.
+Chrome 加载方式：
 
-9. [Implementation Roadmap](docs/08-implementation-roadmap.md)  
-   Step-by-step build order for hand-writing the project.
+1. 打开 `chrome://extensions`。
+2. 开启 Developer mode。
+3. 点击 Load unpacked。
+4. 选择 `apps/extension/dist`。
 
-10. [API and Browser Reference](docs/09-api-and-browser-reference.md)  
-    Verified links and API notes to keep beside your editor.
+演示路径：
 
-11. [Interview Learning Guide](docs/10-interview-learning-guide.md)  
-    How to turn this project into strong SDE interview talking points.
+1. 打开 Settings，添加一个 blocked domain，例如 `youtube.com`。
+2. 点击 `Dev Unlock Lifetime`。
+3. 点击 `Use Demo Model`，无需真实 API Key 也能跑完整 AI Check demo。
+4. 打开 Block page，启动 AI Track，输入用户理由，得到 structured decision。
+5. 打开 AI PM Review Workspace，把不满意的结果标成 bad case。
+6. 点击 `Convert to Eval Case`，把 bad case 沉淀为 eval set。
 
-## Current Non-Goals
+## 阅读方式
 
-- No mobile app.
-- No accountability partner.
-- No community features.
-- No cloud AI ledger in MVP.
-- No real Stripe flow in MVP.
-- No Codex app-server integration in MVP.
-- No browser history analysis.
-- No page content reading.
-- No NSFW URL display in the UI for MVP.
+如果你想更舒服地阅读，请先打开 [README.html](README.html)。每一份 Markdown 文档旁边都有同名 `.html` 版本。
 
+如果你要手写代码，建议按下面顺序读。
+
+| 顺序 | 文档 | 用途 |
+| --- | --- | --- |
+| 1 | [Browser Extension Introduction](docs/00-browser-extension-introduction.html) | 如果你熟悉 Web/iOS，但不熟悉浏览器插件开发，先读这份。 |
+| 2 | [产品 PRD](docs/01-product-prd.md) | 固定产品定位、用户分层、MVP scope 和核心用户流程。 |
+| 3 | [决策记录](docs/02-decision-record.md) | 把已经拍板的规则集中放在一起，避免实现时反复犹豫。 |
+| 4 | [Extension Architecture](docs/03-extension-architecture.md) | 解释 MV3、`background service worker`、React pages、storage、DNR 和 message passing。 |
+| 5 | [Blocking and Routing Spec](docs/04-blocking-and-routing-spec.md) | 说明 domain block、exact URL block、redirect、cooldown、delay、temporary unlock 和 block hold。 |
+| 6 | [AI Check Spec](docs/05-ai-check-spec.md) | 说明 AI Track 状态机、opening message、structured output 和 Pattern Memory。 |
+| 7 | [LLM Provider Spec](docs/06-llm-provider-spec.md) | 说明 OpenAI、DeepSeek、Kimi 如何统一走 OpenAI-compatible Chat Completions。 |
+| 8 | [Local Security and License Spec](docs/07-local-security-and-license.md) | 说明 API key 本地加密、License Mock 和未来 License Endpoint。 |
+| 9 | [Implementation Roadmap](docs/08-implementation-roadmap.md) | 按手写代码顺序拆阶段。 |
+| 10 | [API and Browser Reference](docs/09-api-and-browser-reference.md) | 代码实现时最常查的官方 API 链接。 |
+| 11 | [Interview Learning Guide](docs/10-interview-learning-guide.md) | 把这个项目整理成 SDE Interview 能讲清楚的工程故事。 |
+| 12 | [File and Function Blueprint](docs/11-file-function-blueprint.md) | 最贴近实现的一份：写哪些文件、每个文件有哪些函数、函数职责是什么。 |
+| 13 | [AI PM MVP Playbook](docs/12-ai-pm-mvp-playbook.html) | 面向 AI 产品经理面试：如何讲 bad case、eval set、rubric 和产品闭环。 |
+
+## 当前 Non-Goals
+
+- 不做 mobile app。
+- 不做 accountability partner。
+- 不做 community。
+- MVP 不做 cloud AI ledger。
+- MVP 不接真实 Stripe。
+- MVP 不接真实 License Endpoint。
+- MVP 不接 Codex app-server。
+- 不读取 full browser history。
+- 不读取 page content。
+- MVP 不在 UI 里展示 NSFW URL 列表。

@@ -1,47 +1,47 @@
-# Interview Learning Guide
+# 面试学习指南 Interview Learning Guide
 
-This project can become strong SDE interview material because it combines frontend, browser platform APIs, local security, state machines, API integration, and product privacy tradeoffs.
+这个项目很适合作为 SDE Interview 项目，因为它同时包含 frontend、browser platform APIs、本地安全、state machine、API integration 和 privacy tradeoff。
 
-## How to Frame the Project
+## 1. 项目一句话介绍
 
-Short version:
+可以这样说：
 
-> I built a Chrome MV3 extension that lets users define websites they want to block. When they visit one, the extension redirects them to a privacy-first AI checkpoint. Free users get basic blocking and cooldown; lifetime BYOK users can connect their own LLM API key. The extension stores data locally, encrypts API keys, uses DNR rules for blocking, and validates structured AI decisions before enforcing temporary unlocks, delays, or blocks.
+> I built a Chrome Manifest V3 extension that lets users block self-defined websites. When they visit a blocked target, the extension redirects them into a privacy-first AI checkpoint. Free users get basic blocking and cooldown; lifetime BYOK users can connect their own LLM API key. The extension stores data locally, encrypts API keys, uses declarativeNetRequest for blocking, and validates structured AI decisions before enforcing unlock, delay, or block outcomes.
 
-## Interview-Worthy Technical Topics
+## 2. 面试可讲的技术点
 
-### 1. Browser Extension Architecture
+### 2.1 Browser Extension Architecture
 
-What to explain:
+要讲清楚：
 
-- Manifest V3.
-- Background service worker.
-- Extension pages.
-- Message passing.
-- DNR redirect.
-- Local storage and IndexedDB.
+- Manifest V3。
+- Background service worker。
+- Extension pages。
+- Message passing。
+- DNR redirect。
+- Local storage 和 IndexedDB。
 
-Good interview angle:
+表达方式：
 
 > I treated the background service worker as the privileged local coordinator. React pages only render UI and send typed messages. Provider calls, DNR updates, and key decryption all happen in the service worker.
 
-### 2. Privacy-First Blocking
+### 2.2 Privacy-First Blocking
 
-What to explain:
+要讲清楚：
 
-- Did not read browser history.
-- Did not read page content.
-- Stored user-defined domains/exact URLs only.
-- Used DNR because it can redirect/block declaratively.
+- 不读取 browser history。
+- 不读取 page content。
+- 只存用户自己添加的 domain/exact URL。
+- 用 DNR 做 redirect。
 
-Tradeoff:
+Tradeoff：
 
-- Redirect block page is less visually slick than blur overlay.
-- But it is more stable and privacy-preserving.
+- Redirect page 没有 blur overlay 那么酷。
+- 但更稳定、更隐私、更适合 MVP。
 
-### 3. State Machine Design
+### 2.3 State Machine Design
 
-AI Track states:
+AI Track 状态：
 
 ```text
 ready -> active -> ask_more -> delayed -> active
@@ -51,141 +51,141 @@ active -> expired
 active -> provider_error
 ```
 
-Good interview angle:
+表达方式：
 
 > I represented AI Check as a bounded state machine instead of letting UI branches grow organically. That made ALLOW, DELAY, ASK_MORE, BLOCK, timeout, and provider error behavior deterministic.
 
-### 4. Structured LLM Output
+### 2.4 Structured LLM Output
 
-What to explain:
+要讲清楚：
 
-- Model output is untrusted.
-- Must validate JSON.
-- Invalid JSON triggers one retry.
-- Only validated decisions affect blocker state.
-- Extension clamps unlock duration by local policy.
+- LLM output 是 untrusted。
+- 必须 schema validation。
+- invalid JSON retry 一次。
+- 只有 validated decision 才能影响 blocker。
+- 本地会 clamp unlock duration。
 
-Good interview angle:
+表达方式：
 
-> The model recommends a decision, but the extension enforces policy. For example, even if the model suggests a long unlock, the extension clamps it by strictness level.
+> The model recommends a decision, but the extension enforces policy.
 
-### 5. BYOK Security
+### 2.5 BYOK Security
 
-What to explain:
+要讲清楚：
 
-- User API key is not sent to BetterMe.
-- Key is encrypted locally.
-- Non-extractable CryptoKey in IndexedDB.
-- Ciphertext in local storage/IndexedDB.
-- Plaintext exists only briefly in memory.
+- API Key 不发给 BetterMe。
+- Key 本地加密。
+- Non-extractable CryptoKey in IndexedDB。
+- Ciphertext in local storage/IndexedDB。
+- Plaintext 只在内存短暂存在。
 
-Tradeoff:
+Tradeoff：
 
-- Not strong against malware or modified extension code.
-- Better than plaintext storage.
-- Keeps user experience simple.
+- 防不了 malware。
+- 防不了用户修改 extension。
+- 但比 plaintext storage 好，且 UX 简单。
 
-### 6. Provider Adapter Design
+### 2.6 Provider Adapter Design
 
-What to explain:
+要讲清楚：
 
-- OpenAI, DeepSeek, and Kimi all use OpenAI-compatible Chat Completions in MVP.
-- A small fetch client is enough.
-- Provider-specific config and error normalization keep UI simple.
+- MVP 只做 OpenAI、DeepSeek、Kimi。
+- 三者统一走 OpenAI-compatible Chat Completions。
+- 轻量 `fetch` client 足够。
+- Provider-specific error 被 normalize。
 
-Good interview angle:
+表达方式：
 
-> I avoided introducing a heavy SDK into the extension because I only needed one endpoint and wanted full control over headers, errors, and browser behavior.
+> I avoided a heavy SDK because I only needed one endpoint and wanted full control over headers, errors, and browser behavior.
 
-### 7. Product and Policy Constraints
+### 2.7 Product and Policy Constraints
 
-What to explain:
+要讲清楚：
 
-- Chrome Web Store requires minimal permissions and clear single purpose.
-- NSFW preset is hidden by category, not visible URL list.
-- No remote code execution.
-- Privacy policy must explain data handling.
+- Chrome Web Store 要求 minimal permissions。
+- NSFW preset 不展示 URL list。
+- 不执行 remote code。
+- Privacy copy 必须清楚。
 
-Good interview angle:
+表达方式：
 
-> Browser extension development is not just frontend. The platform and store policy shape architecture decisions.
+> Browser extension development is not just frontend. Platform policy and permission design shape the architecture.
 
-## Possible Interview Questions and Strong Answers
+## 3. 常见面试问题
 
-### Why not use your own backend for BYOK?
+### 为什么 BYOK 不走自己的 backend？
 
-Answer:
+回答：
 
-> For the lifetime BYOK MVP, the product promise is that users do not need an account or subscription with BetterMe. If the extension can call the user-selected provider directly, the user's API key and AI usage stay between the user and provider. That reduces backend complexity and privacy risk. The tradeoff is that prompts and code are visible locally, and local license enforcement is weaker.
+> For the lifetime BYOK MVP, the product promise is no BetterMe account or subscription. Direct provider calls keep the user's API key and usage between the user and provider. It reduces backend complexity and privacy risk. The tradeoff is that prompts and local code are visible.
 
-### Why not blur the original page?
+### 为什么不做 blur overlay？
 
-Answer:
+回答：
 
-> Blur overlay requires letting the page load and injecting content scripts. That can briefly expose the content and increases compatibility and privacy risk. Redirecting via DNR is more deterministic and avoids reading page content. I would consider overlay later as an opt-in enhancement.
+> Blur overlay requires loading the original page and injecting a content script. That can briefly expose blocked content and increases compatibility risk. DNR redirect is more deterministic and privacy-preserving.
 
-### How do you prevent repeated excuses?
+### 怎么防止用户重复借口？
 
-Answer:
+回答：
 
-> I do not send raw full history into every LLM call. I store structured track summaries and Pattern Memory. The context builder selects relevant patterns, such as repeated reasons or high-risk time windows, and passes compact memory into the checkpoint prompt.
+> I do not send raw full history. I store structured summaries and Pattern Memory, then include only relevant repeated patterns in the next checkpoint context.
 
-### What happens if the model returns malformed JSON?
+### 模型返回 malformed JSON 怎么办？
 
-Answer:
+回答：
 
-> The extension validates every response against a schema. If parsing or validation fails, it retries once with a repair instruction. If that also fails, the AI panel enters provider error state and no access is granted.
+> The extension validates every response. If parsing or schema validation fails, it retries once. If it still fails, AI panel enters provider error state and no access is granted.
 
-### How would you add subscriptions later?
+### 以后怎么加 subscription？
 
-Answer:
+回答：
 
-> I would add a BetterMe cloud backend with auth, Stripe webhooks, entitlement state, and an AI Track ledger. The extension already talks through a provider abstraction, so the cloud provider can be added beside the BYOK provider.
+> I would add a cloud backend with auth, Stripe webhooks, entitlement state, and an AI Track ledger. The provider layer already abstracts BYOK, so cloud-hosted AI can be another provider.
 
-## Code Artifacts to Build for Interview Value
+## 4. 值得重点实现的代码文件
 
-Prioritize these because they demonstrate engineering judgment:
+这些文件最能体现工程能力：
 
-- `target-parser.ts`: domain vs exact URL normalization.
-- `dnr-rules.ts`: deterministic DNR rule generation.
-- `ai-track-state.ts`: explicit state machine.
-- `checkpoint-schema.ts`: structured output validation.
-- `provider-client.ts`: provider adapter and error normalization.
-- `crypto-key-store.ts`: API key encryption.
-- `context-builder.ts`: layered memory context.
+- `target-parser.ts`
+- `dnr-rules.ts`
+- `ai-track-state.ts`
+- `checkpoint-schema.ts`
+- `provider-client.ts`
+- `crypto-key-store.ts`
+- `context-builder.ts`
 
-## Tests to Mention
+## 5. 测试可以怎么讲
 
-Unit tests:
+Unit tests：
 
-- Domain normalization.
-- Exact URL matching.
-- Unlock expiry.
-- Block until next local midnight.
-- AI decision validation.
-- Provider error normalization.
+- Domain normalization。
+- Exact URL matching。
+- Unlock expiry。
+- Block until next local midnight。
+- AI decision validation。
+- Provider error normalization。
 
-Integration tests:
+Integration tests：
 
-- Add blocked domain -> DNR rule generated.
-- Blocked visit -> redirect URL generated.
-- ALLOW -> temporary unlock.
-- DELAY -> same track resumes.
-- BLOCK -> hold until next day.
+- Add blocked domain -> DNR rule generated。
+- Blocked visit -> redirect URL generated。
+- ALLOW -> temporary unlock。
+- DELAY -> same track resumes。
+- BLOCK -> hold until next day。
 
-Manual tests:
+Manual tests：
 
-- Install unpacked extension.
-- Verify permissions.
-- Use invalid API key.
-- Confirm no plaintext API key in storage.
+- Load unpacked extension。
+- Verify permissions。
+- Invalid API Key。
+- Confirm no plaintext API Key in storage。
 
-## Resume Bullet Drafts
+## 6. Resume Bullet Drafts
 
-Use these only after you actually implement the corresponding parts.
+只有实现后再放简历：
 
 - Built a Chrome Manifest V3 extension using React and TypeScript to block user-defined domains via declarativeNetRequest and redirect users into a structured self-control checkpoint flow.
 - Designed a local AI Track state machine with bounded turns, timeout handling, temporary unlocks, delay timers, and block-until-next-day enforcement.
 - Implemented BYOK LLM integration for OpenAI-compatible providers with encrypted local API key storage, provider error normalization, and schema-validated model decisions.
 - Built a privacy-first local memory layer that stores summaries and repeated-pattern signals without reading browser history or page content.
-

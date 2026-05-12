@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>插件架构 Extension Architecture · BetterMe Docs</title>
+  <style>
+    :root { color-scheme: light; --text:#17202a; --muted:#607080; --line:#dbe4ee; --bg:#f8fafc; --panel:#ffffff; --code:#edf3f8; --accent:#2563eb; --accent-soft:#eff6ff; }
+    * { box-sizing: border-box; } html { scroll-behavior: smooth; } body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.72; color:var(--text); background:radial-gradient(circle at 16% 0%, #eaf2ff 0, transparent 28%), linear-gradient(180deg,#f8fafc 0%,#ffffff 42%,#f8fafc 100%); }
+    .shell { display:grid; grid-template-columns:minmax(0, 1fr) 250px; gap:32px; max-width:1220px; margin:0 auto; padding:34px 22px 86px; } main { min-width:0; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:14px; padding:36px 44px; box-shadow:0 20px 60px rgba(15,23,42,.07); animation: pageIn .42s ease both; } nav { position:sticky; top:24px; align-self:start; background:rgba(255,255,255,.92); backdrop-filter: blur(10px); border:1px solid var(--line); border-radius:14px; padding:18px; max-height:calc(100vh - 48px); overflow:auto; animation: pageIn .52s ease both; } nav h2 { margin:0 0 8px; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border:0; padding:0; } nav ul { margin:0; padding-left:18px; } nav li { margin:7px 0; font-size:14px; } .top-link { display:inline-block; margin-bottom:18px; color:var(--accent); text-decoration:none; font-size:14px; }
+    h1 { font-size:36px; line-height:1.16; margin:0 0 22px; color:#0f172a; letter-spacing:0; } h2 { font-size:24px; line-height:1.28; margin:40px 0 14px; padding-top:24px; border-top:1px solid var(--line); color:#0f172a; } h3 { font-size:18px; margin:28px 0 10px; color:#111827; } h4,h5,h6{ margin:22px 0 8px; } p { margin:12px 0; } a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; } code { background:var(--code); padding:2px 6px; border-radius:6px; font-size:.92em; } pre { background:#0f172a; color:#e5e7eb; padding:17px; border-radius:10px; overflow:auto; line-height:1.55; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); } pre code { background:transparent; padding:0; color:inherit; } ul,ol { padding-left:24px; } li { margin:6px 0; } blockquote { margin:18px 0; padding:14px 17px; border-left:4px solid #60a5fa; background:var(--accent-soft); color:#1e3a8a; border-radius:8px; } .table-wrap { overflow-x:auto; margin:17px 0; border-radius:10px; border:1px solid var(--line); } table { width:100%; border-collapse:collapse; background:#fff; } th,td { border-bottom:1px solid var(--line); padding:11px 13px; vertical-align:top; text-align:left; } th { background:#f1f5f9; font-weight:650; color:#0f172a; } tr:last-child td{border-bottom:0;} main > * { animation: fadeUp .34s ease both; } @keyframes pageIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } } @keyframes fadeUp { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } } @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } } @media (max-width: 920px) { .shell { display:block; padding:18px 14px 58px; } main { padding:24px 18px; } nav { position:static; margin-top:18px; } h1 { font-size:28px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <main>
+      <a class="top-link" href="../README.html">Back to documentation home</a>
+      <h1 id="插件架构-extension-architecture">插件架构 Extension Architecture</h1>
+<h2 id="1-总览">1. 总览</h2>
+<p>BetterMe MVP 是一个 Chrome-only Manifest V3 Extension。</p>
+<p>MVP 的 AI path 不经过 BetterMe Cloud Backend。插件自己的 <code>background service worker</code> 负责本地协调。</p>
+<pre><code class="language-text">Chrome Browser
+  BetterMe Extension
+    manifest.json
+    background service worker
+    React extension pages
+    chrome.storage.local
+    IndexedDB
+    declarativeNetRequest rules
+        |
+        | HTTPS fetch with user's API key
+        v
+    OpenAI / DeepSeek / Kimi</code></pre>
+<h2 id="2-什么是-extension-backend">2. 什么是 Extension Backend</h2>
+<p>这里的 backend 不是你自己部署的 server。</p>
+<p>它是：</p>
+<ul>
+<li><code>apps/extension/src/background/service-worker.ts</code></li>
+<li>运行在用户浏览器本地。</li>
+<li>没有 DOM。</li>
+<li>响应 extension event。</li>
+<li>处理 UI page 发来的 message。</li>
+<li>读写 local storage / IndexedDB。</li>
+<li>更新 DNR rules。</li>
+<li>解密用户 API Key。</li>
+<li>调用 LLM provider。</li>
+<li>校验 AI structured decision。</li>
+</ul>
+<p>它不能：</p>
+<ul>
+<li>对用户隐藏代码。</li>
+<li>保密 system prompt。</li>
+<li>强力防止用户改本地代码。</li>
+<li>安全保存你的共享 API Key。</li>
+</ul>
+<p>官方文档：<a href="https://developer.chrome.com/docs/extensions/develop/concepts/service-workers">Extension service workers</a></p>
+<h2 id="3-推荐目录结构">3. 推荐目录结构</h2>
+<pre><code class="language-text">apps/
+  extension/
+    manifest.json
+    package.json
+    src/
+      background/
+        service-worker.ts
+        message-router.ts
+        dnr-rules.ts
+        llm-runner.ts
+      pages/
+        onboarding/
+          OnboardingPage.tsx
+        popup/
+          PopupPage.tsx
+        block/
+          BlockPage.tsx
+          AIChatPanel.tsx
+          ActionPanel.tsx
+        settings/
+          SettingsPage.tsx
+          ProviderSettings.tsx
+          BlockedSitesSettings.tsx
+      storage/
+        local-store.ts
+        indexed-db.ts
+        crypto-key-store.ts
+      blocking/
+        target-parser.ts
+        match-rules.ts
+        unlocks.ts
+        timers.ts
+      ai/
+        checkpoint-schema.ts
+        context-builder.ts
+        prompt.ts
+        provider-client.ts
+        ai-track-state.ts
+        pattern-memory.ts
+      license/
+        license-store.ts
+        mock-license.ts
+      shared/
+        types.ts
+        constants.ts</code></pre>
+<h2 id="4-runtime-components">4. Runtime Components</h2>
+<h3 id="4-1-manifest-json">4.1 <code>manifest.json</code></h3>
+<p><code>manifest.json</code> 类似 Web App 的配置入口 + iOS 的 Info.plist。它声明：</p>
+<ul>
+<li>extension name。</li>
+<li>version。</li>
+<li><code>manifest_version: 3</code>。</li>
+<li>background service worker。</li>
+<li>permissions。</li>
+<li>host permissions。</li>
+<li>extension pages。</li>
+<li>action popup。</li>
+</ul>
+<p>官方文档：</p>
+<ul>
+<li><a href="https://developer.chrome.com/docs/extensions/reference/manifest">Manifest</a></li>
+<li><a href="https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions">Declare permissions</a></li>
+</ul>
+<h3 id="4-2-background-service-worker">4.2 Background Service Worker</h3>
+<p>职责：</p>
+<ul>
+<li>接收 UI message。</li>
+<li>管理 DNR rules。</li>
+<li>管理 local data。</li>
+<li>管理 AI Track state。</li>
+<li>解密 API Key。</li>
+<li>调用 LLM provider。</li>
+<li>校验 structured output。</li>
+<li>更新 Pattern Memory。</li>
+</ul>
+<p>不要在 React component 里直接调用 LLM provider。React page 只负责 UI。</p>
+<p>官方文档：</p>
+<ul>
+<li><a href="https://developer.chrome.com/docs/extensions/develop/concepts/messaging">Message passing</a></li>
+<li><a href="https://developer.chrome.com/docs/extensions/reference/api/runtime">chrome.runtime</a></li>
+</ul>
+<h3 id="4-3-react-extension-pages">4.3 React Extension Pages</h3>
+<p>页面：</p>
+<ul>
+<li><code>onboarding.html</code></li>
+<li><code>popup.html</code></li>
+<li><code>settings.html</code></li>
+<li><code>block.html</code></li>
+</ul>
+<p>这些页面本质是打包进 extension 的普通 Web 页面，可以用 React + TypeScript。</p>
+<p>页面应该：</p>
+<ul>
+<li>渲染 UI。</li>
+<li>通过 <code>chrome.runtime.sendMessage</code> 调用 background。</li>
+<li>显示 local state。</li>
+</ul>
+<p>页面不应该：</p>
+<ul>
+<li>直接拿 plaintext API Key。</li>
+<li>直接调用 LLM provider。</li>
+<li>读取 page content。</li>
+</ul>
+<h3 id="4-4-declarativenetrequest">4.4 DeclarativeNetRequest</h3>
+<p>BetterMe 使用 <code>chrome.declarativeNetRequest</code> 做 redirect/block。</p>
+<p>为什么适合：</p>
+<ul>
+<li>不需要读取 request body。</li>
+<li>不需要读取网页内容。</li>
+<li>浏览器负责 matching。</li>
+<li>比 content script overlay 更稳定。</li>
+<li>更符合 privacy-first。</li>
+</ul>
+<p>官方文档：<a href="https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest">chrome.declarativeNetRequest</a></p>
+<h3 id="4-5-storage">4.5 Storage</h3>
+<p>使用：</p>
+<ul>
+<li><code>chrome.storage.local</code>：简单 settings、blocked targets、temporary unlock。</li>
+<li>IndexedDB：AI Track、Pattern Memory、CryptoKey。</li>
+</ul>
+<p>避免：</p>
+<ul>
+<li>用 <code>chrome.storage.sync</code> 存 API Key。</li>
+<li>把 plaintext API Key 存在任何持久化 storage。</li>
+</ul>
+<p>官方文档：<a href="https://developer.chrome.com/docs/extensions/reference/api/storage">chrome.storage</a></p>
+<h2 id="5-message-passing-contract">5. Message Passing Contract</h2>
+<p>UI page 通过 typed message 调用 background。</p>
+<pre><code class="language-ts">type ExtensionMessage =
+  | { type: &quot;blockedTargets/add&quot;; payload: AddBlockedTargetInput }
+  | { type: &quot;blockedTargets/list&quot; }
+  | { type: &quot;blockedTargets/delete&quot;; payload: { id: string } }
+  | { type: &quot;dnr/rebuildRules&quot; }
+  | { type: &quot;license/getStatus&quot; }
+  | { type: &quot;license/mockUnlock&quot; }
+  | { type: &quot;provider/saveApiKey&quot;; payload: SaveApiKeyInput }
+  | { type: &quot;provider/test&quot; }
+  | { type: &quot;aiTrack/start&quot;; payload: StartTrackInput }
+  | { type: &quot;aiTrack/sendMessage&quot;; payload: SendTrackMessageInput }
+  | { type: &quot;aiTrack/getState&quot;; payload: { trackId: string } };</code></pre>
+<p>统一返回：</p>
+<pre><code class="language-ts">type ExtensionResult&lt;T&gt; =
+  | { ok: true; data: T }
+  | { ok: false; error: ExtensionError };</code></pre>
+<h2 id="6-permission-strategy">6. Permission Strategy</h2>
+<p>MVP 权限尽量小：</p>
+<ul>
+<li><code>storage</code></li>
+<li><code>declarativeNetRequest</code></li>
+<li><code>tabs</code>，仅当 popup 需要读取当前 tab URL。</li>
+<li>LLM provider host permissions：</li>
+<li><code>https://api.openai.com/*</code></li>
+<li><code>https://api.deepseek.com/*</code></li>
+<li><code>https://api.moonshot.ai/*</code></li>
+</ul>
+<p>尽量避免：</p>
+<ul>
+<li><code>&lt;all_urls&gt;</code>。</li>
+<li><code>history</code>。</li>
+<li>broad content script matches。</li>
+<li>remote code。</li>
+</ul>
+<p>安全文档：<a href="https://developer.chrome.com/docs/extensions/develop/security-privacy/stay-secure">Stay secure</a></p>
+<h2 id="7-remote-code-rule">7. Remote Code Rule</h2>
+<p>Extension 逻辑必须打包进插件。可以请求远程 API，但不能下载远程 JS 然后执行。</p>
+<p>BetterMe 可以调用 OpenAI/DeepSeek/Kimi API，但不能从你的 server 下载一段 prompt runner JS 再运行。</p>
+<p>官方文档：<a href="https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements">Manifest V3 requirements</a></p>
+    </main>
+    <nav><h2>On this page</h2><ul><li class="toc-l2"><a href="#1-总览">1. 总览</a></li><li class="toc-l2"><a href="#2-什么是-extension-backend">2. 什么是 Extension Backend</a></li><li class="toc-l2"><a href="#3-推荐目录结构">3. 推荐目录结构</a></li><li class="toc-l2"><a href="#4-runtime-components">4. Runtime Components</a></li><li class="toc-l2"><a href="#5-message-passing-contract">5. Message Passing Contract</a></li><li class="toc-l2"><a href="#6-permission-strategy">6. Permission Strategy</a></li><li class="toc-l2"><a href="#7-remote-code-rule">7. Remote Code Rule</a></li></ul></nav>
+  </div>
+</body>
+</html>

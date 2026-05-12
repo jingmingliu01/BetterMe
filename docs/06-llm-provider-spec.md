@@ -1,41 +1,40 @@
-# LLM Provider Spec
+# LLM Provider 规格
 
-## MVP Provider Scope
+## 1. MVP Provider Scope
 
-MVP supports:
+MVP 支持：
 
-- OpenAI.
-- DeepSeek.
-- Kimi.
+- OpenAI。
+- DeepSeek。
+- Kimi。
 
-MVP does not support:
+MVP 不支持：
 
-- Anthropic.
-- Gemini.
-- OpenRouter.
-- Codex app-server.
-- BetterMe hosted AI backend.
+- Anthropic。
+- Gemini。
+- OpenRouter。
+- Codex app-server。
+- BetterMe hosted AI backend。
 
-## API Style
+## 2. API Style
 
-Use OpenAI-compatible Chat Completions.
+MVP 统一使用 OpenAI-compatible Chat Completions。
 
-BetterMe should implement a small fetch client instead of using the OpenAI JavaScript SDK in the extension.
+BetterMe 应该手写一个很薄的 `fetch` client，而不是在 extension 里依赖 OpenAI JavaScript SDK。
 
-Reasons:
+原因：
 
-- Smaller bundle.
-- More control over browser extension behavior.
-- Easier to normalize provider-specific errors.
-- Avoids SDK browser warnings and extra runtime assumptions.
-- All MVP providers support OpenAI-style chat completions.
+- Bundle 更小。
+- 更容易控制 browser extension 里的 headers/error handling。
+- OpenAI、DeepSeek、Kimi 都能走 Chat Completions 风格。
+- SDK 在浏览器中使用通常需要接受 client-side key 暴露风险。
 
-OpenAI SDK docs are still useful for reference:
+参考：
 
 - [OpenAI SDKs and CLI](https://developers.openai.com/api/docs/libraries)
 - [openai-node](https://github.com/openai/openai-node)
 
-## Provider Config
+## 3. Provider Config
 
 ```ts
 type ProviderId = "openai" | "deepseek" | "kimi";
@@ -48,7 +47,7 @@ interface LLMProviderConfig {
 }
 ```
 
-Default configs:
+默认配置：
 
 ```ts
 const defaultProviders = {
@@ -67,9 +66,9 @@ const defaultProviders = {
 };
 ```
 
-Model lists may drift. Treat these as starter defaults, not permanent truth.
+模型列表会变。实现时把它当 starter defaults，允许用户输入 custom model name。
 
-Provider docs:
+Provider docs：
 
 - [OpenAI Chat Completions](https://developers.openai.com/api/reference/resources/chat)
 - [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)
@@ -77,9 +76,7 @@ Provider docs:
 - [DeepSeek Chat Completion](https://api-docs.deepseek.com/api/create-chat-completion)
 - [Kimi Chat Completion](https://platform.kimi.ai/docs/api/chat)
 
-## Request Shape
-
-Generic request:
+## 4. Request Shape
 
 ```ts
 interface ChatCompletionRequest {
@@ -94,7 +91,7 @@ interface ChatCompletionRequest {
 }
 ```
 
-HTTP:
+HTTP：
 
 ```http
 POST {baseUrl}/chat/completions
@@ -102,11 +99,11 @@ Content-Type: application/json
 Authorization: Bearer {apiKey}
 ```
 
-## Structured Output Strategy
+## 5. Structured Output Strategy
 
 ### OpenAI
 
-Use structured outputs when supported by selected model:
+优先使用 structured outputs：
 
 ```json
 {
@@ -123,7 +120,7 @@ Use structured outputs when supported by selected model:
 
 ### DeepSeek
 
-DeepSeek supports JSON Output with:
+DeepSeek 可以使用 JSON Output：
 
 ```json
 {
@@ -131,24 +128,22 @@ DeepSeek supports JSON Output with:
 }
 ```
 
-Also instruct the model to produce JSON in the system message.
-
-DeepSeek warns that JSON output still needs explicit JSON instructions.
+仍然要在 system prompt 中明确要求 JSON。
 
 ### Kimi
 
-Use OpenAI-compatible chat completions and strict prompt instructions.
+Kimi 使用 OpenAI-compatible Chat Completions。
 
-If function/tool calling is stable enough, it can later be used to force schema. MVP can use:
+MVP 策略：
 
-- strong system prompt
-- JSON-only instruction
-- local Zod validation
-- one retry on invalid JSON
+- strict system prompt。
+- JSON-only instruction。
+- local schema validation。
+- invalid JSON retry 一次。
 
-## Error Normalization
+## 6. Error Normalization
 
-Normalize provider errors into:
+统一错误码：
 
 ```ts
 type ProviderErrorCode =
@@ -163,30 +158,30 @@ type ProviderErrorCode =
   | "unknown";
 ```
 
-UI should show specific but calm messages:
+UI 文案：
 
-- "API key rejected by provider."
-- "Provider says quota or balance is insufficient."
-- "Selected model is not available for this key."
-- "Network request failed. Check provider endpoint and connection."
+- `API key rejected by provider.`
+- `Provider says quota or balance is insufficient.`
+- `Selected model is not available for this key.`
+- `Network request failed. Check provider endpoint and connection.`
 
-## CORS Risk
+## 7. CORS Risk
 
-Browser extension background service workers can make cross-origin requests when host permissions are declared, but provider behavior can still vary.
+Extension background service worker 通常可以在声明 host permissions 后发 cross-origin request。
 
-If a provider blocks browser-origin calls despite extension permissions, future fallback options:
+但如果某个 provider 拒绝 browser-origin call，未来 fallback：
 
-1. Local bridge.
-2. BetterMe BYOK relay backend.
-3. Cloud subscription backend.
+1. Local bridge。
+2. BetterMe BYOK relay backend。
+3. BetterMe Cloud Subscription backend。
 
-MVP should first test direct extension fetch.
+MVP 先测试 direct extension fetch。
 
-Reference: [Cross-origin network requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)
+参考：[Cross-origin network requests](https://developer.chrome.com/docs/extensions/develop/concepts/network-requests)
 
-## API Key Handling
+## 8. API Key Handling
 
-Provider client receives plaintext API key only in memory:
+Provider client 只在内存中短暂拿到 plaintext key：
 
 ```text
 decrypt key
@@ -195,16 +190,16 @@ decrypt key
   -> discard plaintext reference
 ```
 
-Do not:
+不要：
 
-- Log API key.
-- Store API key plaintext.
-- Send API key to BetterMe.
-- Put API key in content script.
+- log API Key。
+- plaintext 存储 API Key。
+- 发给 BetterMe。
+- 暴露给 content script。
 
-## Provider UI
+## 9. Provider UI
 
-Settings page:
+Settings page：
 
 ```text
 Provider
@@ -220,19 +215,21 @@ API Key
   [Delete Key]
 ```
 
-Provider/model dropdowns are enabled only after Lifetime is unlocked.
+规则：
 
-API key field is enabled only after provider is selected.
+- Lifetime locked 时 provider settings disabled。
+- Provider 选好后才能输入 API Key。
+- API Key 保存后才能 test。
+- Model dropdown 允许 custom model name。
 
-## Testing Checklist
+## 10. Testing Checklist
 
-For each provider:
+每个 provider 都要测：
 
-- Save key.
-- Test key.
-- Send one valid AI Check.
-- Handle invalid key.
-- Handle wrong model name.
-- Handle invalid JSON response through mocked response.
-- Confirm no key appears in logs.
-
+- 保存 key。
+- test key。
+- invalid key。
+- wrong model。
+- mocked invalid JSON。
+- provider error normalization。
+- 确认 logs 里没有 API Key。

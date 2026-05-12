@@ -1,41 +1,43 @@
-# Implementation Roadmap
+# 实现路线图 Implementation Roadmap
 
-This roadmap is ordered for hand-writing the project. Do not start with AI. First make blocking reliable.
+这份 roadmap 按你手写代码的顺序排列。不要一开始就写 AI。先把 blocking 跑通。
+
+更低颗粒度的文件/函数清单见：[File and Function Blueprint](11-file-function-blueprint.md)。
 
 ## Phase 0: Project Setup
 
-Goal: create a runnable Chrome extension skeleton.
+目标：创建能被 Chrome 加载的 extension skeleton。
 
-Tasks:
+任务：
 
-- Create `apps/extension`.
-- Set up Vite + React + TypeScript.
-- Add `manifest.json`.
-- Add background service worker entry.
-- Add placeholder pages:
+- 创建 `apps/extension`。
+- 配置 Vite + React + TypeScript。
+- 添加 `manifest.json`。
+- 添加 background service worker entry。
+- 添加 placeholder pages：
   - onboarding
-  - block
-  - settings
   - popup
-- Load unpacked extension in Chrome.
+  - settings
+  - block
+- 在 Chrome `chrome://extensions` 里 Load unpacked。
 
-Validation:
+验证：
 
-- Extension appears in `chrome://extensions`.
-- Popup opens.
-- Settings page opens.
-- Background service worker logs a test message.
+- Extension 出现在 `chrome://extensions`。
+- Popup 能打开。
+- Settings page 能打开。
+- Background service worker 能打印 test log。
 
-Docs:
+文档：
 
 - [Chrome Get Started](https://developer.chrome.com/docs/extensions/get-started)
 - [Service workers](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers)
 
 ## Phase 1: Local Data Model
 
-Goal: define and persist local state before building behavior.
+目标：先定义本地数据，再做 UI 和行为。
 
-Implement:
+实现：
 
 - `BlockedTarget`
 - `UserSettings`
@@ -46,246 +48,241 @@ Implement:
 - `AITrackSummary`
 - `PatternMemory`
 
-Storage:
+存储：
 
-- Simple settings in `chrome.storage.local`.
-- Track/memory records in IndexedDB.
+- Settings 用 `chrome.storage.local`。
+- Track/memory 用 IndexedDB。
 
-Validation:
+验证：
 
-- Add a setting.
-- Reload extension.
-- Confirm setting persists.
+- 保存一个 setting。
+- reload extension。
+- 确认 setting 还在。
 
 ## Phase 2: Blocked Target Management
 
-Goal: user can add/delete blocked domains and exact URLs.
+目标：用户可以 add/delete domain 和 exact URL。
 
-Implement:
+实现：
 
-- `normalizeBlockedTarget(input, mode)`.
-- Domain validation.
-- Exact URL validation.
-- Settings UI list.
-- Popup "add current site" flow.
-- Advanced collapsed exact URL button.
+- `normalizeBlockedTarget(input, mode)`。
+- Domain validation。
+- Exact URL validation。
+- Settings UI list。
+- Popup add current site flow。
+- Advanced exact URL button。
 
-Validation:
+验证：
 
-- Add `youtube.com`.
-- Add exact URL.
-- Delete target.
-- Confirm data persists after browser restart.
+- 添加 `youtube.com`。
+- 添加 exact URL。
+- 删除 target。
+- 浏览器重启后数据仍存在。
 
 ## Phase 3: DNR Redirect
 
-Goal: visiting blocked targets redirects to block page.
+目标：访问 blocked target 时 redirect 到 Block Page。
 
-Implement:
+实现：
 
-- Convert `BlockedTarget` to DNR rules.
-- `updateDynamicRules`.
-- Redirect main-frame requests to `block.html`.
-- Pass `targetId` and original URL as query params.
+- 把 `BlockedTarget` 转换为 DNR rules。
+- `updateDynamicRules`。
+- Redirect main-frame requests 到 `block.html`。
+- Query params 传 `targetId` 和 original URL。
 
-Validation:
+验证：
 
-- Visiting blocked domain redirects.
-- Visiting subdomain redirects.
-- Visiting unrelated domain does not redirect.
-- Exact URL redirects only when exact.
+- blocked domain redirect。
+- subdomain redirect。
+- unrelated domain 不 redirect。
+- exact URL 只 exact match。
 
-Docs:
-
-- [chrome.declarativeNetRequest](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
+文档：[chrome.declarativeNetRequest](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
 
 ## Phase 4: Block Page UI
 
-Goal: blocked page is usable without AI.
+目标：不依赖 AI 也可用。
 
-Implement:
+实现：
 
-- Target display.
-- `Leave Site` or `Close Tab`.
-- `Start Cooldown`.
-- 5-minute Basic Cooldown timer.
-- `Settings` shortcut.
-- Right AI panel locked in Free.
+- Target display。
+- `Leave Site` 或 `Close Tab`。
+- `Start Cooldown`。
+- 5-minute Basic Cooldown timer。
+- Settings shortcut。
+- Free 状态下 AI panel locked。
 
-Validation:
+验证：
 
-- Free user can leave.
-- Free user can start cooldown.
-- AI panel explains locked status.
+- Free user 可以 leave。
+- Free user 可以 cooldown。
+- AI panel 显示 locked reason。
 
 ## Phase 5: License Mock
 
-Goal: unlock Lifetime BYOK locally for development.
+目标：本地解锁 Lifetime BYOK 方便开发。
 
-Implement:
+实现：
 
-- Mock unlock button in dev settings.
-- `LicenseState`.
-- Feature gating.
+- Dev settings 的 mock unlock button。
+- `LicenseState`。
+- Feature gating。
 
-Validation:
+验证：
 
-- Free state hides provider setup.
-- Mock lifetime enables provider setup and AI panel.
+- Free 状态下 provider setup disabled。
+- Mock lifetime 后 provider setup enabled。
 
 ## Phase 6: Local API Key Encryption
 
-Goal: save provider API key without plaintext storage.
+目标：保存 provider API Key，但 storage 里没有 plaintext。
 
-Implement:
+实现：
 
-- `crypto-key-store.ts`.
-- Generate AES-GCM `CryptoKey` with `extractable: false`.
-- Store CryptoKey in IndexedDB.
-- Encrypt API key.
-- Store ciphertext + IV.
-- Decrypt only in background service worker.
+- `crypto-key-store.ts`。
+- AES-GCM `CryptoKey`，`extractable: false`。
+- CryptoKey 存 IndexedDB。
+- API Key 加密。
+- Ciphertext + IV 存本地。
+- 只有 background 解密。
 
-Validation:
+验证：
 
-- Save key.
-- Reload browser.
-- Test decrypt still works.
-- Inspect `chrome.storage.local`; plaintext key must not appear.
+- 保存 key。
+- reload browser。
+- decrypt 仍能用。
+- 检查 `chrome.storage.local` 没有 plaintext key。
 
-Docs:
+文档：
 
 - [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API)
 - [chrome.storage](https://developer.chrome.com/docs/extensions/reference/api/storage)
 
 ## Phase 7: Provider Client
 
-Goal: call OpenAI-compatible providers from background.
+目标：background 能调用 OpenAI-compatible provider。
 
-Implement:
+实现：
 
-- `ProviderConfig`.
-- OpenAI-compatible `fetchChatCompletion`.
-- Provider-specific base URLs.
-- Error normalization.
-- API key test request.
+- `ProviderConfig`。
+- `fetchChatCompletion`。
+- provider base URLs。
+- error normalization。
+- API key test request。
 
-Providers:
+Providers：
 
-- OpenAI.
-- DeepSeek.
-- Kimi.
+- OpenAI。
+- DeepSeek。
+- Kimi。
 
-Validation:
+验证：
 
-- Test valid key.
-- Test invalid key.
-- Test wrong model.
-- Confirm UI shows provider-specific errors.
+- valid key。
+- invalid key。
+- wrong model。
+- UI 显示 provider-specific error。
 
 ## Phase 8: AI Check Mock
 
-Goal: build AI Track UI and state machine before real LLM decisions.
+目标：先把 AI Track UI 和状态机跑通，再接真实 LLM。
 
-Implement:
+实现：
 
-- Local opening message.
-- Chat UI.
-- Track timeout.
-- Turn counter.
-- Mock decision buttons or mock response generator.
-- ALLOW/DELAY/ASK_MORE/BLOCK enforcement.
+- 本地 opening message。
+- Chat UI。
+- Track timeout。
+- Turn counter。
+- Mock decision generator。
+- ALLOW/DELAY/ASK_MORE/BLOCK enforcement。
 
-Validation:
+验证：
 
-- ALLOW creates temporary unlock.
-- DELAY starts timer and resumes same track.
-- ASK_MORE adds question.
-- BLOCK creates hold until local next day 00:00.
+- ALLOW 创建 temporary unlock。
+- DELAY 启动 timer 且 same track resume。
+- ASK_MORE 添加 question。
+- BLOCK 创建 hold 到本地第二天 00:00。
 
 ## Phase 9: Real AI Check
 
-Goal: connect state machine to real provider.
+目标：把状态机接到真实 provider。
 
-Implement:
+实现：
 
-- Context builder.
-- Gate Constitution.
-- User Profile.
-- Pattern Memory selection.
-- Recent summaries.
-- Current messages.
-- Structured output schema.
-- JSON parse + validation.
-- One retry on invalid JSON.
+- Context builder。
+- Gate Constitution。
+- User Profile。
+- Pattern Memory selection。
+- Recent summaries。
+- Current messages。
+- Structured output schema。
+- JSON parse + validation。
+- Invalid JSON retry once。
 
-Validation:
+验证：
 
-- Run real AI Check.
-- Confirm JSON validates.
-- Confirm decision applies.
-- Confirm summary saved.
-- Confirm Pattern Memory updates.
+- 真实 AI Check。
+- JSON validates。
+- Decision applies。
+- Summary saved。
+- Pattern Memory updates。
 
 ## Phase 10: Privacy and Data Controls
 
-Goal: make local data transparent and removable.
+目标：让本地数据透明、可删除。
 
-Implement:
+实现：
 
-- Export local data.
-- Delete API key.
-- Delete AI history.
-- Delete all BetterMe data.
-- Privacy copy in settings.
+- Export local data。
+- Delete API Key。
+- Delete AI history。
+- Delete all BetterMe data。
+- Privacy copy。
 
-Validation:
+验证：
 
-- Export excludes plaintext API key.
-- Delete all clears DNR rules and local storage.
+- Export 不包含 plaintext API Key。
+- Delete all 会清空 DNR rules 和 local data。
 
 ## Phase 11: NSFW Preset Placeholder
 
-Goal: include category UX without exposing URL list.
+目标：有 category UX，但不展示 URL list。
 
-Implement:
+实现：
 
-- Preset list UI.
-- `NSFW` category disabled by default.
-- Hidden concrete URL list.
-- Count only, no site names in UI.
+- Preset list UI。
+- `NSFW` 默认 off。
+- Concrete URLs hidden。
+- UI 只展示 category 和数量。
 
-Validation:
+验证：
 
-- Enabling preset adds DNR rules.
-- UI does not show adult URLs.
-- User can disable preset.
+- Enable preset 后添加 DNR rules。
+- UI 不展示成人 URL。
+- User 可以 disable preset。
 
 ## Phase 12: Packaging and Manual QA
 
-Goal: create something installable for local dogfooding.
+手动测试：
 
-Manual tests:
+- Load unpacked extension。
+- Add domain。
+- Visit domain。
+- Leave Site。
+- Cooldown。
+- Mock unlock。
+- Save provider key。
+- Real AI Check。
+- ALLOW unlock。
+- DELAY timer。
+- BLOCK until next day。
+- Export/delete data。
 
-- Install unpacked extension.
-- Add domain.
-- Visit domain.
-- Leave Site.
-- Cooldown.
-- Mock unlock.
-- Save provider key.
-- Real AI Check.
-- ALLOW unlock.
-- DELAY timer.
-- BLOCK until next day.
-- Export/delete data.
+Policy review：
 
-Policy review:
-
-- Minimal permissions.
-- No remote code.
-- No history permission.
-- No page content reading.
-- NSFW URLs hidden.
-- Privacy copy present.
-
+- Minimal permissions。
+- No remote code。
+- No history permission。
+- No page content reading。
+- NSFW URLs hidden。
+- Privacy copy present。

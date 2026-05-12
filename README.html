@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>BetterMe 文档入口 · BetterMe Docs</title><style>:root { color-scheme: light; --text:#17202a; --muted:#607080; --line:#dbe4ee; --bg:#f8fafc; --panel:#ffffff; --code:#edf3f8; --accent:#2563eb; --accent-soft:#eff6ff; } * { box-sizing: border-box; } html { scroll-behavior: smooth; } body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.72; color:var(--text); background:radial-gradient(circle at 16% 0%, #eaf2ff 0, transparent 28%), linear-gradient(180deg,#f8fafc 0%,#ffffff 42%,#f8fafc 100%); } .shell { display:grid; grid-template-columns:minmax(0, 1fr) 250px; gap:32px; max-width:1220px; margin:0 auto; padding:34px 22px 86px; } main { min-width:0; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:14px; padding:36px 44px; box-shadow:0 20px 60px rgba(15,23,42,.07); animation: pageIn .42s ease both; } nav { position:sticky; top:24px; align-self:start; background:rgba(255,255,255,.92); backdrop-filter: blur(10px); border:1px solid var(--line); border-radius:14px; padding:18px; max-height:calc(100vh - 48px); overflow:auto; animation: pageIn .52s ease both; } nav h2 { margin:0 0 8px; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border:0; padding:0; } nav ul { margin:0; padding-left:18px; } nav li { margin:7px 0; font-size:14px; } .top-link { display:inline-block; margin-bottom:18px; color:var(--accent); text-decoration:none; font-size:14px; } h1 { font-size:36px; line-height:1.16; margin:0 0 22px; color:#0f172a; letter-spacing:0; } h2 { font-size:24px; line-height:1.28; margin:40px 0 14px; padding-top:24px; border-top:1px solid var(--line); color:#0f172a; } h3 { font-size:18px; margin:28px 0 10px; color:#111827; } p { margin:12px 0; } a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; } code { background:var(--code); padding:2px 6px; border-radius:6px; font-size:.92em; } pre { background:#0f172a; color:#e5e7eb; padding:17px; border-radius:10px; overflow:auto; line-height:1.55; } pre code { background:transparent; padding:0; color:inherit; } ul,ol { padding-left:24px; } li { margin:6px 0; } blockquote { margin:18px 0; padding:14px 17px; border-left:4px solid #60a5fa; background:var(--accent-soft); color:#1e3a8a; border-radius:8px; } .table-wrap { overflow-x:auto; margin:17px 0; border-radius:10px; border:1px solid var(--line); } table { width:100%; border-collapse:collapse; background:#fff; } th,td { border-bottom:1px solid var(--line); padding:11px 13px; vertical-align:top; text-align:left; } th { background:#f1f5f9; font-weight:650; color:#0f172a; } main > * { animation: fadeUp .34s ease both; } @keyframes pageIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } } @keyframes fadeUp { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } } @media (max-width: 920px) { .shell { display:block; padding:18px 14px 58px; } main { padding:24px 18px; } nav { position:static; margin-top:18px; } h1 { font-size:28px; } }</style></head><body><div class="shell"><main><a class="top-link" href="#">Documentation Home</a><h1 id="betterme-文档入口">BetterMe 文档入口</h1>
+<p>BetterMe 是一个 Chrome-only Manifest V3 浏览器插件，用来帮助用户在访问自己定义的高刺激网站前，通过一个 AI Checkpoint 做自控判断。</p>
+<p>核心定位：</p>
+<blockquote>
+<p>Convince the AI before you continue, and it remembers your excuses.</p>
+</blockquote>
+<p>当前 MVP 方向已经从“手写代码练习”调整为“AI Native PM 面试展示基石”：</p>
+<ul>
+<li>Free tier：无限 Blocked Sites，AI Check UI 已经存在但锁住。</li>
+<li>Lifetime BYOK tier：解锁 AI Check、Pattern Memory、Advanced Strictness，并允许用户配置自己的 LLM API Key。</li>
+<li>MVP 不依赖 BetterMe Cloud Backend。LLM 请求由插件的 <code>background service worker</code> 在用户浏览器本地发出。</li>
+<li>未来 Cloud Subscription 可以加入登录、Stripe、hosted AI、monthly AI checks、top-up 和 account recovery。</li>
+<li>新增 AI PM Review Workspace：把 AI Check 结果标注为 bad case，并转换成 eval case，用来展示 AI 产品经理的 review/eval 工作流。</li>
+</ul>
+<h2 id="当前可运行-mvp">当前可运行 MVP</h2>
+<p>源码在 <code>apps/extension</code>，是一个 React + TypeScript + Manifest V3 extension。</p>
+<p>本地开发：</p>
+<pre><code>npm install
+npm run dev</code></pre>
+<p>生产构建：</p>
+<pre><code>npm run build</code></pre>
+<p>Chrome 加载方式：</p>
+<p>1. 打开 <code>chrome://extensions</code>。</p>
+<p>2. 开启 Developer mode。</p>
+<p>3. 点击 Load unpacked。</p>
+<p>4. 选择 <code>apps/extension/dist</code>。</p>
+<p>演示路径：</p>
+<p>1. 打开 Settings，添加一个 blocked domain，例如 <code>youtube.com</code>。</p>
+<p>2. 点击 <code>Dev Unlock Lifetime</code>。</p>
+<p>3. 点击 <code>Use Demo Model</code>，无需真实 API Key 也能跑完整 AI Check demo。</p>
+<p>4. 打开 Block page，启动 AI Track，输入用户理由，得到 structured decision。</p>
+<p>5. 打开 AI PM Review Workspace，把不满意的结果标成 bad case。</p>
+<p>6. 点击 <code>Convert to Eval Case</code>，把 bad case 沉淀为 eval set。</p>
+<h2 id="阅读方式">阅读方式</h2>
+<p>如果你想更舒服地阅读，请先打开 <a href="README.html">README.html</a>。每一份 Markdown 文档旁边都有同名 <code>.html</code> 版本。</p>
+<p>如果你要手写代码，建议按下面顺序读。</p>
+<div class="table-wrap"><table><thead><tr><th>顺序</th><th>文档</th><th>用途</th></tr></thead><tbody><tr><td>1</td><td><a href="docs/00-browser-extension-introduction.html">Browser Extension Introduction</a></td><td>如果你熟悉 Web/iOS，但不熟悉浏览器插件开发，先读这份。</td></tr><tr><td>2</td><td><a href="docs/01-product-prd.md">产品 PRD</a></td><td>固定产品定位、用户分层、MVP scope 和核心用户流程。</td></tr><tr><td>3</td><td><a href="docs/02-decision-record.md">决策记录</a></td><td>把已经拍板的规则集中放在一起，避免实现时反复犹豫。</td></tr><tr><td>4</td><td><a href="docs/03-extension-architecture.md">Extension Architecture</a></td><td>解释 MV3、<code>background service worker</code>、React pages、storage、DNR 和 message passing。</td></tr><tr><td>5</td><td><a href="docs/04-blocking-and-routing-spec.md">Blocking and Routing Spec</a></td><td>说明 domain block、exact URL block、redirect、cooldown、delay、temporary unlock 和 block hold。</td></tr><tr><td>6</td><td><a href="docs/05-ai-check-spec.md">AI Check Spec</a></td><td>说明 AI Track 状态机、opening message、structured output 和 Pattern Memory。</td></tr><tr><td>7</td><td><a href="docs/06-llm-provider-spec.md">LLM Provider Spec</a></td><td>说明 OpenAI、DeepSeek、Kimi 如何统一走 OpenAI-compatible Chat Completions。</td></tr><tr><td>8</td><td><a href="docs/07-local-security-and-license.md">Local Security and License Spec</a></td><td>说明 API key 本地加密、License Mock 和未来 License Endpoint。</td></tr><tr><td>9</td><td><a href="docs/08-implementation-roadmap.md">Implementation Roadmap</a></td><td>按手写代码顺序拆阶段。</td></tr><tr><td>10</td><td><a href="docs/09-api-and-browser-reference.md">API and Browser Reference</a></td><td>代码实现时最常查的官方 API 链接。</td></tr><tr><td>11</td><td><a href="docs/10-interview-learning-guide.md">Interview Learning Guide</a></td><td>把这个项目整理成 SDE Interview 能讲清楚的工程故事。</td></tr><tr><td>12</td><td><a href="docs/11-file-function-blueprint.md">File and Function Blueprint</a></td><td>最贴近实现的一份：写哪些文件、每个文件有哪些函数、函数职责是什么。</td></tr><tr><td>13</td><td><a href="docs/12-ai-pm-mvp-playbook.html">AI PM MVP Playbook</a></td><td>面向 AI 产品经理面试：如何讲 bad case、eval set、rubric 和产品闭环。</td></tr></tbody></table></div>
+<h2 id="当前-non-goals">当前 Non-Goals</h2>
+<ul>
+<li>不做 mobile app。</li>
+<li>不做 accountability partner。</li>
+<li>不做 community。</li>
+<li>MVP 不做 cloud AI ledger。</li>
+<li>MVP 不接真实 Stripe。</li>
+<li>MVP 不接真实 License Endpoint。</li>
+<li>MVP 不接 Codex app-server。</li>
+<li>不读取 full browser history。</li>
+<li>不读取 page content。</li>
+<li>MVP 不在 UI 里展示 NSFW URL 列表。</li>
+</ul></main><nav><h2>On this page</h2><ul><li><a href="#当前可运行-mvp">当前可运行 MVP</a></li><li><a href="#阅读方式">阅读方式</a></li><li><a href="#当前-non-goals">当前 Non-Goals</a></li></ul></nav></div></body></html>

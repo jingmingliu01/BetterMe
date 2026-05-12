@@ -1,100 +1,105 @@
-# AI Check Spec
+# AI Check 规格
 
-## Purpose
+## 1. 目标
 
-AI Check is a bounded AI-guided checkpoint. The user tries to convince the AI that continuing is deliberate rather than impulsive.
+AI Check 是一个 bounded AI-guided checkpoint。用户尝试说服 AI：自己访问 blocked target 是 deliberate decision，不是 impulsive escape。
 
-It must:
+AI Check 必须：
 
-- Be bounded.
-- Be non-shaming.
-- Remember repeated excuses through summaries and Pattern Memory.
-- Return structured decisions only.
-- Never be the sole source of enforcement; the extension clamps and validates decisions.
+- 有明确边界。
+- Non-shaming。
+- 能通过 Pattern Memory 挑战重复借口。
+- 返回 structured decision。
+- 由 extension 本地执行最终规则。
 
-## Availability
+## 2. 可用条件
 
-AI Check is usable only when:
+AI Check 可用的前提：
 
-- Lifetime License is unlocked.
-- Provider is configured.
-- API key is saved and decryptable.
-- Selected model is configured.
-- No active block hold prevents this target.
+- Lifetime License 已 unlock。
+- Provider 已选择。
+- API Key 已保存且可解密。
+- Model 已选择。
+- 当前 target 没有 active block hold。
 
-If unavailable, the chatbot panel stays visible but disabled with a clear reason.
+如果不可用：
 
-## Opening Message
+- Chatbot panel 仍然显示。
+- 输入框 disabled。
+- 显示具体原因。
+- 左侧按钮仍然可用。
 
-When license and key are ready, the first assistant message is generated locally. It does not call the LLM.
+## 3. Opening Message
 
-Template:
+当 license 和 key 都 ready 时，第一句 assistant message 本地生成，不调用 LLM。
+
+Template：
 
 ```text
 You're trying to open {displayTarget}. What are you here to do, and why now?
 ```
 
-Rules:
+规则：
 
-- `{displayTarget}` must be the real normalized target.
-- This message is stored as an assistant message.
-- It is included in future LLM context.
-- It does not count as an LLM assistant turn.
+- `{displayTarget}` 必须替换成真实 normalized target。
+- 这条 message 作为 assistant message 存入当前 track。
+- 后续调用 LLM 时包含在 context 中。
+- 不算 LLM assistant turn。
 
-## Track Limits
+## 4. Track Limits
 
-Default limits:
+默认限制：
 
-- Maximum 5 LLM assistant turns.
-- Maximum 10 minutes.
-- One final enforceable decision.
+- 最多 5 个 LLM assistant turns。
+- 最多 10 分钟。
+- 一个最终 enforceable decision。
 
-`ASK_MORE` counts as an assistant turn.
+`ASK_MORE` 算一个 LLM assistant turn。
 
-The local opening message does not count as one of the 5 LLM assistant turns.
+本地 opening message 不算。
 
-## Decisions
+## 5. Decision Types
 
 ### ALLOW
 
-Effect:
+效果：
 
-- Create temporary unlock.
-- Unlock duration may be suggested by LLM.
-- Extension clamps duration by Strictness cap.
+- 创建 temporary unlock。
+- LLM 可以建议 `unlockMinutes`。
+- Extension 按 strictness cap clamp。
 
-Default caps:
+默认 cap：
 
-- Gentle: 30 minutes.
-- Balanced: 15 minutes.
-- Strict: 10 minutes.
-- Monk: 5 minutes.
+- Gentle：30 分钟。
+- Balanced：15 分钟。
+- Strict：10 分钟。
+- Monk：5 分钟。
 
 ### DELAY
 
-Effect:
+效果：
 
-- Show delay timer.
-- Target remains blocked.
-- After timer ends, user continues same track.
+- 显示 delay timer。
+- Target 继续被阻断。
+- 倒计时结束后，用户在同一个 track 继续聊。
 
 ### ASK_MORE
 
-Effect:
+效果：
 
-- AI asks one more question.
-- No timer.
-- Same track continues.
+- AI 问一个额外问题。
+- 不启动 timer。
+- 同一个 track 继续。
 
 ### BLOCK
 
-Effect:
+效果：
 
-- Target blocked until local next day 00:00.
-- Same target cannot start a new AI Track during hold.
-- User can still Leave Site / Close Tab.
+- 阻断到本地时间第二天 00:00。
+- 同一个 target 在 block hold 期间不能开启新 AI Track。
+- 用户仍可 `Leave Site`。
 
-## Track State Machine
+## 6. Track State Machine
 
 ```text
 locked
@@ -124,7 +129,13 @@ expired
   -> completed
 ```
 
-## Data Model
+实现建议：
+
+- 不要把状态散落在 React component 里。
+- 用 `ai-track-state.ts` 集中处理 transition。
+- UI 只根据 state render。
+
+## 7. Data Model
 
 ```ts
 type AIDecision = "ALLOW" | "DELAY" | "ASK_MORE" | "BLOCK";
@@ -159,7 +170,7 @@ interface AITrackMessage {
 }
 ```
 
-## Structured Output Schema
+## 8. Structured Output Schema
 
 ```ts
 interface CheckpointDecision {
@@ -193,89 +204,88 @@ interface CheckpointDecision {
 }
 ```
 
-Validation rules:
+Validation rules：
 
-- `decision` is required.
-- `userFacingMessage` is required.
-- `unlockMinutes` required only for `ALLOW`.
-- `delaySeconds` required only for `DELAY`.
-- `nextQuestion` required only for `ASK_MORE`.
-- Scores should be numbers from 0 to 1.
-- Invalid JSON triggers one retry.
-- Invalid after retry becomes provider_error, not an enforceable decision.
+- `decision` 必须存在。
+- `userFacingMessage` 必须存在。
+- `ALLOW` 必须有 `unlockMinutes`。
+- `DELAY` 必须有 `delaySeconds`。
+- `ASK_MORE` 必须有 `nextQuestion`。
+- scores 必须是 0 到 1。
+- invalid JSON retry 一次。
+- 第二次仍失败进入 `provider_error`。
 
-## Context Layers
+## 9. Context Layers
 
-Do not send all raw history. Build compact context:
+不要把所有 raw history 都塞进 LLM context。
 
-1. Gate Constitution.
-2. User Profile.
-3. Pattern Memory.
-4. Recent Track Summaries.
-5. Current Track messages.
+每次调用 LLM 时，构造：
+
+1. Gate Constitution。
+2. User Profile。
+3. Pattern Memory。
+4. Recent Track Summaries。
+5. Current Track Messages。
 
 ### Gate Constitution
 
-Stable behavior rules:
+稳定规则：
 
-- Non-shaming tone.
-- No explicit sexual content generation.
-- No moral judgment.
-- Focus on deliberate vs impulsive decision.
-- Challenge repeated excuses.
-- Respect Strictness.
-- Return JSON only.
+- Non-shaming tone。
+- No explicit sexual content generation。
+- No moral judgment。
+- Focus on deliberate vs impulsive decision。
+- Challenge repeated excuses。
+- Respect strictness。
+- Return JSON only。
 
 ### User Profile
 
-Includes:
+包含：
 
-- Strictness.
-- Goals.
-- Blocked target category.
-- Preferred tone.
-- Max turns per track.
+- Strictness。
+- Goals。
+- Preferred tone。
+- Max turns。
 
 ### Pattern Memory
 
-Includes:
+包含：
 
-- Common repeated reasons.
-- High-risk time windows.
-- Recurring impulse patterns.
-- AI guidance for future sessions.
+- Common repeated reasons。
+- High-risk time windows。
+- Recurring impulse patterns。
+- AI guidance for future sessions。
 
 ### Recent Track Summaries
 
-Include only recent relevant summaries, not raw full transcripts.
+只放摘要，不放完整 raw transcripts。
 
 ### Current Track
 
-Includes:
+包含：
 
-- Current target.
-- Local time.
-- Opening message.
-- Current conversation messages.
+- Current target。
+- Local time。
+- Opening message。
+- Current conversation messages。
 
-## Provider Errors
-
-Unavailable states:
+## 10. Provider Error
 
 | Error | UI behavior |
 | --- | --- |
-| License locked | Show locked AI panel. |
-| API key missing | Show setup prompt. |
-| API key invalid | Show invalid key message and link to settings. |
-| Provider balance/rate limit | Show provider error, keep blocker active. |
-| Network failure | Show retry button. |
-| Invalid model output | Show invalid response after one retry. |
+| License locked | Chat panel locked。 |
+| API key missing | 显示 setup prompt。 |
+| API key invalid | 显示 invalid key，并链接到 settings。 |
+| Provider quota/rate limit | 显示 provider error，保持阻断。 |
+| Network failure | 显示 retry。 |
+| Invalid model output | retry 一次后显示 invalid response。 |
 
-Provider errors never allow the target.
+Provider error 永远不能自动放行。
 
-## Track Summary
+## 11. Track Summary
 
-At completion, save:
+完成时保存：
 
 ```ts
 interface AITrackSummary {
@@ -289,17 +299,13 @@ interface AITrackSummary {
 }
 ```
 
-Summary can be generated by:
+MVP 可以用 LLM response 里的 `memoryUpdate` 和最后几条 messages 生成简单 summary。
 
-- LLM in the structured output if enough.
-- Local deterministic summarization for MVP.
+## 12. Pattern Memory Update
 
-## Pattern Memory Update
+更新时机：
 
-Update Pattern Memory when:
-
-- A repeated reason is detected.
-- A high-risk time window appears.
-- User uses the same reason category frequently.
-- AI decision is BLOCK or DELAY due to repeated excuse.
-
+- 检测到 repeated reason。
+- 出现 high-risk time window。
+- 某 reasonCategory 高频出现。
+- AI 因 repeated excuse 返回 `DELAY` 或 `BLOCK`。

@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>文件与函数蓝图 File and Function Blueprint · BetterMe Docs</title>
+  <style>
+    :root { color-scheme: light; --text:#17202a; --muted:#607080; --line:#dbe4ee; --bg:#f8fafc; --panel:#ffffff; --code:#edf3f8; --accent:#2563eb; --accent-soft:#eff6ff; }
+    * { box-sizing: border-box; } html { scroll-behavior: smooth; } body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.72; color:var(--text); background:radial-gradient(circle at 16% 0%, #eaf2ff 0, transparent 28%), linear-gradient(180deg,#f8fafc 0%,#ffffff 42%,#f8fafc 100%); }
+    .shell { display:grid; grid-template-columns:minmax(0, 1fr) 250px; gap:32px; max-width:1220px; margin:0 auto; padding:34px 22px 86px; } main { min-width:0; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:14px; padding:36px 44px; box-shadow:0 20px 60px rgba(15,23,42,.07); animation: pageIn .42s ease both; } nav { position:sticky; top:24px; align-self:start; background:rgba(255,255,255,.92); backdrop-filter: blur(10px); border:1px solid var(--line); border-radius:14px; padding:18px; max-height:calc(100vh - 48px); overflow:auto; animation: pageIn .52s ease both; } nav h2 { margin:0 0 8px; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border:0; padding:0; } nav ul { margin:0; padding-left:18px; } nav li { margin:7px 0; font-size:14px; } .top-link { display:inline-block; margin-bottom:18px; color:var(--accent); text-decoration:none; font-size:14px; }
+    h1 { font-size:36px; line-height:1.16; margin:0 0 22px; color:#0f172a; letter-spacing:0; } h2 { font-size:24px; line-height:1.28; margin:40px 0 14px; padding-top:24px; border-top:1px solid var(--line); color:#0f172a; } h3 { font-size:18px; margin:28px 0 10px; color:#111827; } h4,h5,h6{ margin:22px 0 8px; } p { margin:12px 0; } a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; } code { background:var(--code); padding:2px 6px; border-radius:6px; font-size:.92em; } pre { background:#0f172a; color:#e5e7eb; padding:17px; border-radius:10px; overflow:auto; line-height:1.55; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); } pre code { background:transparent; padding:0; color:inherit; } ul,ol { padding-left:24px; } li { margin:6px 0; } blockquote { margin:18px 0; padding:14px 17px; border-left:4px solid #60a5fa; background:var(--accent-soft); color:#1e3a8a; border-radius:8px; } .table-wrap { overflow-x:auto; margin:17px 0; border-radius:10px; border:1px solid var(--line); } table { width:100%; border-collapse:collapse; background:#fff; } th,td { border-bottom:1px solid var(--line); padding:11px 13px; vertical-align:top; text-align:left; } th { background:#f1f5f9; font-weight:650; color:#0f172a; } tr:last-child td{border-bottom:0;} main > * { animation: fadeUp .34s ease both; } @keyframes pageIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } } @keyframes fadeUp { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } } @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } } @media (max-width: 920px) { .shell { display:block; padding:18px 14px 58px; } main { padding:24px 18px; } nav { position:static; margin-top:18px; } h1 { font-size:28px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <main>
+      <a class="top-link" href="../README.html">Back to documentation home</a>
+      <h1 id="文件与函数蓝图-file-and-function-blueprint">文件与函数蓝图 File and Function Blueprint</h1>
+<p>这份文档回答三个最具体的问题：</p>
+<ol>
+<li>我要写哪几个文件？</li>
+<li>每个文件里有哪些函数？</li>
+<li>每个函数负责什么？</li>
+</ol>
+<p>它不是最终代码，但你可以按这个清单逐个手写实现。</p>
+<h2 id="1-最小可运行目录">1. 最小可运行目录</h2>
+<pre><code class="language-text">apps/extension/
+  manifest.json
+  package.json
+  vite.config.ts
+  index.html
+  src/
+    background/
+    pages/
+    storage/
+    blocking/
+    ai/
+    license/
+    shared/</code></pre>
+<p>建议顺序：</p>
+<ol>
+<li><code>shared/types.ts</code></li>
+<li><code>shared/constants.ts</code></li>
+<li><code>storage/local-store.ts</code></li>
+<li><code>blocking/target-parser.ts</code></li>
+<li><code>background/message-router.ts</code></li>
+<li><code>background/dnr-rules.ts</code></li>
+<li><code>pages/settings/SettingsPage.tsx</code></li>
+<li><code>pages/popup/PopupPage.tsx</code></li>
+<li><code>pages/block/BlockPage.tsx</code></li>
+<li><code>ai/*</code></li>
+</ol>
+<h2 id="2-shared-types-ts">2. <code>shared/types.ts</code></h2>
+<p>放所有跨模块共享的 type。</p>
+<pre><code class="language-ts">export type StrictnessLevel = &quot;gentle&quot; | &quot;balanced&quot; | &quot;strict&quot; | &quot;monk&quot;;
+export type BlockedTargetType = &quot;domain&quot; | &quot;exactUrl&quot;;
+export type AIDecision = &quot;ALLOW&quot; | &quot;DELAY&quot; | &quot;ASK_MORE&quot; | &quot;BLOCK&quot;;
+export type ProviderId = &quot;openai&quot; | &quot;deepseek&quot; | &quot;kimi&quot;;</code></pre>
+<p>需要定义：</p>
+<ul>
+<li><code>BlockedTarget</code></li>
+<li><code>TemporaryUnlock</code></li>
+<li><code>BlockHold</code></li>
+<li><code>UserSettings</code></li>
+<li><code>LicenseState</code></li>
+<li><code>LLMProviderConfig</code></li>
+<li><code>AITrack</code></li>
+<li><code>AITrackMessage</code></li>
+<li><code>CheckpointDecision</code></li>
+<li><code>AITrackSummary</code></li>
+<li><code>PatternMemory</code></li>
+<li><code>ExtensionMessage</code></li>
+<li><code>ExtensionResult&lt;T&gt;</code></li>
+<li><code>ExtensionError</code></li>
+</ul>
+<p>实现重点：</p>
+<ul>
+<li>Type 应该表达业务规则。</li>
+<li>不要把 provider response 直接当业务 model。</li>
+</ul>
+<h2 id="3-shared-constants-ts">3. <code>shared/constants.ts</code></h2>
+<p>放固定配置。</p>
+<p>函数/常量：</p>
+<pre><code class="language-ts">export const BASIC_COOLDOWN_SECONDS = 5 * 60;
+export const AI_TRACK_MAX_ASSISTANT_TURNS = 5;
+export const AI_TRACK_MAX_SECONDS = 10 * 60;
+export const STRICTNESS_UNLOCK_CAP_MINUTES = {...};
+export const PROVIDER_DEFAULTS = {...};</code></pre>
+<p>职责：</p>
+<ul>
+<li>避免 magic number。</li>
+<li>所有规则变更都能在这里或 decision record 找到。</li>
+</ul>
+<h2 id="4-storage-local-store-ts">4. <code>storage/local-store.ts</code></h2>
+<p>封装 <code>chrome.storage.local</code>。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export async function getLocalValue&lt;T&gt;(key: string, fallback: T): Promise&lt;T&gt;;
+export async function setLocalValue&lt;T&gt;(key: string, value: T): Promise&lt;void&gt;;
+export async function removeLocalValue(key: string): Promise&lt;void&gt;;
+export async function clearBetterMeLocalData(): Promise&lt;void&gt;;</code></pre>
+<p>职责：</p>
+<ul>
+<li>统一 Promise wrapper。</li>
+<li>处理 fallback。</li>
+<li>不在业务代码里直接散落 <code>chrome.storage.local.get/set</code>。</li>
+</ul>
+<h2 id="5-storage-indexed-db-ts">5. <code>storage/indexed-db.ts</code></h2>
+<p>封装 IndexedDB。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export async function openBetterMeDb(): Promise&lt;IDBDatabase&gt;;
+export async function putRecord&lt;T&gt;(storeName: string, record: T): Promise&lt;void&gt;;
+export async function getRecord&lt;T&gt;(storeName: string, id: string): Promise&lt;T | null&gt;;
+export async function getAllRecords&lt;T&gt;(storeName: string): Promise&lt;T[]&gt;;
+export async function deleteRecord(storeName: string, id: string): Promise&lt;void&gt;;
+export async function clearStore(storeName: string): Promise&lt;void&gt;;</code></pre>
+<p>Object stores：</p>
+<ul>
+<li><code>aiTracks</code></li>
+<li><code>aiTrackMessages</code></li>
+<li><code>aiTrackSummaries</code></li>
+<li><code>patternMemories</code></li>
+<li><code>cryptoKeys</code></li>
+<li><code>encryptedApiKeys</code></li>
+</ul>
+<p>职责：</p>
+<ul>
+<li>处理 schema version。</li>
+<li>让业务层不用碰 IndexedDB boilerplate。</li>
+</ul>
+<h2 id="6-storage-crypto-key-store-ts">6. <code>storage/crypto-key-store.ts</code></h2>
+<p>处理 API Key 加密。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export async function generateCryptoKey(): Promise&lt;CryptoKey&gt;;
+export async function saveCryptoKey(id: string, key: CryptoKey): Promise&lt;void&gt;;
+export async function loadCryptoKey(id: string): Promise&lt;CryptoKey | null&gt;;
+export async function encryptApiKey(apiKey: string, key: CryptoKey): Promise&lt;{ ciphertextBase64: string; ivBase64: string }&gt;;
+export async function decryptApiKey(record: EncryptedApiKeyRecord, key: CryptoKey): Promise&lt;string&gt;;
+export async function saveEncryptedApiKey(input: SaveApiKeyInput): Promise&lt;EncryptedApiKeyRecord&gt;;
+export async function loadDecryptedApiKey(provider: ProviderId): Promise&lt;string | null&gt;;
+export async function deleteApiKey(provider: ProviderId): Promise&lt;void&gt;;</code></pre>
+<p>职责：</p>
+<ul>
+<li>不让 plaintext API Key 进入 React UI。</li>
+<li>不把 plaintext 存 storage。</li>
+<li>所有 crypto 相关逻辑集中在一处。</li>
+</ul>
+<h2 id="7-blocking-target-parser-ts">7. <code>blocking/target-parser.ts</code></h2>
+<p>处理用户输入和 current tab URL。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function parseHttpUrl(input: string): URL;
+export function normalizeDomain(hostname: string): string;
+export function normalizeDomainTarget(input: string): BlockedTarget;
+export function normalizeExactUrlTarget(input: string): BlockedTarget;
+export function getDisplayTarget(target: BlockedTarget): string;
+export function isSupportedProtocol(url: URL): boolean;</code></pre>
+<p>职责：</p>
+<ul>
+<li>区分 domain target 和 exact URL target。</li>
+<li>确保只支持 <code>http</code> / <code>https</code>。</li>
+<li>去掉 domain 前面的 <code>www.</code> 是否要做，先按 product decision 保守处理。</li>
+</ul>
+<h2 id="8-blocking-match-rules-ts">8. <code>blocking/match-rules.ts</code></h2>
+<p>处理 target matching 的纯函数。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function doesDomainMatch(hostname: string, domain: string): boolean;
+export function doesExactUrlMatch(currentUrl: string, blockedUrl: string): boolean;
+export function findMatchingTarget(url: string, targets: BlockedTarget[]): BlockedTarget | null;</code></pre>
+<p>职责：</p>
+<ul>
+<li>方便 unit test。</li>
+<li>DNR rules 之外，本地 UI 判断也能用同一套逻辑。</li>
+</ul>
+<h2 id="9-blocking-unlocks-ts">9. <code>blocking/unlocks.ts</code></h2>
+<p>管理 temporary unlock 和 block hold。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function createTemporaryUnlock(input: CreateUnlockInput): TemporaryUnlock;
+export function isUnlockActive(unlock: TemporaryUnlock, now: Date): boolean;
+export function createBlockHoldUntilNextDay(input: CreateBlockHoldInput, now: Date): BlockHold;
+export function isBlockHoldActive(hold: BlockHold, now: Date): boolean;
+export function getNextLocalMidnight(now: Date): Date;</code></pre>
+<p>职责：</p>
+<ul>
+<li><code>BLOCK</code> 到本地第二天 00:00 的逻辑必须在这里。</li>
+<li>时间逻辑必须可测。</li>
+</ul>
+<h2 id="10-blocking-timers-ts">10. <code>blocking/timers.ts</code></h2>
+<p>处理 countdown 相关纯函数。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function createCooldownTimer(now: Date, seconds: number): CountdownTimer;
+export function getRemainingSeconds(expiresAt: string, now: Date): number;
+export function isTimerExpired(expiresAt: string, now: Date): boolean;</code></pre>
+<p>职责：</p>
+<ul>
+<li>Basic Cooldown 和 AI DELAY 都用这套 timer helper。</li>
+</ul>
+<h2 id="11-background-dnr-rules-ts">11. <code>background/dnr-rules.ts</code></h2>
+<p>把 <code>BlockedTarget</code> 转换成 Chrome DNR rules。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function buildRedirectUrl(targetId: string, originalUrl: string): string;
+export function buildDomainRule(target: BlockedTarget, ruleId: number): chrome.declarativeNetRequest.Rule;
+export function buildExactUrlRule(target: BlockedTarget, ruleId: number): chrome.declarativeNetRequest.Rule;
+export function buildDnrRules(targets: BlockedTarget[]): chrome.declarativeNetRequest.Rule[];
+export async function replaceDynamicRules(rules: chrome.declarativeNetRequest.Rule[]): Promise&lt;void&gt;;
+export async function rebuildBlockingRules(): Promise&lt;void&gt;;</code></pre>
+<p>职责：</p>
+<ul>
+<li>只处理 DNR。</li>
+<li>不处理 React state。</li>
+<li>不处理 AI decision。</li>
+</ul>
+<h2 id="12-background-message-router-ts">12. <code>background/message-router.ts</code></h2>
+<p>集中处理 UI message。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function registerMessageRouter(): void;
+async function handleMessage(message: ExtensionMessage): Promise&lt;ExtensionResult&lt;unknown&gt;&gt;;
+function toExtensionError(error: unknown): ExtensionError;</code></pre>
+<p>Message handlers：</p>
+<ul>
+<li><code>blockedTargets/add</code></li>
+<li><code>blockedTargets/list</code></li>
+<li><code>blockedTargets/delete</code></li>
+<li><code>license/getStatus</code></li>
+<li><code>license/mockUnlock</code></li>
+<li><code>provider/saveApiKey</code></li>
+<li><code>provider/test</code></li>
+<li><code>aiTrack/start</code></li>
+<li><code>aiTrack/sendMessage</code></li>
+<li><code>aiTrack/getState</code></li>
+</ul>
+<p>职责：</p>
+<ul>
+<li>UI page 只和 message-router 对话。</li>
+<li>所有错误统一转换。</li>
+</ul>
+<h2 id="13-background-service-worker-ts">13. <code>background/service-worker.ts</code></h2>
+<p>Service worker entry。</p>
+<p>函数：</p>
+<pre><code class="language-ts">import { registerMessageRouter } from &quot;./message-router&quot;;
+
+registerMessageRouter();
+
+chrome.runtime.onInstalled.addListener(async () =&gt; {
+  await rebuildBlockingRules();
+});</code></pre>
+<p>职责：</p>
+<ul>
+<li>尽量薄。</li>
+<li>注册 listener。</li>
+<li>安装/启动时恢复 DNR rules。</li>
+</ul>
+<h2 id="14-ai-checkpoint-schema-ts">14. <code>ai/checkpoint-schema.ts</code></h2>
+<p>定义和校验 structured decision。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function parseCheckpointDecision(rawText: string): CheckpointDecision;
+export function validateCheckpointDecision(value: unknown): CheckpointDecision;
+export function isFinalDecision(decision: AIDecision): boolean;
+export function clampUnlockMinutes(decision: CheckpointDecision, strictness: StrictnessLevel): CheckpointDecision;</code></pre>
+<p>职责：</p>
+<ul>
+<li>LLM output 必须经过这里。</li>
+<li>不允许 UI 直接 parse JSON。</li>
+</ul>
+<h2 id="15-ai-prompt-ts">15. <code>ai/prompt.ts</code></h2>
+<p>放 prompt builder。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function buildGateConstitution(): string;
+export function buildSystemPrompt(input: PromptInput): string;
+export function buildInvalidJsonRetryPrompt(schemaDescription: string): string;
+export function buildLocalOpeningMessage(displayTarget: string): string;</code></pre>
+<p>职责：</p>
+<ul>
+<li>Prompt 统一管理。</li>
+<li>Opening message 本地生成。</li>
+<li>JSON-only 规则清楚。</li>
+</ul>
+<h2 id="16-ai-context-builder-ts">16. <code>ai/context-builder.ts</code></h2>
+<p>构造 LLM context。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export async function buildCheckpointContext(input: BuildContextInput): Promise&lt;ChatMessage[]&gt;;
+export async function loadRelevantPatternMemory(targetId: string): Promise&lt;PatternMemory[]&gt;;
+export async function loadRecentTrackSummaries(targetId: string): Promise&lt;AITrackSummary[]&gt;;
+export function buildCurrentTrackMessages(messages: AITrackMessage[]): ChatMessage[];</code></pre>
+<p>职责：</p>
+<ul>
+<li>不发送全部 raw history。</li>
+<li>只发送必要 context layers。</li>
+</ul>
+<h2 id="17-ai-provider-client-ts">17. <code>ai/provider-client.ts</code></h2>
+<p>OpenAI-compatible fetch client。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export async function fetchChatCompletion(input: ChatCompletionInput): Promise&lt;ChatCompletionOutput&gt;;
+export function buildProviderUrl(config: LLMProviderConfig): string;
+export function buildProviderHeaders(apiKey: string): Record&lt;string, string&gt;;
+export function extractAssistantText(response: unknown): string;
+export function normalizeProviderError(error: unknown): ProviderError;
+export async function testProviderKey(config: LLMProviderConfig): Promise&lt;void&gt;;</code></pre>
+<p>职责：</p>
+<ul>
+<li>不关心 UI。</li>
+<li>不关心 DNR。</li>
+<li>只负责 provider request/response。</li>
+</ul>
+<h2 id="18-ai-ai-track-state-ts">18. <code>ai/ai-track-state.ts</code></h2>
+<p>AI Track 状态机。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export function createAITrack(input: StartTrackInput, now: Date): AITrack;
+export function addLocalOpeningMessage(track: AITrack, displayTarget: string, now: Date): AITrackMessage;
+export function canSendUserMessage(track: AITrack, now: Date): boolean;
+export function applyDecision(track: AITrack, decision: CheckpointDecision, now: Date): AITrackTransitionResult;
+export function expireTrackIfNeeded(track: AITrack, now: Date): AITrack;</code></pre>
+<p>职责：</p>
+<ul>
+<li>集中处理 ALLOW/DELAY/ASK_MORE/BLOCK。</li>
+<li>保证 max turns 和 max duration。</li>
+</ul>
+<h2 id="19-ai-pattern-memory-ts">19. <code>ai/pattern-memory.ts</code></h2>
+<p>处理 Pattern Memory。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export async function summarizeTrack(trackId: string): Promise&lt;AITrackSummary&gt;;
+export async function updatePatternMemoryFromDecision(input: PatternMemoryUpdateInput): Promise&lt;void&gt;;
+export function mergePatternNote(oldNote: string | null, newNote: string | null): string | null;
+export function computeFrequencyScore(previousScore: number, now: Date, lastSeenAt?: string): number;</code></pre>
+<p>职责：</p>
+<ul>
+<li>让 AI “记得借口”。</li>
+<li>不保存全部 raw transcript 作为长期 memory。</li>
+</ul>
+<h2 id="20-ai-llm-runner-ts">20. <code>ai/llm-runner.ts</code></h2>
+<p>把 context、provider、schema、state 串起来。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export async function runCheckpointTurn(input: RunCheckpointTurnInput): Promise&lt;RunCheckpointTurnResult&gt;;
+async function callProviderWithRetry(input: ProviderCallInput): Promise&lt;CheckpointDecision&gt;;
+async function handleInvalidJsonRetry(input: RetryInput): Promise&lt;CheckpointDecision&gt;;</code></pre>
+<p>职责：</p>
+<ul>
+<li>一次 user message -&gt; 一次 LLM turn -&gt; 一个 validated decision。</li>
+<li>invalid JSON retry 一次。</li>
+<li>provider error 转换成 <code>provider_error</code>。</li>
+</ul>
+<h2 id="21-license-mock-license-ts">21. <code>license/mock-license.ts</code></h2>
+<p>本地 mock unlock。</p>
+<p>函数：</p>
+<pre><code class="language-ts">export async function getLicenseState(): Promise&lt;LicenseState&gt;;
+export async function enableMockLifetime(): Promise&lt;LicenseState&gt;;
+export async function disableMockLifetime(): Promise&lt;LicenseState&gt;;
+export function hasFeature(state: LicenseState, feature: LicenseFeature): boolean;</code></pre>
+<p>职责：</p>
+<ul>
+<li>MVP 不接真实 payment。</li>
+<li>先把 feature gate 跑通。</li>
+</ul>
+<h2 id="22-react-pages">22. React Pages</h2>
+<h3 id="pages-popup-popuppage-tsx"><code>pages/popup/PopupPage.tsx</code></h3>
+<p>职责：</p>
+<ul>
+<li>读取当前 tab。</li>
+<li>显示 <code>Block this site</code>。</li>
+<li>默认添加 domain。</li>
+<li>Advanced 展示 exact URL option。</li>
+</ul>
+<p>主要函数：</p>
+<pre><code class="language-ts">async function loadCurrentTabUrl(): Promise&lt;string&gt;;
+async function addCurrentDomain(): Promise&lt;void&gt;;
+async function addExactCurrentUrl(): Promise&lt;void&gt;;</code></pre>
+<h3 id="pages-settings-settingspage-tsx"><code>pages/settings/SettingsPage.tsx</code></h3>
+<p>职责：</p>
+<ul>
+<li>管理 blocked targets。</li>
+<li>管理 strictness。</li>
+<li>管理 provider settings。</li>
+<li>管理 privacy/export/delete。</li>
+<li>Dev mock unlock。</li>
+</ul>
+<p>主要组件：</p>
+<ul>
+<li><code>BlockedSitesSettings</code></li>
+<li><code>ProviderSettings</code></li>
+<li><code>PrivacySettings</code></li>
+<li><code>LicenseSettings</code></li>
+</ul>
+<h3 id="pages-block-blockpage-tsx"><code>pages/block/BlockPage.tsx</code></h3>
+<p>职责：</p>
+<ul>
+<li>读取 <code>targetId</code> 和 original URL。</li>
+<li>显示 target status。</li>
+<li>渲染 left action area。</li>
+<li>渲染 right AI panel。</li>
+</ul>
+<p>主要函数：</p>
+<pre><code class="language-ts">function loadBlockPageState(): Promise&lt;BlockPageState&gt;;
+async function startCooldown(): Promise&lt;void&gt;;
+async function leaveSite(): Promise&lt;void&gt;;
+async function startAITrack(): Promise&lt;void&gt;;
+async function sendAIMessage(content: string): Promise&lt;void&gt;;</code></pre>
+<h3 id="pages-block-aichatpanel-tsx"><code>pages/block/AIChatPanel.tsx</code></h3>
+<p>职责：</p>
+<ul>
+<li>显示 opening message。</li>
+<li>显示 messages。</li>
+<li>显示 turns/time remaining。</li>
+<li>显示 locked/unavailable/provider error。</li>
+<li>显示 final decision。</li>
+</ul>
+<h3 id="pages-block-actionpanel-tsx"><code>pages/block/ActionPanel.tsx</code></h3>
+<p>职责：</p>
+<ul>
+<li><code>Leave Site</code> / <code>Close Tab</code>。</li>
+<li><code>Start Cooldown</code>。</li>
+<li>Countdown。</li>
+<li>Settings shortcut。</li>
+</ul>
+<h2 id="23-第一批-unit-tests">23. 第一批 Unit Tests</h2>
+<p>优先写这些：</p>
+<ul>
+<li><code>normalizeDomainTarget</code></li>
+<li><code>normalizeExactUrlTarget</code></li>
+<li><code>doesDomainMatch</code></li>
+<li><code>doesExactUrlMatch</code></li>
+<li><code>getNextLocalMidnight</code></li>
+<li><code>clampUnlockMinutes</code></li>
+<li><code>validateCheckpointDecision</code></li>
+<li><code>normalizeProviderError</code></li>
+</ul>
+<h2 id="24-手写实现建议">24. 手写实现建议</h2>
+<p>顺序：</p>
+<ol>
+<li>先写 pure functions。</li>
+<li>再写 storage wrappers。</li>
+<li>再写 message router。</li>
+<li>再写 UI。</li>
+<li>最后接 provider。</li>
+</ol>
+<p>原因：</p>
+<ul>
+<li>Pure functions 容易测。</li>
+<li>Storage 和 message router 稳定后，UI 更好写。</li>
+<li>Provider 最后接，避免被 API 问题卡住核心体验。</li>
+</ul>
+    </main>
+    <nav><h2>On this page</h2><ul><li class="toc-l2"><a href="#1-最小可运行目录">1. 最小可运行目录</a></li><li class="toc-l2"><a href="#2-shared-types-ts">2. `shared/types.ts`</a></li><li class="toc-l2"><a href="#3-shared-constants-ts">3. `shared/constants.ts`</a></li><li class="toc-l2"><a href="#4-storage-local-store-ts">4. `storage/local-store.ts`</a></li><li class="toc-l2"><a href="#5-storage-indexed-db-ts">5. `storage/indexed-db.ts`</a></li><li class="toc-l2"><a href="#6-storage-crypto-key-store-ts">6. `storage/crypto-key-store.ts`</a></li><li class="toc-l2"><a href="#7-blocking-target-parser-ts">7. `blocking/target-parser.ts`</a></li><li class="toc-l2"><a href="#8-blocking-match-rules-ts">8. `blocking/match-rules.ts`</a></li><li class="toc-l2"><a href="#9-blocking-unlocks-ts">9. `blocking/unlocks.ts`</a></li><li class="toc-l2"><a href="#10-blocking-timers-ts">10. `blocking/timers.ts`</a></li><li class="toc-l2"><a href="#11-background-dnr-rules-ts">11. `background/dnr-rules.ts`</a></li><li class="toc-l2"><a href="#12-background-message-router-ts">12. `background/message-router.ts`</a></li><li class="toc-l2"><a href="#13-background-service-worker-ts">13. `background/service-worker.ts`</a></li><li class="toc-l2"><a href="#14-ai-checkpoint-schema-ts">14. `ai/checkpoint-schema.ts`</a></li><li class="toc-l2"><a href="#15-ai-prompt-ts">15. `ai/prompt.ts`</a></li><li class="toc-l2"><a href="#16-ai-context-builder-ts">16. `ai/context-builder.ts`</a></li><li class="toc-l2"><a href="#17-ai-provider-client-ts">17. `ai/provider-client.ts`</a></li><li class="toc-l2"><a href="#18-ai-ai-track-state-ts">18. `ai/ai-track-state.ts`</a></li><li class="toc-l2"><a href="#19-ai-pattern-memory-ts">19. `ai/pattern-memory.ts`</a></li><li class="toc-l2"><a href="#20-ai-llm-runner-ts">20. `ai/llm-runner.ts`</a></li><li class="toc-l2"><a href="#21-license-mock-license-ts">21. `license/mock-license.ts`</a></li><li class="toc-l2"><a href="#22-react-pages">22. React Pages</a></li><li class="toc-l2"><a href="#23-第一批-unit-tests">23. 第一批 Unit Tests</a></li><li class="toc-l2"><a href="#24-手写实现建议">24. 手写实现建议</a></li></ul></nav>
+  </div>
+</body>
+</html>

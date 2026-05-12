@@ -1,21 +1,21 @@
-# Blocking and Routing Spec
+# 阻断与路由规格 Blocking and Routing Spec
 
-## Goals
+## 1. 目标
 
-The blocking system must:
+Blocking system 必须：
 
-- Be privacy-first.
-- Avoid reading page content.
-- Avoid reading full browser history.
-- Block user-defined targets reliably.
-- Redirect blocked visits to BetterMe block page.
-- Support temporary unlock, delay, cooldown, and block-until-next-day.
+- Privacy-first。
+- 不读取 page content。
+- 不读取 full browser history。
+- 稳定阻断用户定义的 target。
+- Redirect 到 BetterMe Block Page。
+- 支持 temporary unlock、cooldown、delay、block hold。
 
-## Target Types
+## 2. Target Types
 
-### Domain Target
+### 2.1 Domain Target
 
-User input:
+用户输入：
 
 ```text
 youtube.com
@@ -23,96 +23,96 @@ https://youtube.com
 https://www.youtube.com/watch?v=abc
 ```
 
-If user chooses domain blocking, normalize to:
+如果用户选择 domain blocking，normalize 成：
 
 ```ts
-{
-  type: "domain",
-  domain: "youtube.com",
-  includeSubdomains: true
+interface DomainTarget {
+  type: "domain";
+  domain: "youtube.com";
+  includeSubdomains: true;
 }
 ```
 
-Matching:
+匹配：
 
 - `youtube.com`
 - `www.youtube.com`
 - `m.youtube.com`
 - `music.youtube.com`
 
-Not matching:
+不匹配：
 
 - `notyoutube.com`
 - `youtube.com.example.com`
 
-### Exact URL Target
+### 2.2 Exact URL Target
 
-User input:
+用户输入：
 
 ```text
 https://www.youtube.com/shorts/abc123
 ```
 
-If user chooses exact URL blocking, normalize to:
+如果用户选择 exact URL blocking，normalize 成：
 
 ```ts
-{
-  type: "exactUrl",
-  url: "https://www.youtube.com/shorts/abc123"
+interface ExactUrlTarget {
+  type: "exactUrl";
+  url: "https://www.youtube.com/shorts/abc123";
 }
 ```
 
-MVP matching:
+MVP 规则：
 
-- Exact URL only.
-- No wildcard.
-- No path prefix matching.
-- Query params should be preserved unless normalization later explicitly changes this.
+- Exact only。
+- 不支持 wildcard。
+- 不支持 path prefix。
+- Query params 默认保留。
 
-## Add Current Page UI
+## 3. Add Current Page UI
 
-Default UI:
+默认 UI：
 
 ```text
 Block this site
 [Add youtube.com and subdomains]
 ```
 
-Advanced collapsed UI:
+Advanced 展开后：
 
 ```text
 Advanced
 [Only block this exact URL]
 ```
 
-Rationale:
+原因：
 
-- Most users want domain blocking.
-- Exact URL blocking is useful but should not complicate the default flow.
+- 大多数用户想阻断整个 domain。
+- Exact URL 是小众需求，不应该干扰默认流程。
 
-## DNR Redirect
+## 4. DNR Redirect
 
-Use `chrome.declarativeNetRequest` dynamic rules to redirect matching main-frame requests to:
+使用 `chrome.declarativeNetRequest` dynamic rules，把匹配的 main-frame request redirect 到：
 
 ```text
 chrome-extension://{extensionId}/block.html?targetId={targetId}&url={encodedOriginalUrl}
 ```
 
-The block page should display a normalized target:
+Block Page 显示 normalized target：
 
-- Domain target: `youtube.com`
-- Exact URL target: `youtube.com/shorts/abc123`
+- Domain：`youtube.com`
+- Exact URL：`youtube.com/shorts/abc123`
 
-Do not display long tracking query strings by default.
+不要默认展示很长的 tracking query。
 
-Reference:
+官方文档：
 
 - [chrome.declarativeNetRequest](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
 - [Match patterns](https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns)
 
-## Temporary Unlocks
+## 5. Temporary Unlock
 
-When AI decision is `ALLOW`, BetterMe creates a temporary unlock:
+当 AI decision 是 `ALLOW`，创建 temporary unlock。
 
 ```ts
 interface TemporaryUnlock {
@@ -126,68 +126,70 @@ interface TemporaryUnlock {
 }
 ```
 
-During unlock:
+行为：
 
-- The target should be allowed.
-- Unlock expires automatically.
-- Unlock should survive browser restart until `expiresAt`.
+- unlock 期间 target 可以访问。
+- 到期后自动恢复阻断。
+- 浏览器重启后，只要没过期仍然有效。
 
-Implementation options:
+实现选项：
 
-1. Remove or disable the matching DNR rule temporarily, then restore later.
-2. Use higher-priority allow rules for unlocked targets.
+1. 暂时 remove/disable 对应 DNR rule，到期 restore。
+2. 添加 higher-priority allow rule。
 
-Prefer the simpler implementation first, but keep the rule update deterministic.
+MVP 可以先选更简单、可测试的实现。
 
-## Basic Cooldown
+## 6. Basic Cooldown
 
-Basic Cooldown is a free, non-AI delay.
+Basic Cooldown 是一个免费、非 AI 的冷静倒计时。
 
-Default:
+默认：
 
-- 5 minutes.
+- 5 分钟。
 
-Behavior:
+流程：
 
-1. User clicks `Start Cooldown`.
-2. Block page starts countdown.
-3. Target remains blocked.
-4. After countdown, user can:
-   - Leave Site.
-   - Start AI Check if unlocked and configured.
-   - Start another cooldown.
+1. 用户点击 `Start Cooldown`。
+2. Block Page 显示 5 分钟 countdown。
+3. Target 继续被阻断。
+4. 倒计时结束后，用户可以继续选择：
+   - `Leave Site`
+   - `Start AI Check`
+   - 再来一次 cooldown
 
-It does not:
+Basic Cooldown 不会：
 
-- Call LLM.
-- Require license.
-- Create AI Track.
-- Update Pattern Memory.
+- 调用 LLM。
+- 要求 license。
+- 创建 AI Track。
+- 更新 Pattern Memory。
 
-## Delay Timer
+## 7. Delay Timer
 
-Delay Timer is a state shown after:
+Delay Timer 是状态，不是单独功能。
 
-- Basic Cooldown.
-- AI decision `DELAY`.
+来源：
 
-For AI decision `DELAY`:
+- 用户主动开始 Basic Cooldown。
+- AI decision 返回 `DELAY`。
 
-- User stays in the same AI Track.
-- Countdown runs for `delaySeconds`.
-- After countdown, user can continue chatting in the same track.
-- No new track is created.
+如果来自 AI `DELAY`：
 
-## BLOCK Until Next Day
+- 保持同一个 AI Track。
+- 等待 `delaySeconds`。
+- 倒计时结束后，用户可以继续在同一个 track 里聊天。
+- 不创建新 track。
 
-When AI decision is `BLOCK`, BetterMe blocks the current target until local next day 00:00.
+## 8. BLOCK Until Next Day
 
-Example:
+当 AI decision 是 `BLOCK`，BetterMe 阻断当前 target 到用户本地时间第二天 00:00。
 
-- User local time: 2026-05-10 21:15.
-- Block expiry: 2026-05-11 00:00 local time.
+例子：
 
-Store:
+- 当前本地时间：2026-05-10 21:15。
+- block expiry：2026-05-11 00:00 local time。
+
+数据：
 
 ```ts
 interface BlockHold {
@@ -200,60 +202,56 @@ interface BlockHold {
 }
 ```
 
-During block hold:
+Block hold 期间：
 
-- AI Check should not allow a new AI Track for the same target.
-- UI should show the block hold timer.
-- User can still Leave Site.
+- 同一个 target 不能开始新的 AI Track。
+- UI 显示剩余时间。
+- 用户仍然可以 `Leave Site`。
 
-## Leave Site / Close Tab
+## 9. Leave Site / Close Tab
 
-The primary escape should be free and obvious.
+主逃离按钮必须免费、明显。
 
-Preferred button label:
+推荐 label：
 
-- If implementation closes the tab: `Close Tab`.
-- If implementation navigates away: `Leave Site`.
+- 如果实现是关闭 tab：`Close Tab`。
+- 如果实现是跳转离开：`Leave Site`。
 
-Avoid label:
+不要用：
 
-- `Close to Live`, because it is not natural English.
+- `Close to Live`，英文不自然。
 
-## Block Page Layout
-
-MVP layout:
+## 10. Block Page Layout
 
 ```text
 ----------------------------------------------------
 | Left action area       | Right AI Check area       |
-|                        |                           |
 | target                 | opening message           |
 | status                 | conversation              |
 | Leave Site / Close Tab | input box                 |
 | Start Cooldown         | turns/time remaining      |
-| Settings               | decision result           |
+| Settings               | final decision            |
 ----------------------------------------------------
 ```
 
-In Free:
+Free 状态：
 
-- Right AI Check area is visible but locked.
-- Show why it is locked.
-- Show Lifetime unlock entry.
+- 右侧 AI Check visible but locked。
+- 显示为什么 locked。
+- 显示 Lifetime unlock entry。
 
-In Lifetime BYOK:
+Lifetime BYOK 状态：
 
-- If key ready, show local opening message.
-- If key unavailable, show provider setup prompt.
+- key ready：显示本地 opening message。
+- key missing：显示 provider setup prompt。
 
-## Edge Cases
+## 11. Edge Cases
 
 | Case | Expected behavior |
 | --- | --- |
-| User deletes blocked target while on block page | Show target no longer blocked and offer settings/home. |
-| Unlock expires while page open | Timer ends; next navigation is blocked. |
-| DNR rule update fails | Show local error and keep existing rules unchanged. |
-| Exact URL includes query params | MVP exact match only; document behavior in UI. |
-| User enters invalid domain | Reject with validation message. |
-| User enters unsupported protocol | Support only `http` and `https` for MVP. |
-
+| 用户删除当前 target | 显示 target no longer blocked，并提供 settings/home。 |
+| unlock 过期 | 下一次 navigation 重新 blocked。 |
+| DNR rule update 失败 | 显示错误，保留旧 rules。 |
+| exact URL 有 query | MVP exact match，UI 要说明。 |
+| invalid domain | 拒绝并显示 validation error。 |
+| unsupported protocol | MVP 只支持 `http` 和 `https`。 |

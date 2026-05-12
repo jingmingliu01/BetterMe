@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>实现路线图 Implementation Roadmap · BetterMe Docs</title>
+  <style>
+    :root { color-scheme: light; --text:#17202a; --muted:#607080; --line:#dbe4ee; --bg:#f8fafc; --panel:#ffffff; --code:#edf3f8; --accent:#2563eb; --accent-soft:#eff6ff; }
+    * { box-sizing: border-box; } html { scroll-behavior: smooth; } body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.72; color:var(--text); background:radial-gradient(circle at 16% 0%, #eaf2ff 0, transparent 28%), linear-gradient(180deg,#f8fafc 0%,#ffffff 42%,#f8fafc 100%); }
+    .shell { display:grid; grid-template-columns:minmax(0, 1fr) 250px; gap:32px; max-width:1220px; margin:0 auto; padding:34px 22px 86px; } main { min-width:0; background:rgba(255,255,255,.94); border:1px solid var(--line); border-radius:14px; padding:36px 44px; box-shadow:0 20px 60px rgba(15,23,42,.07); animation: pageIn .42s ease both; } nav { position:sticky; top:24px; align-self:start; background:rgba(255,255,255,.92); backdrop-filter: blur(10px); border:1px solid var(--line); border-radius:14px; padding:18px; max-height:calc(100vh - 48px); overflow:auto; animation: pageIn .52s ease both; } nav h2 { margin:0 0 8px; font-size:13px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border:0; padding:0; } nav ul { margin:0; padding-left:18px; } nav li { margin:7px 0; font-size:14px; } .top-link { display:inline-block; margin-bottom:18px; color:var(--accent); text-decoration:none; font-size:14px; }
+    h1 { font-size:36px; line-height:1.16; margin:0 0 22px; color:#0f172a; letter-spacing:0; } h2 { font-size:24px; line-height:1.28; margin:40px 0 14px; padding-top:24px; border-top:1px solid var(--line); color:#0f172a; } h3 { font-size:18px; margin:28px 0 10px; color:#111827; } h4,h5,h6{ margin:22px 0 8px; } p { margin:12px 0; } a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; } code { background:var(--code); padding:2px 6px; border-radius:6px; font-size:.92em; } pre { background:#0f172a; color:#e5e7eb; padding:17px; border-radius:10px; overflow:auto; line-height:1.55; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); } pre code { background:transparent; padding:0; color:inherit; } ul,ol { padding-left:24px; } li { margin:6px 0; } blockquote { margin:18px 0; padding:14px 17px; border-left:4px solid #60a5fa; background:var(--accent-soft); color:#1e3a8a; border-radius:8px; } .table-wrap { overflow-x:auto; margin:17px 0; border-radius:10px; border:1px solid var(--line); } table { width:100%; border-collapse:collapse; background:#fff; } th,td { border-bottom:1px solid var(--line); padding:11px 13px; vertical-align:top; text-align:left; } th { background:#f1f5f9; font-weight:650; color:#0f172a; } tr:last-child td{border-bottom:0;} main > * { animation: fadeUp .34s ease both; } @keyframes pageIn { from { opacity:0; transform: translateY(10px); } to { opacity:1; transform: translateY(0); } } @keyframes fadeUp { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } } @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } } @media (max-width: 920px) { .shell { display:block; padding:18px 14px 58px; } main { padding:24px 18px; } nav { position:static; margin-top:18px; } h1 { font-size:28px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <main>
+      <a class="top-link" href="../README.html">Back to documentation home</a>
+      <h1 id="实现路线图-implementation-roadmap">实现路线图 Implementation Roadmap</h1>
+<p>这份 roadmap 按你手写代码的顺序排列。不要一开始就写 AI。先把 blocking 跑通。</p>
+<p>更低颗粒度的文件/函数清单见：<a href="11-file-function-blueprint.html">File and Function Blueprint</a>。</p>
+<h2 id="phase-0-project-setup">Phase 0: Project Setup</h2>
+<p>目标：创建能被 Chrome 加载的 extension skeleton。</p>
+<p>任务：</p>
+<ul>
+<li>创建 <code>apps/extension</code>。</li>
+<li>配置 Vite + React + TypeScript。</li>
+<li>添加 <code>manifest.json</code>。</li>
+<li>添加 background service worker entry。</li>
+<li>添加 placeholder pages：</li>
+<li>onboarding</li>
+<li>popup</li>
+<li>settings</li>
+<li>block</li>
+<li>在 Chrome <code>chrome://extensions</code> 里 Load unpacked。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>Extension 出现在 <code>chrome://extensions</code>。</li>
+<li>Popup 能打开。</li>
+<li>Settings page 能打开。</li>
+<li>Background service worker 能打印 test log。</li>
+</ul>
+<p>文档：</p>
+<ul>
+<li><a href="https://developer.chrome.com/docs/extensions/get-started">Chrome Get Started</a></li>
+<li><a href="https://developer.chrome.com/docs/extensions/develop/concepts/service-workers">Service workers</a></li>
+</ul>
+<h2 id="phase-1-local-data-model">Phase 1: Local Data Model</h2>
+<p>目标：先定义本地数据，再做 UI 和行为。</p>
+<p>实现：</p>
+<ul>
+<li><code>BlockedTarget</code></li>
+<li><code>UserSettings</code></li>
+<li><code>LicenseState</code></li>
+<li><code>TemporaryUnlock</code></li>
+<li><code>AITrack</code></li>
+<li><code>AITrackMessage</code></li>
+<li><code>AITrackSummary</code></li>
+<li><code>PatternMemory</code></li>
+</ul>
+<p>存储：</p>
+<ul>
+<li>Settings 用 <code>chrome.storage.local</code>。</li>
+<li>Track/memory 用 IndexedDB。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>保存一个 setting。</li>
+<li>reload extension。</li>
+<li>确认 setting 还在。</li>
+</ul>
+<h2 id="phase-2-blocked-target-management">Phase 2: Blocked Target Management</h2>
+<p>目标：用户可以 add/delete domain 和 exact URL。</p>
+<p>实现：</p>
+<ul>
+<li><code>normalizeBlockedTarget(input, mode)</code>。</li>
+<li>Domain validation。</li>
+<li>Exact URL validation。</li>
+<li>Settings UI list。</li>
+<li>Popup add current site flow。</li>
+<li>Advanced exact URL button。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>添加 <code>youtube.com</code>。</li>
+<li>添加 exact URL。</li>
+<li>删除 target。</li>
+<li>浏览器重启后数据仍存在。</li>
+</ul>
+<h2 id="phase-3-dnr-redirect">Phase 3: DNR Redirect</h2>
+<p>目标：访问 blocked target 时 redirect 到 Block Page。</p>
+<p>实现：</p>
+<ul>
+<li>把 <code>BlockedTarget</code> 转换为 DNR rules。</li>
+<li><code>updateDynamicRules</code>。</li>
+<li>Redirect main-frame requests 到 <code>block.html</code>。</li>
+<li>Query params 传 <code>targetId</code> 和 original URL。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>blocked domain redirect。</li>
+<li>subdomain redirect。</li>
+<li>unrelated domain 不 redirect。</li>
+<li>exact URL 只 exact match。</li>
+</ul>
+<p>文档：<a href="https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest">chrome.declarativeNetRequest</a></p>
+<h2 id="phase-4-block-page-ui">Phase 4: Block Page UI</h2>
+<p>目标：不依赖 AI 也可用。</p>
+<p>实现：</p>
+<ul>
+<li>Target display。</li>
+<li><code>Leave Site</code> 或 <code>Close Tab</code>。</li>
+<li><code>Start Cooldown</code>。</li>
+<li>5-minute Basic Cooldown timer。</li>
+<li>Settings shortcut。</li>
+<li>Free 状态下 AI panel locked。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>Free user 可以 leave。</li>
+<li>Free user 可以 cooldown。</li>
+<li>AI panel 显示 locked reason。</li>
+</ul>
+<h2 id="phase-5-license-mock">Phase 5: License Mock</h2>
+<p>目标：本地解锁 Lifetime BYOK 方便开发。</p>
+<p>实现：</p>
+<ul>
+<li>Dev settings 的 mock unlock button。</li>
+<li><code>LicenseState</code>。</li>
+<li>Feature gating。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>Free 状态下 provider setup disabled。</li>
+<li>Mock lifetime 后 provider setup enabled。</li>
+</ul>
+<h2 id="phase-6-local-api-key-encryption">Phase 6: Local API Key Encryption</h2>
+<p>目标：保存 provider API Key，但 storage 里没有 plaintext。</p>
+<p>实现：</p>
+<ul>
+<li><code>crypto-key-store.ts</code>。</li>
+<li>AES-GCM <code>CryptoKey</code>，<code>extractable: false</code>。</li>
+<li>CryptoKey 存 IndexedDB。</li>
+<li>API Key 加密。</li>
+<li>Ciphertext + IV 存本地。</li>
+<li>只有 background 解密。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>保存 key。</li>
+<li>reload browser。</li>
+<li>decrypt 仍能用。</li>
+<li>检查 <code>chrome.storage.local</code> 没有 plaintext key。</li>
+</ul>
+<p>文档：</p>
+<ul>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API">Web Crypto API</a></li>
+<li><a href="https://developer.chrome.com/docs/extensions/reference/api/storage">chrome.storage</a></li>
+</ul>
+<h2 id="phase-7-provider-client">Phase 7: Provider Client</h2>
+<p>目标：background 能调用 OpenAI-compatible provider。</p>
+<p>实现：</p>
+<ul>
+<li><code>ProviderConfig</code>。</li>
+<li><code>fetchChatCompletion</code>。</li>
+<li>provider base URLs。</li>
+<li>error normalization。</li>
+<li>API key test request。</li>
+</ul>
+<p>Providers：</p>
+<ul>
+<li>OpenAI。</li>
+<li>DeepSeek。</li>
+<li>Kimi。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>valid key。</li>
+<li>invalid key。</li>
+<li>wrong model。</li>
+<li>UI 显示 provider-specific error。</li>
+</ul>
+<h2 id="phase-8-ai-check-mock">Phase 8: AI Check Mock</h2>
+<p>目标：先把 AI Track UI 和状态机跑通，再接真实 LLM。</p>
+<p>实现：</p>
+<ul>
+<li>本地 opening message。</li>
+<li>Chat UI。</li>
+<li>Track timeout。</li>
+<li>Turn counter。</li>
+<li>Mock decision generator。</li>
+<li>ALLOW/DELAY/ASK_MORE/BLOCK enforcement。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>ALLOW 创建 temporary unlock。</li>
+<li>DELAY 启动 timer 且 same track resume。</li>
+<li>ASK_MORE 添加 question。</li>
+<li>BLOCK 创建 hold 到本地第二天 00:00。</li>
+</ul>
+<h2 id="phase-9-real-ai-check">Phase 9: Real AI Check</h2>
+<p>目标：把状态机接到真实 provider。</p>
+<p>实现：</p>
+<ul>
+<li>Context builder。</li>
+<li>Gate Constitution。</li>
+<li>User Profile。</li>
+<li>Pattern Memory selection。</li>
+<li>Recent summaries。</li>
+<li>Current messages。</li>
+<li>Structured output schema。</li>
+<li>JSON parse + validation。</li>
+<li>Invalid JSON retry once。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>真实 AI Check。</li>
+<li>JSON validates。</li>
+<li>Decision applies。</li>
+<li>Summary saved。</li>
+<li>Pattern Memory updates。</li>
+</ul>
+<h2 id="phase-10-privacy-and-data-controls">Phase 10: Privacy and Data Controls</h2>
+<p>目标：让本地数据透明、可删除。</p>
+<p>实现：</p>
+<ul>
+<li>Export local data。</li>
+<li>Delete API Key。</li>
+<li>Delete AI history。</li>
+<li>Delete all BetterMe data。</li>
+<li>Privacy copy。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>Export 不包含 plaintext API Key。</li>
+<li>Delete all 会清空 DNR rules 和 local data。</li>
+</ul>
+<h2 id="phase-11-nsfw-preset-placeholder">Phase 11: NSFW Preset Placeholder</h2>
+<p>目标：有 category UX，但不展示 URL list。</p>
+<p>实现：</p>
+<ul>
+<li>Preset list UI。</li>
+<li><code>NSFW</code> 默认 off。</li>
+<li>Concrete URLs hidden。</li>
+<li>UI 只展示 category 和数量。</li>
+</ul>
+<p>验证：</p>
+<ul>
+<li>Enable preset 后添加 DNR rules。</li>
+<li>UI 不展示成人 URL。</li>
+<li>User 可以 disable preset。</li>
+</ul>
+<h2 id="phase-12-packaging-and-manual-qa">Phase 12: Packaging and Manual QA</h2>
+<p>手动测试：</p>
+<ul>
+<li>Load unpacked extension。</li>
+<li>Add domain。</li>
+<li>Visit domain。</li>
+<li>Leave Site。</li>
+<li>Cooldown。</li>
+<li>Mock unlock。</li>
+<li>Save provider key。</li>
+<li>Real AI Check。</li>
+<li>ALLOW unlock。</li>
+<li>DELAY timer。</li>
+<li>BLOCK until next day。</li>
+<li>Export/delete data。</li>
+</ul>
+<p>Policy review：</p>
+<ul>
+<li>Minimal permissions。</li>
+<li>No remote code。</li>
+<li>No history permission。</li>
+<li>No page content reading。</li>
+<li>NSFW URLs hidden。</li>
+<li>Privacy copy present。</li>
+</ul>
+    </main>
+    <nav><h2>On this page</h2><ul><li class="toc-l2"><a href="#phase-0-project-setup">Phase 0: Project Setup</a></li><li class="toc-l2"><a href="#phase-1-local-data-model">Phase 1: Local Data Model</a></li><li class="toc-l2"><a href="#phase-2-blocked-target-management">Phase 2: Blocked Target Management</a></li><li class="toc-l2"><a href="#phase-3-dnr-redirect">Phase 3: DNR Redirect</a></li><li class="toc-l2"><a href="#phase-4-block-page-ui">Phase 4: Block Page UI</a></li><li class="toc-l2"><a href="#phase-5-license-mock">Phase 5: License Mock</a></li><li class="toc-l2"><a href="#phase-6-local-api-key-encryption">Phase 6: Local API Key Encryption</a></li><li class="toc-l2"><a href="#phase-7-provider-client">Phase 7: Provider Client</a></li><li class="toc-l2"><a href="#phase-8-ai-check-mock">Phase 8: AI Check Mock</a></li><li class="toc-l2"><a href="#phase-9-real-ai-check">Phase 9: Real AI Check</a></li><li class="toc-l2"><a href="#phase-10-privacy-and-data-controls">Phase 10: Privacy and Data Controls</a></li><li class="toc-l2"><a href="#phase-11-nsfw-preset-placeholder">Phase 11: NSFW Preset Placeholder</a></li><li class="toc-l2"><a href="#phase-12-packaging-and-manual-qa">Phase 12: Packaging and Manual QA</a></li></ul></nav>
+  </div>
+</body>
+</html>

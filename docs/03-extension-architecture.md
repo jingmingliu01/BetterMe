@@ -1,10 +1,10 @@
-# Extension Architecture
+# 插件架构 Extension Architecture
 
-## Architecture Summary
+## 1. 总览
 
-BetterMe MVP is a Chrome-only Manifest V3 extension.
+BetterMe MVP 是一个 Chrome-only Manifest V3 Extension。
 
-There is no BetterMe cloud backend in the MVP AI path. The local extension background service worker acts as the internal coordinator.
+MVP 的 AI path 不经过 BetterMe Cloud Backend。插件自己的 `background service worker` 负责本地协调。
 
 ```text
 Chrome Browser
@@ -21,169 +21,183 @@ Chrome Browser
     OpenAI / DeepSeek / Kimi
 ```
 
-## What "Extension Backend" Means
+## 2. 什么是 Extension Backend
 
-The extension backend is not a server you own.
+这里的 backend 不是你自己部署的 server。
 
-It is:
+它是：
 
-- `background/service_worker.ts`
-- Runs in the user's browser.
-- Has no DOM.
-- Handles browser events and extension messages.
-- Reads/writes extension storage.
-- Updates DNR rules.
-- Decrypts the user's provider API key.
-- Calls the selected LLM provider.
-- Validates structured AI decisions.
+- `apps/extension/src/background/service-worker.ts`
+- 运行在用户浏览器本地。
+- 没有 DOM。
+- 响应 extension event。
+- 处理 UI page 发来的 message。
+- 读写 local storage / IndexedDB。
+- 更新 DNR rules。
+- 解密用户 API Key。
+- 调用 LLM provider。
+- 校验 AI structured decision。
 
-It cannot:
+它不能：
 
-- Hide code from the user.
-- Protect commercial secrets like prompts.
-- Reliably enforce license against a determined local attacker.
-- Store your own shared provider API key safely.
+- 对用户隐藏代码。
+- 保密 system prompt。
+- 强力防止用户改本地代码。
+- 安全保存你的共享 API Key。
 
-Official docs: [Extension service workers](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers)
+官方文档：[Extension service workers](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers)
 
-## Proposed File Structure
+## 3. 推荐目录结构
 
 ```text
-betterme/
-  README.md
-  docs/
-  apps/
-    extension/
-      manifest.json
-      package.json
-      src/
-        background/
-          service-worker.ts
-          dnr-rules.ts
-          llm-runner.ts
-          message-router.ts
-        pages/
-          onboarding/
-          block/
-          settings/
-          popup/
-        storage/
-          local-store.ts
-          indexed-db.ts
-          crypto-key-store.ts
-        ai/
-          checkpoint-schema.ts
-          context-builder.ts
-          prompt.ts
-          provider-client.ts
-        blocking/
-          target-parser.ts
-          match-rules.ts
-          unlocks.ts
-          timers.ts
-        license/
-          license-store.ts
-          mock-license.ts
-        shared/
-          types.ts
-          constants.ts
+apps/
+  extension/
+    manifest.json
+    package.json
+    src/
+      background/
+        service-worker.ts
+        message-router.ts
+        dnr-rules.ts
+        llm-runner.ts
+      pages/
+        onboarding/
+          OnboardingPage.tsx
+        popup/
+          PopupPage.tsx
+        block/
+          BlockPage.tsx
+          AIChatPanel.tsx
+          ActionPanel.tsx
+        settings/
+          SettingsPage.tsx
+          ProviderSettings.tsx
+          BlockedSitesSettings.tsx
+      storage/
+        local-store.ts
+        indexed-db.ts
+        crypto-key-store.ts
+      blocking/
+        target-parser.ts
+        match-rules.ts
+        unlocks.ts
+        timers.ts
+      ai/
+        checkpoint-schema.ts
+        context-builder.ts
+        prompt.ts
+        provider-client.ts
+        ai-track-state.ts
+        pattern-memory.ts
+      license/
+        license-store.ts
+        mock-license.ts
+      shared/
+        types.ts
+        constants.ts
 ```
 
-## Runtime Components
+## 4. Runtime Components
 
-### Manifest
+### 4.1 `manifest.json`
 
-`manifest.json` declares:
+`manifest.json` 类似 Web App 的配置入口 + iOS 的 Info.plist。它声明：
 
-- `manifest_version: 3`
-- background service worker
-- permissions
-- host permissions for LLM provider endpoints
-- extension pages
-- DNR permission
+- extension name。
+- version。
+- `manifest_version: 3`。
+- background service worker。
+- permissions。
+- host permissions。
+- extension pages。
+- action popup。
 
-Reference:
+官方文档：
 
 - [Manifest](https://developer.chrome.com/docs/extensions/reference/manifest)
 - [Declare permissions](https://developer.chrome.com/docs/extensions/develop/concepts/declare-permissions)
 
-### Background Service Worker
+### 4.2 Background Service Worker
 
-Responsibilities:
+职责：
 
-- Own all privileged operations.
-- Receive messages from UI pages.
-- Update DNR rules when blocked targets change.
-- Start or continue AI Track.
-- Decrypt API key.
-- Call provider endpoint.
-- Validate model output.
-- Save track summaries and pattern memory.
+- 接收 UI message。
+- 管理 DNR rules。
+- 管理 local data。
+- 管理 AI Track state。
+- 解密 API Key。
+- 调用 LLM provider。
+- 校验 structured output。
+- 更新 Pattern Memory。
 
-Do not put LLM calls in React page components. UI pages should send messages to the service worker.
+不要在 React component 里直接调用 LLM provider。React page 只负责 UI。
 
-Reference:
+官方文档：
 
-- [chrome.runtime](https://developer.chrome.com/docs/extensions/reference/api/runtime)
 - [Message passing](https://developer.chrome.com/docs/extensions/develop/concepts/messaging)
+- [chrome.runtime](https://developer.chrome.com/docs/extensions/reference/api/runtime)
 
-### React Pages
+### 4.3 React Extension Pages
 
-Pages:
+页面：
 
 - `onboarding.html`
-- `block.html`
-- `settings.html`
 - `popup.html`
+- `settings.html`
+- `block.html`
 
-These are normal web pages bundled inside the extension. They can use React, TypeScript, CSS, and normal browser APIs.
+这些页面本质是打包进 extension 的普通 Web 页面，可以用 React + TypeScript。
 
-They should not:
+页面应该：
 
-- Directly access plaintext API keys.
-- Directly call LLM providers.
-- Read web page content.
+- 渲染 UI。
+- 通过 `chrome.runtime.sendMessage` 调用 background。
+- 显示 local state。
 
-They should:
+页面不应该：
 
-- Render UI.
-- Send typed messages to the background service worker.
-- Display current app state.
+- 直接拿 plaintext API Key。
+- 直接调用 LLM provider。
+- 读取 page content。
 
-### DNR Rules
+### 4.4 DeclarativeNetRequest
 
-Use `chrome.declarativeNetRequest` dynamic rules for user-defined blocked targets.
+BetterMe 使用 `chrome.declarativeNetRequest` 做 redirect/block。
 
-Why DNR:
+为什么适合：
 
-- More privacy-friendly than intercepting request bodies.
-- Lets browser perform matching.
-- Good fit for redirect/block.
-- Aligns with Manifest V3.
+- 不需要读取 request body。
+- 不需要读取网页内容。
+- 浏览器负责 matching。
+- 比 content script overlay 更稳定。
+- 更符合 privacy-first。
 
-Reference: [chrome.declarativeNetRequest](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
+官方文档：[chrome.declarativeNetRequest](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
 
-### Storage
+### 4.5 Storage
 
-Use:
+使用：
 
-- `chrome.storage.local` for simple persisted settings.
-- IndexedDB for structured local records and CryptoKey storage.
-- Avoid `chrome.storage.sync` for API keys or sensitive state.
+- `chrome.storage.local`：简单 settings、blocked targets、temporary unlock。
+- IndexedDB：AI Track、Pattern Memory、CryptoKey。
 
-Reference: [chrome.storage](https://developer.chrome.com/docs/extensions/reference/api/storage)
+避免：
 
-## Message Passing Contract
+- 用 `chrome.storage.sync` 存 API Key。
+- 把 plaintext API Key 存在任何持久化 storage。
 
-UI pages should talk to background through typed messages.
+官方文档：[chrome.storage](https://developer.chrome.com/docs/extensions/reference/api/storage)
 
-Example message types:
+## 5. Message Passing Contract
+
+UI page 通过 typed message 调用 background。
 
 ```ts
 type ExtensionMessage =
-  | { type: "blockedSites/add"; payload: AddBlockedSiteInput }
-  | { type: "blockedSites/list" }
-  | { type: "blockedSites/delete"; payload: { id: string } }
+  | { type: "blockedTargets/add"; payload: AddBlockedTargetInput }
+  | { type: "blockedTargets/list" }
+  | { type: "blockedTargets/delete"; payload: { id: string } }
+  | { type: "dnr/rebuildRules" }
   | { type: "license/getStatus" }
   | { type: "license/mockUnlock" }
   | { type: "provider/saveApiKey"; payload: SaveApiKeyInput }
@@ -193,7 +207,7 @@ type ExtensionMessage =
   | { type: "aiTrack/getState"; payload: { trackId: string } };
 ```
 
-All handlers should return:
+统一返回：
 
 ```ts
 type ExtensionResult<T> =
@@ -201,32 +215,31 @@ type ExtensionResult<T> =
   | { ok: false; error: ExtensionError };
 ```
 
-## Permission Strategy
+## 6. Permission Strategy
 
-MVP permissions should be minimal:
+MVP 权限尽量小：
 
 - `storage`
 - `declarativeNetRequest`
-- `tabs` only if needed to read current tab URL from popup
-- host permissions for provider endpoints:
+- `tabs`，仅当 popup 需要读取当前 tab URL。
+- LLM provider host permissions：
   - `https://api.openai.com/*`
   - `https://api.deepseek.com/*`
   - `https://api.moonshot.ai/*`
 
-Avoid:
+尽量避免：
 
-- `<all_urls>` in MVP if possible.
-- `history`.
-- broad content script matches.
-- remote hosted code.
+- `<all_urls>`。
+- `history`。
+- broad content script matches。
+- remote code。
 
-Security reference: [Stay secure](https://developer.chrome.com/docs/extensions/develop/security-privacy/stay-secure)
+安全文档：[Stay secure](https://developer.chrome.com/docs/extensions/develop/security-privacy/stay-secure)
 
-## Remote Code Rule
+## 7. Remote Code Rule
 
-Chrome Web Store expects extension logic to be packaged with the extension. Do not download and execute remote JS at runtime.
+Extension 逻辑必须打包进插件。可以请求远程 API，但不能下载远程 JS 然后执行。
 
-BetterMe may call remote APIs, but it should not fetch executable prompt logic or JS code and run it.
+BetterMe 可以调用 OpenAI/DeepSeek/Kimi API，但不能从你的 server 下载一段 prompt runner JS 再运行。
 
-Reference: [Manifest V3 requirements](https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements)
-
+官方文档：[Manifest V3 requirements](https://developer.chrome.com/docs/webstore/program-policies/mv3-requirements)
