@@ -1,0 +1,343 @@
+# 2026-05-12 Access State Issues
+
+Related docs:
+
+- Design: [2026-05-12-access-state-design.md](2026-05-12-access-state-design.md)
+- Progress: [2026-05-12-access-state-progress.md](2026-05-12-access-state-progress.md)
+
+Rule: when this document changes, check the design and progress documents for required updates.
+
+## Open Issues
+
+No open access-state issues at this checkpoint.
+
+## Closed Issues
+
+### ISSUE-014: Attempted URL should be recovered by targetId + tabId
+
+Status: closed
+
+Current behavior:
+
+- Attempted URL recovery is target-level latest attempt.
+- Multiple tabs hitting the same blocked target can overwrite each other.
+- A block page may recover to another tab's latest attempted URL.
+
+Expected behavior:
+
+- `webNavigation.onBeforeNavigate` should store main-frame attempts with `targetId`, `tabId`, `attemptUrl`, and `createdAt`.
+- Block page should call `chrome.tabs.getCurrent()` and prefer lookup by `targetId + currentTabId`.
+- Target-level latest attempt should remain only as fallback.
+- Domain homepage fallback should remain the final fallback.
+
+Resolution:
+
+- Target attempts are now saved per `targetId + tabId`.
+- Block page reads current extension tab id through `chrome.tabs.getCurrent()`.
+- Attempt lookup order is:
+  1. explicit `attemptUrl` query param,
+  2. `targetId + currentTabId`,
+  3. target-level latest attempt,
+  4. target homepage fallback.
+- E2E assertion: `TAB_ATTEMPT_MAPPING_OK true`.
+
+Design reference:
+
+- [Chosen MVP Strategy: Tab-Level Attempt Mapping](2026-05-12-access-state-design.md#chosen-mvp-strategy-tab-level-attempt-mapping)
+
+### ISSUE-009: User should receive in-page reminder before temporary unlock expires
+
+Status: closed
+
+Current behavior:
+
+- System notification was wired but did not match the desired product behavior.
+- The desired behavior is an in-page modal overlay inside the currently browsed site.
+
+Expected behavior:
+
+- When remaining time reaches configured warning threshold, currently 1 minute, BetterMe should show an in-page overlay.
+- The overlay should block page interaction until the user confirms.
+- Final expiry redirect must still happen even if the user does not confirm.
+
+Resolution:
+
+- Added in-page warning overlay to the content-script expiry guard.
+- Overlay uses Shadow DOM to avoid page CSS collisions.
+- Content script sends only current URL to background and does not read page content.
+- Removed legacy system notification helper and `notifications` permission after confirming in-page warning is the product direction.
+- E2E assertion: `IN_PAGE_WARNING_OK true`.
+
+### ISSUE-013: Deleted blocked target should release stale block pages
+
+Status: closed
+
+Current behavior:
+
+- If the user deletes a blocked target, an already-open `block.html?targetId=...` page can remain stuck on the old checkpoint after refresh.
+
+Expected behavior:
+
+- Deleting a target should remove its active access states.
+- Existing block pages for that target should recognize the target no longer exists.
+- If an attempted URL is known, the page should return to it.
+
+Resolution:
+
+- Delete now clears unlock/cooldown/hold state for that target.
+- Block page no longer falls back to the first blocked target when an explicit `targetId` is missing.
+- Block page listens for local storage changes and refreshes its derived state.
+- Stale block pages auto-return to the stored attempted URL when available.
+- E2E assertion: `DELETED_TARGET_RECOVERY_OK true`.
+
+### ISSUE-006: Popup cannot resolve current domain on BetterMe block page
+
+Status: closed
+
+Current behavior:
+
+- When the active tab is `chrome-extension://.../block.html?targetId=...`, popup shows `Unsupported page`.
+- On normal http/https tabs, popup must keep showing the actual active tab hostname, not a blocked-list target.
+
+Expected behavior:
+
+- Popup should recognize BetterMe block page.
+- It should resolve `targetId` back to the blocked target and show the real target domain, for example `www.youtube.com`.
+- It should not ask the user to block the extension page itself.
+- On a normal page such as Google search, Current domain should show `www.google.com` while the blocked list remains separate.
+
+Resolution:
+
+- Popup detects `chrome-extension://.../block.html?targetId=...`.
+- It resolves `targetId` from local blocked targets and displays the target domain.
+- The target is treated as already blocked rather than unsupported.
+- Popup now keeps current active page domain and blocked-list display as separate UI concepts.
+
+### ISSUE-007: Basic Cooldown timing should use centralized configurable values
+
+Status: closed
+
+Current behavior:
+
+- Cooldown duration and post-cooldown unlock duration are tied to scattered constants.
+
+Expected behavior:
+
+- Cooldown duration, post-cooldown unlock duration, and unlock warning threshold should live in one shared timing config.
+- UI labels and timers should use that config.
+
+Resolution:
+
+- Added shared `ACCESS_TIMING` config.
+- Basic Cooldown duration, post-cooldown unlock duration, and warning threshold now come from the same config.
+- E2E verifies initial cooldown display includes `5:00`.
+
+### ISSUE-008: Popup should show remaining temporary unlock time
+
+Status: closed
+
+Current behavior:
+
+- After `Continue for 5m`, popup does not show remaining browse time for the current target.
+
+Expected behavior:
+
+- Popup should detect active `TemporaryUnlock` for the current target and show remaining time.
+
+Resolution:
+
+- Popup reads active unlocks and displays browse time remaining for the current target.
+- Works for normal http/https pages and BetterMe block pages with `targetId`.
+
+### ISSUE-010: Active allowed tab should redirect back to block page when browse time ends
+
+Status: closed
+
+Current behavior:
+
+- DNR restores after unlock expiry, but an already-loaded allowed page may remain visible until refresh/navigation.
+
+Expected behavior:
+
+- When a temporary unlock expires, open tabs matching that target should be redirected to BetterMe block page without requiring manual refresh where extension APIs allow it.
+
+Resolution:
+
+- Alarm handler now finds expired unlock targets.
+- Matching open http/https tabs are updated to the BetterMe block page.
+- Added a privacy-minimal content-script expiry guard on http/https pages.
+- The guard sends only the current URL to background, receives unlock expiry metadata, and schedules a local redirect at `expiresAt`.
+- E2E verifies the active allowed tab redirects back without a manual refresh.
+
+### ISSUE-011: Popup blocked count should be a collapsible card
+
+Status: closed
+
+Current behavior:
+
+- The blocked count is shown inline beside AI readiness.
+- The user cannot expand it to see blocked targets from the popup.
+
+Expected behavior:
+
+- `Blocked` should be its own card.
+- It should be collapsed by default.
+- Expanding it should show the blocked list.
+
+Resolution:
+
+- Added a separate collapsed `Blocked` card.
+- Expanded state lists target display and whether each target is a domain or exact URL.
+
+### ISSUE-012: Popup should remove AI-ready badge and AI PM Review button
+
+Status: closed
+
+Current behavior:
+
+- Popup shows AI readiness/free badge.
+- Popup includes `AI PM Review`.
+
+Expected behavior:
+
+- Popup should stay focused on adding/reloading/settings.
+- AI readiness belongs on the block page and settings page.
+- AI PM review is not part of the browser-action popup.
+
+Resolution:
+
+- Removed AI readiness/free badge from popup.
+- Removed AI PM Review button from popup.
+
+### ISSUE-001: Basic Cooldown is not implemented as a real timer flow
+
+Status: closed
+
+Current behavior:
+
+- The code has `blocking/startCooldown`.
+- It currently creates a `TemporaryUnlock` immediately.
+
+Expected behavior:
+
+- Start Basic Cooldown should create `BasicCooldown`.
+- The user waits 5 minutes.
+- Only after completion should the user be able to create a short `TemporaryUnlock`.
+
+Resolution:
+
+- Added `BasicCooldown` model and storage.
+- Start Basic Cooldown now creates cooldown state instead of immediate unlock.
+- Block page shows countdown while the site remains blocked.
+- Completed cooldown exposes `Continue for 5m`, creates `TemporaryUnlock`, rebuilds DNR, and navigates to attempted/fallback URL.
+- E2E assertion: `COOLDOWN_UNLOCK_OK true`.
+
+Design reference:
+
+- [Basic Cooldown Flow](2026-05-12-access-state-design.md#basic-cooldown-flow)
+
+### ISSUE-002: Temporary unlock expiry does not reliably restore DNR
+
+Status: closed
+
+Current risk:
+
+- DNR rules are rebuilt when unlock is created.
+- There is no timed alarm that guarantees DNR rebuild after `expiresAt`.
+
+Expected behavior:
+
+- On unlock creation, schedule `chrome.alarms`.
+- On alarm, prune expired unlocks and rebuild DNR rules.
+- Blocking should resume without requiring manual reload or settings changes.
+
+Current update:
+
+- `chrome.alarms` access-state wiring has been added.
+- Alarm scheduling is triggered after state-changing background operations.
+- Expiry-specific E2E proves DNR is restored after `TemporaryUnlock.expiresAt`.
+- E2E assertion: `UNLOCK_EXPIRY_OK true`.
+
+Design reference:
+
+- [DNR Rule Strategy](2026-05-12-access-state-design.md#dnr-rule-strategy)
+
+### ISSUE-003: Dev Unlock and AI readiness are easy to confuse
+
+Status: closed
+
+Current behavior:
+
+- Settings has `Dev Unlock Lifetime`.
+- Settings also has `Use Demo Model`.
+- Block page requires both license and provider key, but the UX does not clearly explain the split.
+
+Expected behavior:
+
+- Show two separate states:
+  - `Lifetime unlocked`
+  - `Demo AI enabled` or `Provider key saved`
+- AI Check should become ready after both are true.
+
+Resolution:
+
+- Settings still shows `Dev Unlock Lifetime` for license state.
+- Demo provider setup is now labeled `Enable Demo AI`.
+- Block page derives AI readiness through `AIAvailability`, not local ad hoc license checks.
+
+Design reference:
+
+- [Dev Unlock Semantics](2026-05-12-access-state-design.md#dev-unlock-semantics)
+
+### ISSUE-004: Redirect does not preserve original attempted URL
+
+Status: closed
+
+Current behavior:
+
+- DNR redirect passes `targetId`.
+- It does not preserve `attemptUrl`.
+
+Expected behavior:
+
+- Block page should know the original attempted URL.
+- `ALLOW` and completed Basic Cooldown should return the user to that URL.
+
+Current update:
+
+- `webNavigation.onBeforeNavigate` now stores latest attempted URL by target.
+- Block page consumes stored attempted URL where available.
+- Block page uses a safe target-based fallback when the stored attempt is unavailable.
+- Basic Cooldown completion and AI `ALLOW` navigate back to attempted/fallback URL.
+
+Design reference:
+
+- [Redirect Context](2026-05-12-access-state-design.md#redirect-context)
+
+### ISSUE-005: Block page logic is based on scattered UI conditionals
+
+Status: closed
+
+Current behavior:
+
+- Block page computes AI readiness directly in React.
+- Cooldown/hold/unlock state is not centrally derived.
+
+Expected behavior:
+
+- Block page receives or derives `AccessState` and `AIAvailability`.
+- UI branches should map directly from those states.
+
+Resolution:
+
+- Added `deriveAccessState`.
+- Added `deriveAIAvailability`.
+- Block page now renders access badge, cooldown UI, and AI readiness from those derived states.
+
+Design reference:
+
+- [Derived State](2026-05-12-access-state-design.md#derived-state)
+
+## Triage Rule
+
+Do not fix these issues one by one with local UI patches. Implement `Access State Foundation` from the progress doc first, then close issues as the unified model resolves them.

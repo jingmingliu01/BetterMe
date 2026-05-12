@@ -1,11 +1,11 @@
 # BetterMe Agent Instructions
 
-## Local Working Docs
+## Project Docs
 
-- `doc/` is local-only working documentation and must stay in `.gitignore`.
-- Do not move durable product docs from `docs/` into `doc/`. Use `docs/` for shareable project docs and `doc/` for active planning/design notes.
-- Design documents live under `doc/design/`.
-- Every file under `doc/design/` must include the date in `YYYY-MM-DD` format at the start of the filename.
+- `docs/` is the canonical location for project documentation.
+- Do not create a separate `doc/` working-docs path.
+- Design documents live under `docs/design/`.
+- Every file under `docs/design/` must include the date in `YYYY-MM-DD` format at the start of the filename.
 - Use clear suffixes:
   - `YYYY-MM-DD-<topic>-design.md`
   - `YYYY-MM-DD-<topic>-progress.md`
