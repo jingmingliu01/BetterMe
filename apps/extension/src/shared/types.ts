@@ -8,7 +8,14 @@ export type AccessState =
   | "cooling_down"
   | "temporarily_unlocked"
   | "block_held_until_tomorrow";
-export type AIAvailability = "locked_free" | "missing_provider_key" | "blocked_by_hold" | "ready";
+export type AIReadiness =
+  | "ready"
+  | "missing_provider_key"
+  | "invalid_provider_model"
+  | "blocked_by_hold"
+  | "cooling_down"
+  | "temporarily_unlocked"
+  | "target_missing";
 export type TrackStatus =
   | "active"
   | "delayed"
@@ -16,10 +23,22 @@ export type TrackStatus =
   | "blocked"
   | "expired"
   | "provider_error"
+  | "schema_error"
   | "completed";
+export type ProviderErrorCode =
+  | "missing_key"
+  | "invalid_key"
+  | "invalid_model"
+  | "rate_limited"
+  | "insufficient_quota"
+  | "provider_timeout"
+  | "network_error"
+  | "bad_provider_response"
+  | "unknown_provider_error";
 
 export interface BlockedTarget {
   id: string;
+  targetKey?: string;
   type: BlockedTargetType;
   value: string;
   display: string;
@@ -45,8 +64,18 @@ export interface BasicCooldown {
   attemptUrl: string | null;
   createdAt: string;
   endsAt: string;
+  claimExpiresAt?: string;
   unlockMinutes: number;
+  strictness?: StrictnessLevel;
+  attemptCount?: number;
   completedAt?: string;
+}
+
+export interface CooldownEscalation {
+  targetId: string;
+  count: number;
+  windowStartedAt: string;
+  lastStartedAt: string;
 }
 
 export interface BlockHold {
@@ -66,20 +95,12 @@ export interface TargetAttempt {
   createdAt: string;
 }
 
-export interface LicenseState {
-  status: "free" | "lifetime_mock";
-  deviceLabel?: string;
-  lastCheckedAt?: string;
-}
-
 export interface UserSettings {
   strictness: StrictnessLevel;
   preferredTone: "calm" | "direct" | "coach";
   onboardingCompleted: boolean;
-  aiPmMode: boolean;
   provider: ProviderId;
   model: string;
-  license: LicenseState;
 }
 
 export interface ProviderConfig {
@@ -90,9 +111,16 @@ export interface ProviderConfig {
   models: string[];
 }
 
+export interface ProviderKeyRevision {
+  provider: ProviderId;
+  updatedAt: string;
+  action: "saved" | "deleted";
+}
+
 export interface AITrack {
   id: string;
   targetId: string;
+  targetKey?: string;
   targetDisplay: string;
   status: TrackStatus;
   startedAt: string;
@@ -102,7 +130,6 @@ export interface AITrack {
   maxAssistantTurns: number;
   finalDecision?: AIDecision;
   finalDecisionId?: string;
-  badCaseReviewId?: string;
 }
 
 export interface AITrackMessage {
@@ -168,41 +195,6 @@ export interface AITrackSummary {
   createdAt: string;
 }
 
-export type BadCaseSeverity = "low" | "medium" | "high";
-export type BadCaseType =
-  | "wrong_decision"
-  | "weak_challenge"
-  | "schema_issue"
-  | "tone_issue"
-  | "memory_miss"
-  | "policy_risk";
-
-export interface BadCaseReview {
-  id: string;
-  trackId: string;
-  targetDisplay: string;
-  observedDecision: AIDecision;
-  expectedDecision: AIDecision;
-  severity: BadCaseSeverity;
-  types: BadCaseType[];
-  pmNote: string;
-  rootCause: string;
-  proposedEvalAssertion: string;
-  createdAt: string;
-}
-
-export interface EvalCase {
-  id: string;
-  sourceBadCaseId: string;
-  title: string;
-  targetDisplay: string;
-  promptInput: string;
-  expectedDecision: AIDecision;
-  assertions: string[];
-  tags: string[];
-  createdAt: string;
-}
-
 export interface PageAccessInfo {
   targetId: string | null;
   targetDisplay: string | null;
@@ -212,28 +204,60 @@ export interface PageAccessInfo {
   shouldRedirectNow: boolean;
 }
 
+export type BehaviorEventType =
+  | "blocked_target_added"
+  | "blocked_target_remove_prompt_opened"
+  | "blocked_target_remove_cancelled"
+  | "blocked_target_removed"
+  | "blocked_target_readded"
+  | "blocked_url_attempted"
+  | "cooldown_started"
+  | "cooldown_claim_expired"
+  | "cooldown_continued"
+  | "temporary_unlock_created"
+  | "temporary_unlock_expired"
+  | "ai_track_started"
+  | "ai_decision_applied"
+  | "block_hold_created"
+  | "strictness_changed";
+
+export interface BehaviorEvent {
+  id: string;
+  type: BehaviorEventType;
+  targetKey?: string;
+  targetId?: string;
+  targetDisplay?: string;
+  createdAt: string;
+  payload?: Record<string, unknown>;
+}
+
 export type ExtensionMessage =
   | { type: "bootstrap/getState" }
   | { type: "blockedTargets/add"; payload: { input: string; targetType: BlockedTargetType } }
-  | { type: "blockedTargets/delete"; payload: { id: string } }
+  | {
+      type: "blockedTargets/delete";
+      payload: { id: string; confirmationElapsedMs?: number; confirmationPhraseAccepted?: boolean };
+    }
+  | {
+      type: "behavior/logEvent";
+      payload: {
+        eventType: "blocked_target_remove_prompt_opened" | "blocked_target_remove_cancelled";
+        targetId?: string;
+        payload?: Record<string, unknown>;
+      };
+    }
   | { type: "blockedTargets/list" }
   | { type: "blocking/getPageAccess"; payload: { url: string } }
   | { type: "blocking/startCooldown"; payload: { targetId: string } }
   | { type: "blocking/completeCooldown"; payload: { cooldownId: string } }
-  | { type: "ai/startTrack"; payload: { targetId: string } }
+  | { type: "ai/startAndSend"; payload: { targetId: string; content: string } }
   | { type: "ai/sendMessage"; payload: { trackId: string; content: string } }
   | { type: "ai/getTrack"; payload: { trackId: string } }
   | { type: "ai/recentTracks" }
-  | { type: "settings/update"; payload: Partial<Omit<UserSettings, "license">> }
-  | { type: "license/devUnlock" }
-  | { type: "license/reset" }
+  | { type: "settings/update"; payload: Partial<UserSettings> }
   | { type: "provider/saveApiKey"; payload: { provider: ProviderId; apiKey: string } }
   | { type: "provider/deleteApiKey"; payload: { provider: ProviderId } }
   | { type: "provider/status" }
-  | { type: "review/list" }
-  | { type: "review/create"; payload: Omit<BadCaseReview, "id" | "createdAt"> }
-  | { type: "eval/createFromBadCase"; payload: { badCaseId: string } }
-  | { type: "eval/list" }
   | { type: "data/export" }
   | { type: "data/deleteAll" };
 
@@ -248,7 +272,9 @@ export interface BootstrapState {
   blockedTargets: BlockedTarget[];
   unlocks: TemporaryUnlock[];
   cooldowns: BasicCooldown[];
+  cooldownEscalations: CooldownEscalation[];
   holds: BlockHold[];
   targetAttempts: TargetAttempt[];
   providerKeys: Record<ProviderId, boolean>;
+  behaviorEvents: BehaviorEvent[];
 }

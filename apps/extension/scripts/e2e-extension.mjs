@@ -40,13 +40,13 @@ try {
 
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.com");
-  await page.getByRole("button", { name: /Add Domain/ }).click();
-  await page.getByRole("button", { name: /Dev Unlock Lifetime/ }).click();
-  await page.getByRole("button", { name: /Enable Demo AI/ }).click();
+  await page.getByRole("button", { name: /Block This Domain/ }).click();
   await page.waitForTimeout(500);
   const settingsText = await page.locator("body").innerText();
   assertIncludes(settingsText, "example.com", "Settings did not save blocked site.");
-  assertIncludes(settingsText, "Lifetime Mock Unlocked", "Settings did not save license state.");
+  assertIncludes(settingsText, "Save a OpenAI key before using AI Check.", "Settings should start without provider key.");
+  assertNotIncludes(settingsText, "Lifetime", "Settings still exposes lifetime license UI.");
+  assertNotIncludes(settingsText, "Demo AI", "Settings still exposes demo AI UI.");
   console.log("SETTINGS_OK true");
 
   const firstAttemptPage = await context.newPage();
@@ -81,10 +81,25 @@ try {
     throw new Error(`DNR redirect failed: ${page.url()}`);
   }
   console.log(`REDIRECT_URL ${page.url()}`);
+  const blockUrlBeforeKey = page.url();
+  let blockText = await page.locator("body").innerText();
+  assertIncludes(blockText, "AI locked", "AI should be locked before a provider key is saved.");
+
+  const settingsPage = await context.newPage();
+  await settingsPage.goto(`chrome-extension://${extensionId}/settings.html`);
+  await settingsPage.getByPlaceholder("Paste provider API key").fill("sk-test-betterme-e2e");
+  await settingsPage.getByRole("button", { name: /^Save Key$/ }).click();
+  await settingsPage.getByText("key is saved on this device").waitFor({ timeout: 5_000 });
+  await page.getByText("AI ready").waitFor({ timeout: 5_000 });
+  if (page.url() !== blockUrlBeforeKey) {
+    throw new Error(`Block page should not navigate while provider key refreshes: ${page.url()}`);
+  }
+  await settingsPage.close();
+  console.log("PROVIDER_KEY_LIVE_REFRESH_OK true");
 
   await page.getByRole("button", { name: /Basic Cooldown/ }).click();
   await page.waitForTimeout(500);
-  let blockText = await page.locator("body").innerText();
+  blockText = await page.locator("body").innerText();
   assertIncludes(blockText, "Wait before deciding", "Basic Cooldown did not start a wait state.");
   assertIncludes(blockText, "5:00", "Basic Cooldown did not start from 5:00.");
   await page.goto("https://example.com/");
@@ -122,42 +137,15 @@ try {
   }
   console.log("UNLOCK_EXPIRY_OK true");
 
-  await page.getByRole("button", { name: /Start AI Track/ }).click();
-  await page
-    .getByPlaceholder("Explain why this visit is deliberate and bounded...")
-    .fill("I need to research this specific page for my AI PM interview portfolio, and I will leave after 10 minutes.");
-  await page.getByRole("button", { name: /^Send$/ }).click();
-  await page.waitForTimeout(400);
   blockText = await page.locator("body").innerText();
-  assertIncludes(blockText, "ALLOW", "AI Check did not produce demo ALLOW decision.");
-  await page.waitForTimeout(1_000);
-  if (!page.url().startsWith("https://example.com/")) {
-    throw new Error(`AI ALLOW did not navigate to attempted site: ${page.url()}`);
-  }
-  console.log("AI_CHECK_OK true");
-
-  await page.goto(`chrome-extension://${extensionId}/review.html`);
-  await page
-    .getByPlaceholder("PM note: what went wrong from product/user perspective?")
-    .fill("ALLOW was too permissive because the user did not define an external proof of leaving.");
-  await page
-    .getByPlaceholder("Root cause: prompt gap, missing memory, weak rubric, provider output issue...")
-    .fill("Rubric did not require a concrete exit mechanism for high-dopamine sites.");
-  await page
-    .getByPlaceholder("Eval assertion: what should future model behavior satisfy?")
-    .fill("If the user asks for browsing without a concrete exit mechanism, the model should DELAY or ASK_MORE rather than immediately ALLOW.");
-  await page.getByRole("button", { name: /Save Bad Case/ }).click();
-  await page.waitForTimeout(500);
-  await page.getByRole("button", { name: /Convert to Eval Case/ }).click();
-  await page.waitForTimeout(500);
-  const reviewText = await page.locator("body").innerText();
-  assertIncludes(reviewText, "Expected DELAY", "Eval case was not created.");
+  assertIncludes(blockText, "AI ready", "AI Check should be available after saving a provider key.");
+  assertNotIncludes(blockText, "AI PM Review", "Block page still exposes AI PM Review.");
+  console.log("AI_READY_UI_OK true");
   await page.screenshot({ path: "/tmp/betterme-extension-e2e.png", fullPage: true });
-  console.log("REVIEW_OK true");
 
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.org");
-  await page.getByRole("button", { name: /Add Domain/ }).click();
+  await page.getByRole("button", { name: /Block This Domain/ }).click();
   await page.waitForTimeout(500);
   await page.goto("https://example.org/");
   await page.waitForLoadState("load");
@@ -167,11 +155,26 @@ try {
   }
   const deletedBlockUrl = page.url();
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
-  await page.locator(".card").filter({ hasText: "example.org" }).getByTitle("Delete").click();
+  await page.locator(".card").filter({ hasText: "example.org" }).getByTitle("Review removal").click();
+  await page.getByPlaceholder("I choose to remove this block").fill("I choose to remove this block");
+  await page.getByRole("button", { name: /Remove Permanently/ }).click({ timeout: 12_000 });
   await page.waitForTimeout(500);
+  const removalEvents = await getBehaviorEvents(page);
+  if (!removalEvents.some((event) => event.type === "blocked_target_removed" && event.targetDisplay === "example.org")) {
+    throw new Error("Blocked target removal was not recorded in behavior history.");
+  }
   await page.goto(deletedBlockUrl);
   await page.waitForURL("https://example.org/**", { timeout: 6_000 });
   console.log("DELETED_TARGET_RECOVERY_OK true");
+  await page.goto(`chrome-extension://${extensionId}/settings.html`);
+  await page.getByPlaceholder("example.com or https://example.com/path").fill("example.org");
+  await page.getByRole("button", { name: /Block This Domain/ }).click();
+  await page.waitForTimeout(500);
+  const readdEvents = await getBehaviorEvents(page);
+  if (!readdEvents.some((event) => event.type === "blocked_target_readded" && event.targetDisplay === "example.org")) {
+    throw new Error("Blocked target re-add was not connected to removal history.");
+  }
+  console.log("BEHAVIOR_HISTORY_OK true");
   console.log("SCREENSHOT /tmp/betterme-extension-e2e.png");
 } finally {
   await context.close();
@@ -181,4 +184,27 @@ function assertIncludes(text, needle, message) {
   if (!text.includes(needle)) {
     throw new Error(message);
   }
+}
+
+function assertNotIncludes(text, needle, message) {
+  if (text.includes(needle)) {
+    throw new Error(message);
+  }
+}
+
+async function getBehaviorEvents(page) {
+  return page.evaluate(async () => {
+    const request = indexedDB.open("betterme-db", 3);
+    const db = await new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction("behaviorEvents", "readonly");
+      const store = tx.objectStore("behaviorEvents");
+      const getAll = store.getAll();
+      getAll.onsuccess = () => resolve(getAll.result);
+      getAll.onerror = () => reject(getAll.error);
+    });
+  });
 }

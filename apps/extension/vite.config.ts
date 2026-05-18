@@ -16,7 +16,6 @@ export default defineConfig({
         popup: resolve(rootDir, "popup.html"),
         settings: resolve(rootDir, "settings.html"),
         block: resolve(rootDir, "block.html"),
-        review: resolve(rootDir, "review.html"),
         background: resolve(rootDir, "src/background/service-worker.ts"),
         "expiry-guard": resolve(rootDir, "src/content/expiry-guard.ts")
       },

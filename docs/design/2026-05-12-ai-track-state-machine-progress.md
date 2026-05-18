@@ -10,30 +10,33 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-Design is drafted. Implementation is not started in this checkpoint.
+Implementation has started on `dev/ai-track-state-machine`.
 
-The current product has a demo AI Track path, but AI Chat is not yet governed by a unified state machine.
+The current product now has the first state-machine foundation pieces: derived AI readiness, send-first UX, typed provider errors, AI-specific message timeout, and stricter decision validation.
+
+Current product direction: there is no paywall or license unlock surface. AI Check availability depends on local provider configuration and access state.
 
 ## Already Exists
 
 - `AITrack`, `AITrackMessage`, `CheckpointDecision` model types.
-- Demo AI flow.
 - Local encrypted provider key storage.
 - Provider registry for OpenAI, DeepSeek, and Kimi.
 - Block page AI panel.
-- AI PM review workspace.
 - Access-state enforcement for `ALLOW` via temporary unlock.
 - Access-state enforcement foundation for block holds and cooldowns.
+- `AIReadiness` derived state.
+- Send-first UX that auto-starts track.
+- Provider client timeout and typed provider error classification.
+- JSON parsing with enum validation for decision categories.
+- Decision-specific validation constraints for `ALLOW`, `DELAY`, and `ASK_MORE`.
+- `schema_error` track status for validation failures.
+- AI Check readiness based on saved provider key, valid model, and access state.
+- Live AI readiness refresh for already-open block pages after provider key save/delete.
 
 ## Not Yet Implemented
 
-- `AIReadiness` derived state.
 - Unified AI Track status model.
-- Send-first UX that auto-starts track.
-- Provider client with typed error classification.
-- OpenAI-compatible Chat Completions request path for real provider keys.
-- JSON schema validation for provider output.
-- Decision-specific validation constraints.
+- Real-provider manual verification for OpenAI, DeepSeek, and Kimi.
 - Full `DELAY` continuation inside same track.
 - Full `ASK_MORE` continuation inside same track.
 - Strong `BLOCK` UX with hold-until-tomorrow display.
@@ -62,9 +65,7 @@ Scope:
 
 ## Validation Status
 
-No new validation was run for this design-only checkpoint.
-
-Latest known general extension validation from prior access-state work:
+Latest validation:
 
 ```bash
 npm --workspace apps/extension run build
@@ -81,6 +82,11 @@ Known latest passing assertions before this design:
 - `REVIEW_OK true`
 - `DELETED_TARGET_RECOVERY_OK true`
 
+Additional current validation:
+
+- Existing E2E passes after send-first UX.
+- Build passes after provider timeout/error classification and stricter schema validation.
+
 ## Synchronization Note
 
 2026-05-12:
@@ -88,6 +94,30 @@ Known latest passing assertions before this design:
 - Design doc created.
 - Issues doc created with open implementation issues.
 - No code changes in this checkpoint.
+
+2026-05-12:
+
+- Implemented first AI Track foundation slice on `dev/ai-track-state-machine`.
+- Issues doc updated:
+  - ISSUE-001 partially complete; real provider verification still needed.
+  - ISSUE-002 partially complete; provider client now has timeout/error taxonomy, but manual provider verification remains.
+  - ISSUE-003 partially complete; schema/constraint validation added, but failure E2E is still needed.
+  - ISSUE-007 closed; send-first UX is implemented and covered by existing AI E2E path.
+
+2026-05-17:
+
+- Removed lifetime license state, dev unlock/reset routes, Demo AI provider behavior, AI PM mode, and AI PM review/eval workspace.
+- Settings now frames AI Check as local provider setup without paywall UI.
+- Access-state design/progress/issues docs were checked and updated because license/demo/AIPM removal changes readiness semantics and validation scope.
+
+2026-05-18:
+
+- Removed the Settings AI Check status badge and residual paywall framing.
+
+2026-05-17:
+
+- Added provider-key readiness invalidation so an already-open block page updates from `missing_provider_key` to `ready` after Settings saves a key.
+- E2E now covers `PROVIDER_KEY_LIVE_REFRESH_OK true`.
 
 ## Update Checklist
 

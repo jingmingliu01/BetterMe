@@ -12,7 +12,7 @@ Rule: when this document changes, check the design and progress documents for re
 
 ### ISSUE-001: UI AI readiness can disagree with real provider readiness
 
-Status: open
+Status: partially complete
 
 Observed behavior:
 
@@ -29,9 +29,16 @@ Design reference:
 
 - [AI Readiness](2026-05-12-ai-track-state-machine-design.md#ai-readiness)
 
+Current update:
+
+- Added `AIReadiness` derived state.
+- Block page now renders AI readiness from this state.
+- AI send timeout is now longer for provider calls, so real LLM calls are not cut off by the generic 4-second UI timeout.
+- Still needs manual verification with saved DeepSeek/OpenAI/Kimi keys.
+
 ### ISSUE-002: Real provider calls need a unified OpenAI-compatible client
 
-Status: open
+Status: partially complete
 
 Current risk:
 
@@ -49,9 +56,15 @@ Design reference:
 - [Provider Client](2026-05-12-ai-track-state-machine-design.md#provider-client)
 - [Error Taxonomy](2026-05-12-ai-track-state-machine-design.md#error-taxonomy)
 
+Current update:
+
+- Existing OpenAI-compatible provider client now has a 30-second fetch timeout.
+- Added stable provider error codes for invalid key, invalid model, rate limit, quota, timeout, network, bad response, and unknown errors.
+- Still needs manual real-provider verification and more user-friendly error rendering.
+
 ### ISSUE-003: Provider output must be schema-validated before enforcement
 
-Status: open
+Status: partially complete
 
 Current risk:
 
@@ -66,6 +79,13 @@ Expected behavior:
 Design reference:
 
 - [Required JSON Output](2026-05-12-ai-track-state-machine-design.md#required-json-output)
+
+Current update:
+
+- Parser now validates `decision`, `reasoningCategory`, and `memoryUpdate.reasonCategory` enums.
+- Added decision-specific validation for `ALLOW`, `DELAY`, and `ASK_MORE`.
+- Track is marked `schema_error` on validation failures.
+- Still needs dedicated E2E coverage for malformed provider output.
 
 ### ISSUE-004: DELAY needs same-track continuation
 
@@ -123,9 +143,11 @@ Design reference:
 
 - [BLOCK](2026-05-12-ai-track-state-machine-design.md#block)
 
+## Closed Issues
+
 ### ISSUE-007: Send-first UX should replace explicit start requirement
 
-Status: open
+Status: closed
 
 Current risk:
 
@@ -141,6 +163,9 @@ Design reference:
 
 - [Start And Send Flow](2026-05-12-ai-track-state-machine-design.md#start-and-send-flow)
 
-## Closed Issues
+Resolution:
 
-No closed issues yet for this design topic.
+- Block page no longer requires a separate `Start AI Track` click.
+- User types a reason and clicks `Send`.
+- If no track exists, background handles `ai/startAndSend`, creates the track, appends the user message, and requests a decision.
+- Existing E2E AI path now uses send-first behavior.

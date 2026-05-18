@@ -1,12 +1,20 @@
-import { DEFAULT_SETTINGS, PROVIDERS, STORAGE_KEYS } from "../shared/constants";
-import type { BasicCooldown, BlockHold, BlockedTarget, TargetAttempt, TemporaryUnlock, UserSettings } from "../shared/types";
+import { COOLDOWN_ESCALATION_WINDOW_SECONDS, DEFAULT_SETTINGS, PROVIDERS, STORAGE_KEYS } from "../shared/constants";
+import type {
+  BasicCooldown,
+  BlockHold,
+  BlockedTarget,
+  CooldownEscalation,
+  TargetAttempt,
+  TemporaryUnlock,
+  UserSettings
+} from "../shared/types";
 import { isCooldownActive, isCooldownComplete } from "../blocking/cooldowns";
 import { isBlockHoldActive, isUnlockActive } from "../blocking/unlocks";
 import { getLocalValue, setLocalValue } from "./local-store";
 
 export async function getSettings(): Promise<UserSettings> {
   const settings = await getLocalValue<UserSettings>(STORAGE_KEYS.settings, DEFAULT_SETTINGS);
-  const merged = { ...DEFAULT_SETTINGS, ...settings, license: { ...DEFAULT_SETTINGS.license, ...settings.license } };
+  const merged = { ...DEFAULT_SETTINGS, ...settings };
   const provider = PROVIDERS.find((item) => item.id === merged.provider) ?? PROVIDERS[0];
   return {
     ...merged,
@@ -19,7 +27,7 @@ export async function saveSettings(settings: UserSettings): Promise<void> {
   await setLocalValue(STORAGE_KEYS.settings, settings);
 }
 
-export async function updateSettings(patch: Partial<Omit<UserSettings, "license">>): Promise<UserSettings> {
+export async function updateSettings(patch: Partial<UserSettings>): Promise<UserSettings> {
   const current = await getSettings();
   const next = { ...current, ...patch };
   await saveSettings(next);
@@ -49,11 +57,17 @@ export async function deleteBlockedTarget(id: string): Promise<BlockedTarget[]> 
 }
 
 export async function deleteAccessStateForTarget(targetId: string): Promise<void> {
-  const [unlocks, cooldowns, holds] = await Promise.all([getStoredUnlocks(), getCooldowns(), getHolds()]);
+  const [unlocks, cooldowns, holds, escalations] = await Promise.all([
+    getStoredUnlocks(),
+    getCooldowns(),
+    getHolds(),
+    getCooldownEscalations()
+  ]);
   await Promise.all([
     saveUnlocks(unlocks.filter((unlock) => unlock.targetId !== targetId)),
     saveCooldowns(cooldowns.filter((cooldown) => cooldown.targetId !== targetId)),
-    saveHolds(holds.filter((hold) => hold.targetId !== targetId))
+    saveHolds(holds.filter((hold) => hold.targetId !== targetId)),
+    saveCooldownEscalations(escalations.filter((item) => item.targetId !== targetId))
   ]);
 }
 
@@ -82,6 +96,10 @@ export async function getCooldowns(): Promise<BasicCooldown[]> {
   return cooldowns.filter((cooldown) => isCooldownActive(cooldown) || isCooldownComplete(cooldown));
 }
 
+export async function getStoredCooldowns(): Promise<BasicCooldown[]> {
+  return getLocalValue<BasicCooldown[]>(STORAGE_KEYS.cooldowns, []);
+}
+
 export async function saveCooldowns(cooldowns: BasicCooldown[]): Promise<void> {
   await setLocalValue(
     STORAGE_KEYS.cooldowns,
@@ -105,6 +123,41 @@ export async function completeCooldown(id: string, completedAt: string): Promise
   const completed = { ...cooldown, completedAt };
   await saveCooldowns(cooldowns.map((item) => (item.id === id ? completed : item)));
   return completed;
+}
+
+export async function getCooldownEscalations(now = new Date()): Promise<CooldownEscalation[]> {
+  const escalations = await getLocalValue<CooldownEscalation[]>(STORAGE_KEYS.cooldownEscalations, []);
+  return escalations.filter((item) => isCooldownEscalationFresh(item, now));
+}
+
+export async function saveCooldownEscalations(escalations: CooldownEscalation[], now = new Date()): Promise<void> {
+  await setLocalValue(
+    STORAGE_KEYS.cooldownEscalations,
+    escalations.filter((item) => isCooldownEscalationFresh(item, now))
+  );
+}
+
+export async function recordCooldownAttempt(targetId: string, now = new Date()): Promise<CooldownEscalation> {
+  const escalations = await getCooldownEscalations(now);
+  const current = escalations.find((item) => item.targetId === targetId);
+  const next: CooldownEscalation = current
+    ? {
+        ...current,
+        count: current.count + 1,
+        lastStartedAt: now.toISOString()
+      }
+    : {
+        targetId,
+        count: 1,
+        windowStartedAt: now.toISOString(),
+        lastStartedAt: now.toISOString()
+      };
+  await saveCooldownEscalations([next, ...escalations.filter((item) => item.targetId !== targetId)], now);
+  return next;
+}
+
+function isCooldownEscalationFresh(escalation: CooldownEscalation, now = new Date()): boolean {
+  return new Date(escalation.lastStartedAt).getTime() + COOLDOWN_ESCALATION_WINDOW_SECONDS * 1000 > now.getTime();
 }
 
 export async function getHolds(): Promise<BlockHold[]> {

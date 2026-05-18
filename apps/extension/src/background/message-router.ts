@@ -1,7 +1,13 @@
-import type { BootstrapState, ExtensionMessage, ExtensionResult, PageAccessInfo, ProviderId } from "../shared/types";
+import type {
+  BootstrapState,
+  ExtensionMessage,
+  ExtensionResult,
+  PageAccessInfo,
+  ProviderId,
+  ProviderKeyRevision
+} from "../shared/types";
 import { createBlockedTarget } from "../blocking/target-parser";
-import { createTemporaryUnlock } from "../blocking/unlocks";
-import { ACCESS_TIMING, PROVIDERS } from "../shared/constants";
+import { ACCESS_TIMING, BASIC_COOLDOWN_POLICIES, getEscalatedStrictness, PROVIDERS, STORAGE_KEYS } from "../shared/constants";
 import { findMatchingTarget } from "../blocking/match-rules";
 import { getActiveUnlockForTarget } from "../blocking/access-state";
 import {
@@ -10,25 +16,32 @@ import {
   addUnlock,
   completeCooldown,
   deleteBlockedTarget,
-  deleteAccessStateForTarget,
   getBlockedTargets,
   getCooldowns,
+  getCooldownEscalations,
   getHolds,
   getLatestTargetAttempt,
   getSettings,
   getTargetAttempts,
   getUnlocks,
-  saveSettings,
+  recordCooldownAttempt,
   updateSettings
 } from "../storage/domain-store";
-import { clearBetterMeLocalData } from "../storage/local-store";
+import {
+  appendBehaviorEvent,
+  buildAttemptPayload,
+  listBehaviorEvents,
+  listBehaviorEventsForTargetKey,
+  wasTargetPreviouslyRemoved
+} from "../storage/behavior-events";
+import { clearBetterMeLocalData, setLocalValue } from "../storage/local-store";
 import { clearAllIndexedDbStores } from "../storage/indexed-db";
 import { deleteApiKey, hasApiKey, saveEncryptedApiKey } from "../storage/crypto-key-store";
 import { rebuildDnrRules } from "./dnr-rules";
 import { scheduleNextAccessStateAlarm } from "./alarms";
-import { getTrackBundle, listRecentTracks, sendAITrackMessage, startAITrack } from "../ai/track-service";
-import { createBadCaseReview, createEvalCaseFromBadCase, listBadCaseReviews, listEvalCases } from "../ai/review-service";
+import { getTrackBundle, listRecentTracks, sendAITrackMessage, startAndSendAITrackMessage } from "../ai/track-service";
 import { createBasicCooldown, createUnlockFromCompletedCooldown } from "../blocking/cooldowns";
+import { getTargetKey } from "../blocking/target-parser";
 
 async function providerStatus(): Promise<Record<ProviderId, boolean>> {
   const entries = await Promise.all(PROVIDERS.map(async (provider) => [provider.id, await hasApiKey(provider.id)]));
@@ -36,16 +49,38 @@ async function providerStatus(): Promise<Record<ProviderId, boolean>> {
 }
 
 async function bootstrap(): Promise<BootstrapState> {
-  const [settings, blockedTargets, unlocks, cooldowns, holds, targetAttempts, providerKeys] = await Promise.all([
+  const [
+    settings,
+    blockedTargets,
+    unlocks,
+    cooldowns,
+    cooldownEscalations,
+    holds,
+    targetAttempts,
+    providerKeys,
+    behaviorEvents
+  ] = await Promise.all([
     getSettings(),
     getBlockedTargets(),
     getUnlocks(),
     getCooldowns(),
+    getCooldownEscalations(),
     getHolds(),
     getTargetAttempts(),
-    providerStatus()
+    providerStatus(),
+    listBehaviorEvents()
   ]);
-  return { settings, blockedTargets, unlocks, cooldowns, holds, targetAttempts, providerKeys };
+  return {
+    settings,
+    blockedTargets,
+    unlocks,
+    cooldowns,
+    cooldownEscalations,
+    holds,
+    targetAttempts,
+    providerKeys,
+    behaviorEvents
+  };
 }
 
 export async function routeMessage(message: ExtensionMessage): Promise<ExtensionResult<unknown>> {
@@ -55,17 +90,48 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await bootstrap());
       case "blockedTargets/add": {
         const target = createBlockedTarget(message.payload.input, message.payload.targetType);
+        const readded = await wasTargetPreviouslyRemoved(getTargetKey(target));
         const targets = await addBlockedTarget(target);
+        await appendBehaviorEvent({
+          type: readded ? "blocked_target_readded" : "blocked_target_added",
+          target,
+          payload: {
+            source: target.source,
+            category: target.category
+          }
+        });
         await rebuildDnrRules();
         await scheduleNextAccessStateAlarm();
         return ok(targets);
       }
       case "blockedTargets/delete": {
+        const target = (await getBlockedTargets()).find((item) => item.id === message.payload.id);
+        if (!target) throw new Error("Target not found.");
+        const recentEvents = await listBehaviorEventsForTargetKey(getTargetKey(target));
         const targets = await deleteBlockedTarget(message.payload.id);
-        await deleteAccessStateForTarget(message.payload.id);
+        await appendBehaviorEvent({
+          type: "blocked_target_removed",
+          target,
+          payload: {
+            confirmationElapsedMs: message.payload.confirmationElapsedMs ?? null,
+            confirmationPhraseAccepted: message.payload.confirmationPhraseAccepted ?? false,
+            recent: summarizeRecentEvents(recentEvents)
+          }
+        });
         await rebuildDnrRules();
         await scheduleNextAccessStateAlarm();
         return ok(targets);
+      }
+      case "behavior/logEvent": {
+        const target = message.payload.targetId
+          ? (await getBlockedTargets()).find((item) => item.id === message.payload.targetId) ?? null
+          : null;
+        await appendBehaviorEvent({
+          type: message.payload.eventType,
+          target,
+          payload: message.payload.payload
+        });
+        return ok(true);
       }
       case "blockedTargets/list":
         return ok(await getBlockedTargets());
@@ -74,65 +140,108 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
       case "blocking/startCooldown": {
         const target = (await getBlockedTargets()).find((item) => item.id === message.payload.targetId);
         if (!target) throw new Error("Target not found.");
-        const latestAttempt = await getLatestTargetAttempt(target.id);
-        await addCooldown(
-          createBasicCooldown({
-            targetId: target.id,
-            targetDisplay: target.display,
-            attemptUrl: latestAttempt?.attemptUrl ?? null
-          })
-        );
+        const now = new Date();
+        const [latestAttempt, settings] = await Promise.all([getLatestTargetAttempt(target.id), getSettings()]);
+        const escalation = await recordCooldownAttempt(target.id, now);
+        const effectiveStrictness = getEscalatedStrictness(settings.strictness, escalation.count);
+        const policy = BASIC_COOLDOWN_POLICIES[effectiveStrictness];
+        const cooldown = createBasicCooldown({
+          targetId: target.id,
+          targetDisplay: target.display,
+          attemptUrl: latestAttempt?.attemptUrl ?? null,
+          now,
+          seconds: policy.cooldownSeconds,
+          unlockSeconds: policy.unlockSeconds,
+          claimWindowSeconds: policy.claimWindowSeconds,
+          strictness: effectiveStrictness,
+          attemptCount: escalation.count
+        });
+        await addCooldown(cooldown);
+        await appendBehaviorEvent({
+          type: "cooldown_started",
+          target,
+          payload: {
+            cooldownId: cooldown.id,
+            baseStrictness: settings.strictness,
+            effectiveStrictness,
+            attemptCountInWindow: escalation.count,
+            cooldownSeconds: policy.cooldownSeconds,
+            unlockSeconds: policy.unlockSeconds,
+            claimWindowSeconds: policy.claimWindowSeconds,
+            attempt: latestAttempt ? buildAttemptPayload(latestAttempt.attemptUrl) : null
+          }
+        });
         await scheduleNextAccessStateAlarm();
         return ok(await bootstrap());
       }
       case "blocking/completeCooldown": {
         const cooldown = (await getCooldowns()).find((item) => item.id === message.payload.cooldownId);
         if (!cooldown) throw new Error("Cooldown not found.");
+        const target = (await getBlockedTargets()).find((item) => item.id === cooldown.targetId) ?? null;
+        const completedAt = new Date().toISOString();
         const unlock = createUnlockFromCompletedCooldown(cooldown);
         await addUnlock(unlock);
-        await completeCooldown(cooldown.id, new Date().toISOString());
+        await completeCooldown(cooldown.id, completedAt);
+        await appendBehaviorEvent({
+          type: "cooldown_continued",
+          target,
+          targetId: cooldown.targetId,
+          targetDisplay: cooldown.targetDisplay,
+          payload: {
+            cooldownId: cooldown.id,
+            startedAt: cooldown.createdAt,
+            endedAt: cooldown.endsAt,
+            continuedAt: completedAt,
+            waitedSeconds: secondsBetween(cooldown.createdAt, completedAt),
+            claimDelaySeconds: secondsBetween(cooldown.endsAt, completedAt),
+            unlockSeconds: Math.round(cooldown.unlockMinutes * 60),
+            effectiveStrictness: cooldown.strictness ?? null,
+            attemptCountInWindow: cooldown.attemptCount ?? null,
+            attempt: cooldown.attemptUrl ? buildAttemptPayload(cooldown.attemptUrl) : null
+          }
+        });
+        await appendBehaviorEvent({
+          type: "temporary_unlock_created",
+          target,
+          targetId: cooldown.targetId,
+          targetDisplay: cooldown.targetDisplay,
+          payload: {
+            unlockId: unlock.id,
+            source: unlock.source,
+            expiresAt: unlock.expiresAt,
+            unlockSeconds: Math.round(cooldown.unlockMinutes * 60)
+          }
+        });
         await rebuildDnrRules();
         await scheduleNextAccessStateAlarm();
         return ok({ ...(await bootstrap()), unlock, attemptUrl: cooldown.attemptUrl });
       }
       case "settings/update": {
+        const previous = await getSettings();
         const settings = await updateSettings(message.payload);
+        if (message.payload.strictness && message.payload.strictness !== previous.strictness) {
+          await appendBehaviorEvent({
+            type: "strictness_changed",
+            payload: {
+              from: previous.strictness,
+              to: message.payload.strictness
+            }
+          });
+        }
         return ok(settings);
-      }
-      case "license/devUnlock": {
-        const settings = await getSettings();
-        const next = {
-          ...settings,
-          license: { status: "lifetime_mock" as const, deviceLabel: "Local demo device", lastCheckedAt: new Date().toISOString() }
-        };
-        await saveSettings(next);
-        return ok(next);
-      }
-      case "license/reset": {
-        const settings = await getSettings();
-        const next = { ...settings, license: { status: "free" as const } };
-        await saveSettings(next);
-        return ok(next);
       }
       case "provider/saveApiKey": {
         await saveEncryptedApiKey(message.payload.provider, message.payload.apiKey);
+        await publishProviderKeyRevision(message.payload.provider, "saved");
         return ok(await providerStatus());
       }
       case "provider/deleteApiKey": {
         await deleteApiKey(message.payload.provider);
+        await publishProviderKeyRevision(message.payload.provider, "deleted");
         return ok(await providerStatus());
       }
       case "provider/status":
         return ok(await providerStatus());
-      case "ai/startTrack": {
-        const settings = await getSettings();
-        if (settings.license.status !== "lifetime_mock") {
-          throw new Error("AI Check requires Lifetime License in this MVP.");
-        }
-        const target = (await getBlockedTargets()).find((item) => item.id === message.payload.targetId);
-        if (!target) throw new Error("Target not found.");
-        return ok(await startAITrack(target));
-      }
       case "ai/sendMessage": {
         const settings = await getSettings();
         const result = await sendAITrackMessage({
@@ -144,24 +253,27 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         await scheduleNextAccessStateAlarm();
         return ok(result);
       }
+      case "ai/startAndSend": {
+        const settings = await getSettings();
+        const target = (await getBlockedTargets()).find((item) => item.id === message.payload.targetId);
+        if (!target) throw new Error("Target not found.");
+        const result = await startAndSendAITrackMessage({
+          target,
+          content: message.payload.content,
+          settings
+        });
+        await rebuildDnrRules();
+        await scheduleNextAccessStateAlarm();
+        return ok(result);
+      }
       case "ai/getTrack":
         return ok(await getTrackBundle(message.payload.trackId));
       case "ai/recentTracks":
         return ok(await listRecentTracks());
-      case "review/list":
-        return ok(await listBadCaseReviews());
-      case "review/create":
-        return ok(await createBadCaseReview(message.payload));
-      case "eval/createFromBadCase":
-        return ok(await createEvalCaseFromBadCase(message.payload.badCaseId));
-      case "eval/list":
-        return ok(await listEvalCases());
       case "data/export":
         return ok({
           ...(await bootstrap()),
-          tracks: await listRecentTracks(),
-          reviews: await listBadCaseReviews(),
-          evalCases: await listEvalCases()
+          tracks: await listRecentTracks()
         });
       case "data/deleteAll":
         await clearBetterMeLocalData();
@@ -177,12 +289,36 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
   }
 }
 
+function summarizeRecentEvents(events: Awaited<ReturnType<typeof listBehaviorEventsForTargetKey>>): Record<string, number> {
+  const since = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recent = events.filter((event) => new Date(event.createdAt).getTime() >= since);
+  return {
+    blockedAttempts7d: recent.filter((event) => event.type === "blocked_url_attempted").length,
+    cooldownStarts7d: recent.filter((event) => event.type === "cooldown_started").length,
+    cooldownContinues7d: recent.filter((event) => event.type === "cooldown_continued").length,
+    removals7d: recent.filter((event) => event.type === "blocked_target_removed").length,
+    readds7d: recent.filter((event) => event.type === "blocked_target_readded").length
+  };
+}
+
+function secondsBetween(start: string, end: string): number {
+  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000));
+}
+
 function ok<T>(data: T): ExtensionResult<T> {
   return { ok: true, data };
 }
 
 function fail(error: string): ExtensionResult<never> {
   return { ok: false, error };
+}
+
+async function publishProviderKeyRevision(provider: ProviderId, action: ProviderKeyRevision["action"]): Promise<void> {
+  await setLocalValue<ProviderKeyRevision>(STORAGE_KEYS.providerKeyRevision, {
+    provider,
+    action,
+    updatedAt: new Date().toISOString()
+  });
 }
 
 async function getPageAccess(url: string): Promise<PageAccessInfo> {

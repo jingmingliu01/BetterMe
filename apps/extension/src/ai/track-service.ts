@@ -14,18 +14,21 @@ import type {
 } from "../shared/types";
 import { buildLlmMessages } from "./context-builder";
 import { buildOpeningMessage } from "./prompt";
-import { requestCheckpointDecision } from "./provider-client";
+import { ProviderRequestError, requestCheckpointDecision } from "./provider-client";
 import { listPatternMemory, updatePatternMemory } from "./pattern-memory";
 import { addHold, addUnlock } from "../storage/domain-store";
 import { getAllRecords, getRecord, putRecord } from "../storage/indexed-db";
+import { appendBehaviorEvent } from "../storage/behavior-events";
 import { createBlockHoldUntilNextDay, createTemporaryUnlock } from "../blocking/unlocks";
 import { loadDecryptedApiKey } from "../storage/crypto-key-store";
+import { getTargetKey } from "../blocking/target-parser";
 
 export async function startAITrack(target: BlockedTarget): Promise<{ track: AITrack; messages: AITrackMessage[] }> {
   const now = new Date();
   const track: AITrack = {
     id: createId("track"),
     targetId: target.id,
+    targetKey: getTargetKey(target),
     targetDisplay: target.display,
     status: "active",
     startedAt: now.toISOString(),
@@ -44,7 +47,29 @@ export async function startAITrack(target: BlockedTarget): Promise<{ track: AITr
 
   await putRecord("aiTracks", track);
   await putRecord("aiTrackMessages", opening);
+  await appendBehaviorEvent({
+    type: "ai_track_started",
+    target,
+    payload: {
+      trackId: track.id,
+      expiresAt: track.expiresAt,
+      maxAssistantTurns: track.maxAssistantTurns
+    }
+  });
   return { track, messages: [opening] };
+}
+
+export async function startAndSendAITrackMessage(input: {
+  target: BlockedTarget;
+  content: string;
+  settings: UserSettings;
+}): Promise<{ track: AITrack; messages: AITrackMessage[]; decision: CheckpointDecision }> {
+  const { track } = await startAITrack(input.target);
+  return sendAITrackMessage({
+    trackId: track.id,
+    content: input.content,
+    settings: input.settings
+  });
 }
 
 export async function getTrackBundle(trackId: string): Promise<{
@@ -120,10 +145,14 @@ export async function sendAITrackMessage(input: {
       model: input.settings.model,
       apiKey,
       messages: llmMessages,
-      trackId: input.trackId
+      trackId: input.trackId,
+      strictness: input.settings.strictness
     });
   } catch (error) {
-    const failed = { ...bundle.track, status: "provider_error" as const };
+    const failed = {
+      ...bundle.track,
+      status: error instanceof ProviderRequestError ? ("provider_error" as const) : ("schema_error" as const)
+    };
     await putRecord("aiTracks", failed);
     throw error;
   }
@@ -180,14 +209,34 @@ async function applyDecision(input: {
   if (input.decision.decision === "ALLOW") {
     const cap = STRICTNESS_UNLOCK_CAP_MINUTES[input.settings.strictness];
     const minutes = Math.max(1, Math.min(input.decision.unlockMinutes ?? cap, cap));
-    await addUnlock(
-      createTemporaryUnlock({
-        targetId: input.track.targetId,
-        targetDisplay: input.track.targetDisplay,
-        source: "ai_allow",
-        minutes
-      })
-    );
+    const unlock = createTemporaryUnlock({
+      targetId: input.track.targetId,
+      targetDisplay: input.track.targetDisplay,
+      source: "ai_allow",
+      minutes
+    });
+    await addUnlock(unlock);
+    await appendBehaviorEvent({
+      type: "temporary_unlock_created",
+      targetId: input.track.targetId,
+      targetKey: input.track.targetKey,
+      targetDisplay: input.track.targetDisplay,
+      payload: {
+        unlockId: unlock.id,
+        source: unlock.source,
+        expiresAt: unlock.expiresAt,
+        unlockSeconds: Math.round(minutes * 60),
+        trackId: input.track.id,
+        decisionId: input.decision.id
+      }
+    });
+    await appendBehaviorEvent({
+      type: "ai_decision_applied",
+      targetId: input.track.targetId,
+      targetKey: input.track.targetKey,
+      targetDisplay: input.track.targetDisplay,
+      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.track.id)
+    });
     return {
       ...base,
       status: "allowed",
@@ -197,13 +246,31 @@ async function applyDecision(input: {
   }
 
   if (input.decision.decision === "BLOCK") {
-    await addHold(
-      createBlockHoldUntilNextDay({
-        targetId: input.track.targetId,
-        targetDisplay: input.track.targetDisplay,
-        sourceTrackId: input.track.id
-      })
-    );
+    const hold = createBlockHoldUntilNextDay({
+      targetId: input.track.targetId,
+      targetDisplay: input.track.targetDisplay,
+      sourceTrackId: input.track.id
+    });
+    await addHold(hold);
+    await appendBehaviorEvent({
+      type: "block_hold_created",
+      targetId: input.track.targetId,
+      targetKey: input.track.targetKey,
+      targetDisplay: input.track.targetDisplay,
+      payload: {
+        holdId: hold.id,
+        expiresAt: hold.expiresAt,
+        trackId: input.track.id,
+        decisionId: input.decision.id
+      }
+    });
+    await appendBehaviorEvent({
+      type: "ai_decision_applied",
+      targetId: input.track.targetId,
+      targetKey: input.track.targetKey,
+      targetDisplay: input.track.targetDisplay,
+      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.track.id)
+    });
     return {
       ...base,
       status: "blocked",
@@ -213,6 +280,13 @@ async function applyDecision(input: {
   }
 
   if (input.decision.decision === "DELAY") {
+    await appendBehaviorEvent({
+      type: "ai_decision_applied",
+      targetId: input.track.targetId,
+      targetKey: input.track.targetKey,
+      targetDisplay: input.track.targetDisplay,
+      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.track.id)
+    });
     return {
       ...base,
       status: "delayed",
@@ -220,10 +294,35 @@ async function applyDecision(input: {
     };
   }
 
+  await appendBehaviorEvent({
+    type: "ai_decision_applied",
+    targetId: input.track.targetId,
+    targetKey: input.track.targetKey,
+    targetDisplay: input.track.targetDisplay,
+    payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.track.id)
+  });
   return {
     ...base,
     status: "active",
     finalDecision: "ASK_MORE"
+  };
+}
+
+function buildDecisionEventPayload(
+  decision: CheckpointDecision,
+  strictness: UserSettings["strictness"],
+  trackId: string
+): Record<string, unknown> {
+  return {
+    trackId,
+    decisionId: decision.id,
+    decision: decision.decision,
+    strictness,
+    reasoningCategory: decision.reasoningCategory,
+    unlockMinutes: decision.unlockMinutes,
+    delaySeconds: decision.delaySeconds,
+    scores: decision.scores,
+    reasonCategory: decision.memoryUpdate.reasonCategory
   };
 }
 

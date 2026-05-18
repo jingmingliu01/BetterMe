@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, DoorOpen, MessageSquare, Settings, TestTube2 } from "lucide-react";
+import { Clock, DoorOpen, Settings } from "lucide-react";
 import { AppShell } from "../shared/AppShell";
 import { getQueryParam, openExtensionPage, sendMessage } from "../shared/api";
 import { useAsyncState } from "../shared/useAsyncState";
 import type {
   AITrack,
   AITrackMessage,
+  BasicCooldown,
   BlockedTarget,
   BootstrapState,
   CheckpointDecision
 } from "../../shared/types";
+import { deriveAIReadiness, getAIReadinessMessage } from "../../ai/ai-readiness";
 import { buildOpeningMessage } from "../../ai/prompt";
-import { deriveAIAvailability, deriveAccessState, getActiveCooldownForTarget } from "../../blocking/access-state";
-import { isCooldownComplete } from "../../blocking/cooldowns";
-import { ACCESS_TIMING, STORAGE_KEYS } from "../../shared/constants";
+import { deriveAccessState, getActiveCooldownForTarget } from "../../blocking/access-state";
+import { getCooldownClaimExpiresAt, isCooldownComplete } from "../../blocking/cooldowns";
+import {
+  AI_TRACK_MAX_ASSISTANT_TURNS,
+  BASIC_COOLDOWN_POLICIES,
+  getEscalatedStrictness,
+  STORAGE_KEYS
+} from "../../shared/constants";
 import "../shared/styles.css";
 
 export function BlockPage() {
@@ -52,11 +59,13 @@ export function BlockPage() {
         return;
       }
       const watchedKeys = [
+        STORAGE_KEYS.settings,
         STORAGE_KEYS.blockedTargets,
         STORAGE_KEYS.unlocks,
         STORAGE_KEYS.cooldowns,
         STORAGE_KEYS.holds,
-        STORAGE_KEYS.targetAttempts
+        STORAGE_KEYS.targetAttempts,
+        STORAGE_KEYS.providerKeyRevision
       ];
       if (watchedKeys.some((key) => key in changes)) {
         void refresh();
@@ -82,26 +91,34 @@ export function BlockPage() {
   const accessState = data
     ? deriveAccessState({ target, unlocks: data.unlocks, cooldowns: data.cooldowns, holds: data.holds, now })
     : "blocked";
-  const aiAvailability = data
-    ? deriveAIAvailability({
-        license: data.settings.license,
+  const aiReadiness = data
+    ? deriveAIReadiness({
+        settings: data.settings,
         providerKeyReady: selectedProviderReady,
-        accessState
+        accessState,
+        targetExists: Boolean(target)
       })
-    : "locked_free";
-  const aiReady = Boolean(data && target && aiAvailability === "ready" && accessState !== "cooling_down");
+    : "missing_provider_key";
+  const aiReady = aiReadiness === "ready";
   const activeCooldown = target ? getActiveCooldownForTarget(target.id, data?.cooldowns ?? [], now) : null;
   const completedCooldown =
     target && data
       ? data.cooldowns.find((cooldown) => cooldown.targetId === target.id && isCooldownComplete(cooldown, now))
       : null;
+  const currentCooldownEscalation =
+    target && data ? data.cooldownEscalations.find((item) => item.targetId === target.id) ?? null : null;
+  const nextCooldownAttemptCount = (currentCooldownEscalation?.count ?? 0) + 1;
+  const nextCooldownStrictness = data
+    ? getEscalatedStrictness(data.settings.strictness, nextCooldownAttemptCount)
+    : "balanced";
+  const nextCooldownPolicy = BASIC_COOLDOWN_POLICIES[nextCooldownStrictness];
   const attemptUrlFromQuery = getQueryParam("attemptUrl");
   const attemptUrl =
     attemptUrlFromQuery ??
     (target ? getAttemptUrlForTarget(data?.targetAttempts ?? [], target.id, currentTabId) : null) ??
     (target ? getFallbackAttemptUrl(target) : null) ??
     null;
-  const blockedReason = getAIBlockedReason(aiAvailability);
+  const blockedReason = data ? getAIReadinessMessage(aiReadiness, data.settings.provider) : "";
 
   useEffect(() => {
     if (!targetWasDeleted || !deletedTargetAttemptUrl) {
@@ -113,33 +130,20 @@ export function BlockPage() {
     return () => window.clearTimeout(timer);
   }, [deletedTargetAttemptUrl, targetWasDeleted]);
 
-  async function startTrack() {
-    if (!target) return;
-    setBusy(true);
-    setAiError(null);
-    try {
-      const result = await sendMessage<{ track: AITrack; messages: AITrackMessage[] }>({
-        type: "ai/startTrack",
-        payload: { targetId: target.id }
-      });
-      setTrack(result.track);
-      setMessages(result.messages);
-    } catch (startError) {
-      setAiError(startError instanceof Error ? startError.message : "Could not start AI Track.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function sendUserMessage() {
-    if (!track || !input.trim()) return;
+    if (!input.trim() || (!track && !target)) return;
     setBusy(true);
     setAiError(null);
     try {
-      const result = await sendMessage<{ track: AITrack; messages: AITrackMessage[]; decision: CheckpointDecision }>({
-        type: "ai/sendMessage",
-        payload: { trackId: track.id, content: input }
-      });
+      const result = track
+        ? await sendMessage<{ track: AITrack; messages: AITrackMessage[]; decision: CheckpointDecision }>({
+            type: "ai/sendMessage",
+            payload: { trackId: track.id, content: input }
+          })
+        : await sendMessage<{ track: AITrack; messages: AITrackMessage[]; decision: CheckpointDecision }>({
+            type: "ai/startAndSend",
+            payload: { targetId: target!.id, content: input }
+          });
       setTrack(result.track);
       setMessages(result.messages);
       setDecision(result.decision);
@@ -241,19 +245,21 @@ export function BlockPage() {
               <strong>{formatRemaining(new Date(activeCooldown.endsAt).getTime() - now.getTime())}</strong>
             </div>
           ) : completedCooldown ? (
-            <button className="btn" disabled={busy} onClick={completeCooldown}>
-              <Clock size={16} /> Continue for {formatDuration(ACCESS_TIMING.basicCooldownUnlockSeconds)}
-            </button>
+            <div className="stack">
+              <button className="btn" disabled={busy} onClick={completeCooldown}>
+                <Clock size={16} /> Continue for {formatDuration(getCooldownUnlockSeconds(completedCooldown))}
+              </button>
+              <p className="muted">
+                Available for {formatRemaining(getCooldownClaimExpiresAt(completedCooldown).getTime() - now.getTime())}
+              </p>
+            </div>
           ) : (
             <button className="btn" disabled={!target || busy} onClick={startCooldown}>
-              <Clock size={16} /> Basic Cooldown {formatDuration(ACCESS_TIMING.basicCooldownSeconds)}
+              <Clock size={16} /> Basic Cooldown {formatDuration(nextCooldownPolicy.cooldownSeconds)}
             </button>
           )}
           <button className="btn btn-ghost" onClick={() => openExtensionPage("settings.html")}>
             <Settings size={16} /> Settings
-          </button>
-          <button className="btn btn-ghost" onClick={() => openExtensionPage("review.html")}>
-            <TestTube2 size={16} /> AI PM Review
           </button>
           {decision && (
             <div className="card stack">
@@ -268,11 +274,9 @@ export function BlockPage() {
         <section className="panel stack">
           <div className="row space-between">
             <h2>AI Check Chatbot</h2>
-            {track && (
-              <span className="badge">
-                {track.assistantTurnCount}/{track.maxAssistantTurns} turns
-              </span>
-            )}
+            <span className="badge">
+              {track?.assistantTurnCount ?? 0}/{track?.maxAssistantTurns ?? AI_TRACK_MAX_ASSISTANT_TURNS} turns
+            </span>
           </div>
 
           <div className="message-list">
@@ -290,41 +294,26 @@ export function BlockPage() {
           </div>
 
           {aiError && <p className="badge badge-danger">{aiError}</p>}
-          {!track ? (
-            <button className="btn btn-primary" disabled={!aiReady || busy} onClick={startTrack}>
-              <MessageSquare size={16} /> Start AI Track
+          <div className="stack">
+            <textarea
+              className="textarea"
+              value={input}
+              onChange={(event) => setInput(event.target.value)}
+              disabled={
+                busy ||
+                !aiReady ||
+                Boolean(track && ["allowed", "blocked", "expired", "provider_error", "schema_error"].includes(track.status))
+              }
+              placeholder="Explain why this visit is deliberate and bounded..."
+            />
+            <button className="btn btn-primary" onClick={sendUserMessage} disabled={busy || !aiReady || !input.trim()}>
+              {busy ? "Thinking..." : "Send"}
             </button>
-          ) : (
-            <div className="stack">
-              <textarea
-                className="textarea"
-                value={input}
-                onChange={(event) => setInput(event.target.value)}
-                disabled={busy || ["allowed", "blocked", "expired", "provider_error"].includes(track.status)}
-                placeholder="Explain why this visit is deliberate and bounded..."
-              />
-              <button className="btn btn-primary" onClick={sendUserMessage} disabled={busy || !input.trim()}>
-                Send
-              </button>
-            </div>
-          )}
+          </div>
         </section>
       </section>
     </AppShell>
   );
-}
-
-function getAIBlockedReason(aiAvailability: string): string {
-  switch (aiAvailability) {
-    case "locked_free":
-      return "AI Check requires Lifetime License.";
-    case "missing_provider_key":
-      return "Provider API key or Demo AI is not configured.";
-    case "blocked_by_hold":
-      return "This target is blocked until tomorrow.";
-    default:
-      return "";
-  }
 }
 
 function continueAfterTargetDeleted(attemptUrl: string | null): void {
@@ -377,6 +366,10 @@ function formatDuration(seconds: number): string {
     return `${seconds / 60}m`;
   }
   return `${seconds}s`;
+}
+
+function getCooldownUnlockSeconds(cooldown: BasicCooldown): number {
+  return Math.round(cooldown.unlockMinutes * 60);
 }
 
 function getFallbackAttemptUrl(target: BlockedTarget): string | null {

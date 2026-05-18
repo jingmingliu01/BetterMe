@@ -1,9 +1,9 @@
 import {
   AlertCircle,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Globe2,
+  Link2,
   RefreshCw,
   Settings,
   ShieldPlus
@@ -11,14 +11,17 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { getCurrentActiveTab, openExtensionPage, reloadTab, sendMessage } from "../shared/api";
 import { getBlockedTargets, getUnlocks } from "../../storage/domain-store";
-import type { BlockedTarget, TemporaryUnlock } from "../../shared/types";
+import { BLOCK_TARGET_ACTION_LABELS } from "../../shared/constants";
+import type { BlockedTarget, BlockedTargetType, TemporaryUnlock } from "../../shared/types";
 import "../shared/styles.css";
 
 interface CurrentPage {
   tabId?: number;
   url?: string;
   targetId?: string;
+  targetType?: BlockedTargetType;
   domain?: string;
+  exactUrl?: string;
   supported: boolean;
   error?: string;
 }
@@ -39,8 +42,8 @@ export function PopupPage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const isBlocked = useMemo(() => {
-    if (currentPage.targetId) {
+  const isDomainBlocked = useMemo(() => {
+    if (currentPage.targetId && currentPage.targetType === "domain") {
       return blockedTargets.some((target) => target.id === currentPage.targetId && target.enabled);
     }
     if (!currentPage.domain) {
@@ -49,7 +52,20 @@ export function PopupPage() {
     return blockedTargets.some(
       (target) => target.type === "domain" && target.value === currentPage.domain && target.enabled
     );
-  }, [currentPage.domain, currentPage.targetId, blockedTargets]);
+  }, [currentPage.domain, currentPage.targetId, currentPage.targetType, blockedTargets]);
+
+  const isExactUrlBlocked = useMemo(() => {
+    if (currentPage.targetId && currentPage.targetType === "exactUrl") {
+      return blockedTargets.some((target) => target.id === currentPage.targetId && target.enabled);
+    }
+    if (!currentPage.exactUrl) {
+      return false;
+    }
+    const exactUrl = normalizeExactUrl(currentPage.exactUrl);
+    return blockedTargets.some(
+      (target) => target.type === "exactUrl" && target.value === exactUrl && target.enabled
+    );
+  }, [currentPage.exactUrl, currentPage.targetId, currentPage.targetType, blockedTargets]);
 
   const activeUnlock = useMemo(() => {
     if (currentPage.targetId) {
@@ -90,7 +106,9 @@ export function PopupPage() {
             tabId: tab.id,
             url: tab.url,
             targetId: target.id,
+            targetType: target.type,
             domain: target.display,
+            exactUrl: target.type === "exactUrl" ? target.value : undefined,
             supported: true
           });
           return;
@@ -109,6 +127,7 @@ export function PopupPage() {
         tabId: tab.id,
         url: tab.url,
         domain: url.hostname.toLowerCase(),
+        exactUrl: url.toString(),
         supported: true
       });
     } catch {
@@ -116,8 +135,9 @@ export function PopupPage() {
     }
   }
 
-  async function addCurrentDomain() {
-    if (!currentPage.domain) {
+  async function addCurrentTarget(targetType: BlockedTargetType) {
+    const input = targetType === "domain" ? currentPage.domain : currentPage.exactUrl;
+    if (!input) {
       return;
     }
     setBusy(true);
@@ -125,12 +145,12 @@ export function PopupPage() {
     try {
       await sendMessage({
         type: "blockedTargets/add",
-        payload: { input: currentPage.domain, targetType: "domain" }
+        payload: { input, targetType }
       });
-      setStatus("Domain added. Reload the page to trigger BetterMe.");
+      setStatus(`${targetType === "domain" ? "Domain" : "Exact URL"} added. Reload the page to trigger BetterMe.`);
       await loadLocalSummary();
     } catch (addError) {
-      setStatus(addError instanceof Error ? addError.message : "Could not add domain.");
+      setStatus(addError instanceof Error ? addError.message : "Could not add blocked target.");
     } finally {
       setBusy(false);
     }
@@ -140,7 +160,7 @@ export function PopupPage() {
     <main className="popup-root">
       <header className="popup-header">
         <div className="popup-logo">
-          <CheckCircle2 size={22} />
+          <img className="popup-logo-icon" src="/icon.svg" alt="" aria-hidden="true" />
           <span>BetterMe</span>
         </div>
         <p>Block the current site, then reload to enter the AI checkpoint.</p>
@@ -168,8 +188,21 @@ export function PopupPage() {
         )}
         {status && <p className="inline-status">{status}</p>}
 
-        <button className="btn btn-primary" disabled={!currentPage.supported || isBlocked || busy} onClick={addCurrentDomain}>
-          <ShieldPlus size={16} /> {isBlocked ? "Already Blocked" : "Block This Domain"}
+        <button
+          className="btn btn-primary"
+          disabled={!currentPage.supported || isDomainBlocked || busy}
+          onClick={() => addCurrentTarget("domain")}
+        >
+          <ShieldPlus size={16} />{" "}
+          {isDomainBlocked ? BLOCK_TARGET_ACTION_LABELS.alreadyBlocked : BLOCK_TARGET_ACTION_LABELS.domain}
+        </button>
+        <button
+          className="btn"
+          disabled={!currentPage.supported || !currentPage.exactUrl || isDomainBlocked || isExactUrlBlocked || busy}
+          onClick={() => addCurrentTarget("exactUrl")}
+        >
+          <Link2 size={16} />{" "}
+          {isDomainBlocked || isExactUrlBlocked ? BLOCK_TARGET_ACTION_LABELS.alreadyBlocked : BLOCK_TARGET_ACTION_LABELS.exactUrl}
         </button>
         <button className="btn" disabled={!currentPage.supported} onClick={() => reloadTab(currentPage.tabId)}>
           <RefreshCw size={16} /> Reload Page
@@ -209,6 +242,12 @@ export function PopupPage() {
       </section>
     </main>
   );
+}
+
+function normalizeExactUrl(input: string): string {
+  const url = new URL(input);
+  url.hash = "";
+  return url.toString();
 }
 
 function formatRemaining(ms: number): string {
