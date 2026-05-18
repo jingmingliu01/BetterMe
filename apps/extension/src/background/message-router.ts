@@ -39,7 +39,12 @@ import { clearAllIndexedDbStores } from "../storage/indexed-db";
 import { deleteApiKey, hasApiKey, saveEncryptedApiKey } from "../storage/crypto-key-store";
 import { rebuildDnrRules } from "./dnr-rules";
 import { scheduleNextAccessStateAlarm } from "./alarms";
-import { getTrackBundle, listRecentTracks, sendAITrackMessage, startAndSendAITrackMessage } from "../ai/track-service";
+import {
+  getAICheckSessionBundle,
+  listRecentAICheckSessions,
+  sendAICheckMessage,
+  startAndSendAICheckMessage
+} from "../ai/ai-check-session-service";
 import { createBasicCooldown, createUnlockFromCompletedCooldown } from "../blocking/cooldowns";
 import { getTargetKey } from "../blocking/target-parser";
 
@@ -193,7 +198,7 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
             endedAt: cooldown.endsAt,
             continuedAt: completedAt,
             waitedSeconds: secondsBetween(cooldown.createdAt, completedAt),
-            claimDelaySeconds: secondsBetween(cooldown.endsAt, completedAt),
+            claimWaitSeconds: secondsBetween(cooldown.endsAt, completedAt),
             unlockSeconds: Math.round(cooldown.unlockMinutes * 60),
             effectiveStrictness: cooldown.strictness ?? null,
             attemptCountInWindow: cooldown.attemptCount ?? null,
@@ -244,8 +249,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await providerStatus());
       case "ai/sendMessage": {
         const settings = await getSettings();
-        const result = await sendAITrackMessage({
-          trackId: message.payload.trackId,
+        const result = await sendAICheckMessage({
+          sessionId: message.payload.sessionId,
           content: message.payload.content,
           settings
         });
@@ -257,7 +262,7 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         const settings = await getSettings();
         const target = (await getBlockedTargets()).find((item) => item.id === message.payload.targetId);
         if (!target) throw new Error("Target not found.");
-        const result = await startAndSendAITrackMessage({
+        const result = await startAndSendAICheckMessage({
           target,
           content: message.payload.content,
           settings
@@ -266,14 +271,14 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         await scheduleNextAccessStateAlarm();
         return ok(result);
       }
-      case "ai/getTrack":
-        return ok(await getTrackBundle(message.payload.trackId));
-      case "ai/recentTracks":
-        return ok(await listRecentTracks());
+      case "ai/getSession":
+        return ok(await getAICheckSessionBundle(message.payload.sessionId));
+      case "ai/recentSessions":
+        return ok(await listRecentAICheckSessions());
       case "data/export":
         return ok({
           ...(await bootstrap()),
-          tracks: await listRecentTracks()
+          sessions: await listRecentAICheckSessions()
         });
       case "data/deleteAll":
         await clearBetterMeLocalData();

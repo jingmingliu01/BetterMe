@@ -31,7 +31,7 @@ export function OnboardingPage() {
         </div>
         <div className="card">
           <h3>Bounded AI Check</h3>
-          <p className="muted">A track has max turns, max time, one structured decision, and local enforcement.</p>
+          <p className="muted">An AI Check session has max turns, max time, one structured decision, and local enforcement.</p>
         </div>
         <div className="card">
           <h3>Local provider key</h3>

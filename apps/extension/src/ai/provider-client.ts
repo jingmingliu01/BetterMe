@@ -22,7 +22,7 @@ export async function requestCheckpointDecision(input: {
   model: string;
   apiKey: string;
   messages: ChatMessage[];
-  trackId: string;
+  sessionId: string;
   strictness: StrictnessLevel;
 }): Promise<CheckpointDecision> {
   const provider = PROVIDERS.find((item) => item.id === input.provider);
@@ -73,7 +73,7 @@ export async function requestCheckpointDecision(input: {
   if (!content) {
     throw new ProviderRequestError("bad_provider_response", "Provider returned an empty response.");
   }
-  const decision = parseCheckpointDecision(content, input.trackId);
+  const decision = parseCheckpointDecision(content, input.sessionId);
   validateDecisionConstraints(decision, input.strictness);
   return decision;
 }

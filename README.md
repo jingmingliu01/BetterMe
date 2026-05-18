@@ -50,9 +50,9 @@ Chrome 加载方式：
 | 1 | [Access State Design](docs/design/2026-05-12-access-state-design.md) | Blocked target、cooldown、temporary unlock、BlockHold、DNR 和 tab-level attempted URL 的统一设计。 |
 | 2 | [Access State Progress](docs/design/2026-05-12-access-state-progress.md) | Access-state foundation 的实现进度和验证状态。 |
 | 3 | [Access State Issues](docs/design/2026-05-12-access-state-issues.md) | Access-state 相关 issue、风险、关闭记录。 |
-| 4 | [AI Track State Machine Design](docs/design/2026-05-12-ai-track-state-machine-design.md) | AI Chat / AI Check 的状态机、provider client、JSON decision、ALLOW/DELAY/ASK_MORE/BLOCK enforcement。 |
-| 5 | [AI Track State Machine Progress](docs/design/2026-05-12-ai-track-state-machine-progress.md) | AI Track state machine 的实现进度。 |
-| 6 | [AI Track State Machine Issues](docs/design/2026-05-12-ai-track-state-machine-issues.md) | AI Chat 当前待解决问题，包括真实 provider 调用、schema validation、DELAY/ASK_MORE/BLOCK UX。 |
+| 4 | [AI Check Session State Machine Design](docs/design/2026-05-12-ai-check-session-state-machine-design.md) | AI Chat / AI Check 的状态机、provider client、JSON decision、ALLOW/AI cooldown/ASK_MORE/BLOCK enforcement。 |
+| 5 | [AI Check Session State Machine Progress](docs/design/2026-05-12-ai-check-session-state-machine-progress.md) | AI Check session state machine 的实现进度。 |
+| 6 | [AI Check Session State Machine Issues](docs/design/2026-05-12-ai-check-session-state-machine-issues.md) | AI Chat 当前待解决问题，包括真实 provider 调用、schema validation、AI cooldown/ASK_MORE/BLOCK UX。 |
 
 ## 当前 Non-Goals
 

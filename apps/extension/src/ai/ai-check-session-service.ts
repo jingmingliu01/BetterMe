@@ -1,13 +1,13 @@
 import {
-  AI_TRACK_MAX_ASSISTANT_TURNS,
-  AI_TRACK_MAX_SECONDS,
+  AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
+  AI_CHECK_SESSION_MAX_SECONDS,
   STRICTNESS_UNLOCK_CAP_MINUTES
 } from "../shared/constants";
 import { createId, nowIso } from "../shared/id";
 import type {
-  AITrack,
-  AITrackMessage,
-  AITrackSummary,
+  AICheckSession,
+  AICheckMessage,
+  AICheckSummary,
   BlockedTarget,
   CheckpointDecision,
   UserSettings
@@ -23,106 +23,106 @@ import { createBlockHoldUntilNextDay, createTemporaryUnlock } from "../blocking/
 import { loadDecryptedApiKey } from "../storage/crypto-key-store";
 import { getTargetKey } from "../blocking/target-parser";
 
-export async function startAITrack(target: BlockedTarget): Promise<{ track: AITrack; messages: AITrackMessage[] }> {
+export async function startAICheckSession(target: BlockedTarget): Promise<{ session: AICheckSession; messages: AICheckMessage[] }> {
   const now = new Date();
-  const track: AITrack = {
-    id: createId("track"),
+  const session: AICheckSession = {
+    id: createId("session"),
     targetId: target.id,
     targetKey: getTargetKey(target),
     targetDisplay: target.display,
     status: "active",
     startedAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + AI_TRACK_MAX_SECONDS * 1000).toISOString(),
+    expiresAt: new Date(now.getTime() + AI_CHECK_SESSION_MAX_SECONDS * 1000).toISOString(),
     assistantTurnCount: 0,
-    maxAssistantTurns: AI_TRACK_MAX_ASSISTANT_TURNS
+    maxAssistantTurns: AI_CHECK_SESSION_MAX_ASSISTANT_TURNS
   };
-  const opening: AITrackMessage = {
+  const opening: AICheckMessage = {
     id: createId("msg"),
-    trackId: track.id,
+    sessionId: session.id,
     role: "assistant",
     source: "local_opening",
     content: buildOpeningMessage(target.display),
     createdAt: nowIso()
   };
 
-  await putRecord("aiTracks", track);
-  await putRecord("aiTrackMessages", opening);
+  await putRecord("aiCheckSessions", session);
+  await putRecord("aiCheckMessages", opening);
   await appendBehaviorEvent({
-    type: "ai_track_started",
+    type: "ai_check_session_started",
     target,
     payload: {
-      trackId: track.id,
-      expiresAt: track.expiresAt,
-      maxAssistantTurns: track.maxAssistantTurns
+      sessionId: session.id,
+      expiresAt: session.expiresAt,
+      maxAssistantTurns: session.maxAssistantTurns
     }
   });
-  return { track, messages: [opening] };
+  return { session, messages: [opening] };
 }
 
-export async function startAndSendAITrackMessage(input: {
+export async function startAndSendAICheckMessage(input: {
   target: BlockedTarget;
   content: string;
   settings: UserSettings;
-}): Promise<{ track: AITrack; messages: AITrackMessage[]; decision: CheckpointDecision }> {
-  const { track } = await startAITrack(input.target);
-  return sendAITrackMessage({
-    trackId: track.id,
+}): Promise<{ session: AICheckSession; messages: AICheckMessage[]; decision: CheckpointDecision }> {
+  const { session } = await startAICheckSession(input.target);
+  return sendAICheckMessage({
+    sessionId: session.id,
     content: input.content,
     settings: input.settings
   });
 }
 
-export async function getTrackBundle(trackId: string): Promise<{
-  track: AITrack;
-  messages: AITrackMessage[];
+export async function getAICheckSessionBundle(sessionId: string): Promise<{
+  session: AICheckSession;
+  messages: AICheckMessage[];
   decisions: CheckpointDecision[];
 }> {
-  const track = await getRecord<AITrack>("aiTracks", trackId);
-  if (!track) {
-    throw new Error("Track not found.");
+  const session = await getRecord<AICheckSession>("aiCheckSessions", sessionId);
+  if (!session) {
+    throw new Error("Session not found.");
   }
 
   const [messages, decisions] = await Promise.all([
-    getAllRecords<AITrackMessage>("aiTrackMessages"),
+    getAllRecords<AICheckMessage>("aiCheckMessages"),
     getAllRecords<CheckpointDecision>("checkpointDecisions")
   ]);
 
   return {
-    track,
+    session,
     messages: messages
-      .filter((message) => message.trackId === trackId)
+      .filter((message) => message.sessionId === sessionId)
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt)),
     decisions: decisions
-      .filter((decision) => decision.trackId === trackId)
+      .filter((decision) => decision.sessionId === sessionId)
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
   };
 }
 
-export async function sendAITrackMessage(input: {
-  trackId: string;
+export async function sendAICheckMessage(input: {
+  sessionId: string;
   content: string;
   settings: UserSettings;
-}): Promise<{ track: AITrack; messages: AITrackMessage[]; decision: CheckpointDecision }> {
-  const bundle = await getTrackBundle(input.trackId);
+}): Promise<{ session: AICheckSession; messages: AICheckMessage[]; decision: CheckpointDecision }> {
+  const bundle = await getAICheckSessionBundle(input.sessionId);
   const now = Date.now();
-  if (new Date(bundle.track.expiresAt).getTime() <= now) {
-    const expired = { ...bundle.track, status: "expired" as const, completedAt: nowIso() };
-    await putRecord("aiTracks", expired);
-    throw new Error("This AI Track expired. Please leave and start a new checkpoint later.");
+  if (new Date(bundle.session.expiresAt).getTime() <= now) {
+    const expired = { ...bundle.session, status: "expired" as const, completedAt: nowIso() };
+    await putRecord("aiCheckSessions", expired);
+    throw new Error("This AI Check session expired. Please leave and start a new checkpoint later.");
   }
-  if (bundle.track.assistantTurnCount >= bundle.track.maxAssistantTurns) {
-    throw new Error("This AI Track has reached the turn limit.");
+  if (bundle.session.assistantTurnCount >= bundle.session.maxAssistantTurns) {
+    throw new Error("This AI Check session has reached the turn limit.");
   }
 
-  const userMessage: AITrackMessage = {
+  const userMessage: AICheckMessage = {
     id: createId("msg"),
-    trackId: input.trackId,
+    sessionId: input.sessionId,
     role: "user",
     source: "user",
     content: input.content.trim(),
     createdAt: nowIso()
   };
-  await putRecord("aiTrackMessages", userMessage);
+  await putRecord("aiCheckMessages", userMessage);
 
   const apiKey = await loadDecryptedApiKey(input.settings.provider);
   if (!apiKey) {
@@ -130,10 +130,10 @@ export async function sendAITrackMessage(input: {
   }
 
   const messages = [...bundle.messages, userMessage];
-  const patternMemories = await listPatternMemory(bundle.track.targetDisplay);
+  const patternMemories = await listPatternMemory(bundle.session.targetDisplay);
   const llmMessages = buildLlmMessages({
     strictness: input.settings.strictness,
-    targetDisplay: bundle.track.targetDisplay,
+    targetDisplay: bundle.session.targetDisplay,
     messages,
     patternMemories
   });
@@ -145,63 +145,63 @@ export async function sendAITrackMessage(input: {
       model: input.settings.model,
       apiKey,
       messages: llmMessages,
-      trackId: input.trackId,
+      sessionId: input.sessionId,
       strictness: input.settings.strictness
     });
   } catch (error) {
     const failed = {
-      ...bundle.track,
+      ...bundle.session,
       status: error instanceof ProviderRequestError ? ("provider_error" as const) : ("schema_error" as const)
     };
-    await putRecord("aiTracks", failed);
+    await putRecord("aiCheckSessions", failed);
     throw error;
   }
 
-  const assistantMessage: AITrackMessage = {
+  const assistantMessage: AICheckMessage = {
     id: createId("msg"),
-    trackId: input.trackId,
+    sessionId: input.sessionId,
     role: "assistant",
     source: "llm",
     content: decision.nextQuestion ?? decision.userFacingMessage,
     createdAt: nowIso()
   };
 
-  const nextTrack = await applyDecision({
-    track: bundle.track,
+  const nextSession = await applyDecision({
+    session: bundle.session,
     decision,
     settings: input.settings,
     latestUserReason: userMessage.content
   });
 
   await putRecord("checkpointDecisions", decision);
-  await putRecord("aiTrackMessages", assistantMessage);
-  await putRecord("aiTracks", nextTrack);
+  await putRecord("aiCheckMessages", assistantMessage);
+  await putRecord("aiCheckSessions", nextSession);
   await updatePatternMemory({
-    targetDisplay: bundle.track.targetDisplay,
+    targetDisplay: bundle.session.targetDisplay,
     userReason: userMessage.content,
     decision
   });
 
   if (["ALLOW", "BLOCK"].includes(decision.decision)) {
-    await saveTrackSummary(nextTrack, decision, userMessage.content);
+    await saveSessionSummary(nextSession, decision, userMessage.content);
   }
 
   return {
-    track: nextTrack,
+    session: nextSession,
     messages: [...messages, assistantMessage],
     decision
   };
 }
 
 async function applyDecision(input: {
-  track: AITrack;
+  session: AICheckSession;
   decision: CheckpointDecision;
   settings: UserSettings;
   latestUserReason: string;
-}): Promise<AITrack> {
-  const assistantTurnCount = input.track.assistantTurnCount + 1;
+}): Promise<AICheckSession> {
+  const assistantTurnCount = input.session.assistantTurnCount + 1;
   const base = {
-    ...input.track,
+    ...input.session,
     assistantTurnCount,
     finalDecisionId: input.decision.id
   };
@@ -210,32 +210,32 @@ async function applyDecision(input: {
     const cap = STRICTNESS_UNLOCK_CAP_MINUTES[input.settings.strictness];
     const minutes = Math.max(1, Math.min(input.decision.unlockMinutes ?? cap, cap));
     const unlock = createTemporaryUnlock({
-      targetId: input.track.targetId,
-      targetDisplay: input.track.targetDisplay,
+      targetId: input.session.targetId,
+      targetDisplay: input.session.targetDisplay,
       source: "ai_allow",
       minutes
     });
     await addUnlock(unlock);
     await appendBehaviorEvent({
       type: "temporary_unlock_created",
-      targetId: input.track.targetId,
-      targetKey: input.track.targetKey,
-      targetDisplay: input.track.targetDisplay,
+      targetId: input.session.targetId,
+      targetKey: input.session.targetKey,
+      targetDisplay: input.session.targetDisplay,
       payload: {
         unlockId: unlock.id,
         source: unlock.source,
         expiresAt: unlock.expiresAt,
         unlockSeconds: Math.round(minutes * 60),
-        trackId: input.track.id,
+        sessionId: input.session.id,
         decisionId: input.decision.id
       }
     });
     await appendBehaviorEvent({
       type: "ai_decision_applied",
-      targetId: input.track.targetId,
-      targetKey: input.track.targetKey,
-      targetDisplay: input.track.targetDisplay,
-      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.track.id)
+      targetId: input.session.targetId,
+      targetKey: input.session.targetKey,
+      targetDisplay: input.session.targetDisplay,
+      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
     });
     return {
       ...base,
@@ -247,29 +247,29 @@ async function applyDecision(input: {
 
   if (input.decision.decision === "BLOCK") {
     const hold = createBlockHoldUntilNextDay({
-      targetId: input.track.targetId,
-      targetDisplay: input.track.targetDisplay,
-      sourceTrackId: input.track.id
+      targetId: input.session.targetId,
+      targetDisplay: input.session.targetDisplay,
+      sourceSessionId: input.session.id
     });
     await addHold(hold);
     await appendBehaviorEvent({
       type: "block_hold_created",
-      targetId: input.track.targetId,
-      targetKey: input.track.targetKey,
-      targetDisplay: input.track.targetDisplay,
+      targetId: input.session.targetId,
+      targetKey: input.session.targetKey,
+      targetDisplay: input.session.targetDisplay,
       payload: {
         holdId: hold.id,
         expiresAt: hold.expiresAt,
-        trackId: input.track.id,
+        sessionId: input.session.id,
         decisionId: input.decision.id
       }
     });
     await appendBehaviorEvent({
       type: "ai_decision_applied",
-      targetId: input.track.targetId,
-      targetKey: input.track.targetKey,
-      targetDisplay: input.track.targetDisplay,
-      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.track.id)
+      targetId: input.session.targetId,
+      targetKey: input.session.targetKey,
+      targetDisplay: input.session.targetDisplay,
+      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
     });
     return {
       ...base,
@@ -279,27 +279,27 @@ async function applyDecision(input: {
     };
   }
 
-  if (input.decision.decision === "DELAY") {
+  if (input.decision.decision === "AI_COOLDOWN") {
     await appendBehaviorEvent({
       type: "ai_decision_applied",
-      targetId: input.track.targetId,
-      targetKey: input.track.targetKey,
-      targetDisplay: input.track.targetDisplay,
-      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.track.id)
+      targetId: input.session.targetId,
+      targetKey: input.session.targetKey,
+      targetDisplay: input.session.targetDisplay,
+      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
     });
     return {
       ...base,
-      status: "delayed",
-      finalDecision: "DELAY"
+      status: "ai_cooling_down",
+      finalDecision: "AI_COOLDOWN"
     };
   }
 
   await appendBehaviorEvent({
     type: "ai_decision_applied",
-    targetId: input.track.targetId,
-    targetKey: input.track.targetKey,
-    targetDisplay: input.track.targetDisplay,
-    payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.track.id)
+    targetId: input.session.targetId,
+    targetKey: input.session.targetKey,
+    targetDisplay: input.session.targetDisplay,
+    payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
   });
   return {
     ...base,
@@ -311,48 +311,48 @@ async function applyDecision(input: {
 function buildDecisionEventPayload(
   decision: CheckpointDecision,
   strictness: UserSettings["strictness"],
-  trackId: string
+  sessionId: string
 ): Record<string, unknown> {
   return {
-    trackId,
+    sessionId,
     decisionId: decision.id,
     decision: decision.decision,
     strictness,
     reasoningCategory: decision.reasoningCategory,
     unlockMinutes: decision.unlockMinutes,
-    delaySeconds: decision.delaySeconds,
+    aiCooldownSeconds: decision.aiCooldownSeconds,
     scores: decision.scores,
     reasonCategory: decision.memoryUpdate.reasonCategory
   };
 }
 
-async function saveTrackSummary(
-  track: AITrack,
+async function saveSessionSummary(
+  session: AICheckSession,
   decision: CheckpointDecision,
   latestUserReason: string
 ): Promise<void> {
-  const summary: AITrackSummary = {
+  const summary: AICheckSummary = {
     id: createId("summary"),
-    trackId: track.id,
-    targetDisplay: track.targetDisplay,
+    sessionId: session.id,
+    targetDisplay: session.targetDisplay,
     finalDecision: decision.decision,
     reasonCategory: decision.memoryUpdate.reasonCategory,
     shortSummary: `User said: "${latestUserReason}". AI decided ${decision.decision} because ${decision.reasoningCategory}.`,
     createdAt: nowIso()
   };
-  await putRecord("aiTrackSummaries", summary);
+  await putRecord("aiCheckSummaries", summary);
 }
 
-export async function listRecentTracks(): Promise<Array<AITrack & { messages: AITrackMessage[] }>> {
-  const tracks = await getAllRecords<AITrack>("aiTracks");
-  const messages = await getAllRecords<AITrackMessage>("aiTrackMessages");
-  return tracks
+export async function listRecentAICheckSessions(): Promise<Array<AICheckSession & { messages: AICheckMessage[] }>> {
+  const sessions = await getAllRecords<AICheckSession>("aiCheckSessions");
+  const messages = await getAllRecords<AICheckMessage>("aiCheckMessages");
+  return sessions
     .sort((left, right) => right.startedAt.localeCompare(left.startedAt))
     .slice(0, 30)
-    .map((track) => ({
-      ...track,
+    .map((session) => ({
+      ...session,
       messages: messages
-        .filter((message) => message.trackId === track.id)
+        .filter((message) => message.sessionId === session.id)
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
     }));
 }

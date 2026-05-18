@@ -195,7 +195,7 @@ function assertNotIncludes(text, needle, message) {
 
 async function getBehaviorEvents(page) {
   return page.evaluate(async () => {
-    const request = indexedDB.open("betterme-db", 3);
+    const request = indexedDB.open("betterme-db", 4);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);

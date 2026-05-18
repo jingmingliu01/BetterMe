@@ -4,8 +4,8 @@ import { AppShell } from "../shared/AppShell";
 import { getQueryParam, openExtensionPage, sendMessage } from "../shared/api";
 import { useAsyncState } from "../shared/useAsyncState";
 import type {
-  AITrack,
-  AITrackMessage,
+  AICheckSession,
+  AICheckMessage,
   AIReadiness,
   BasicCooldown,
   BlockedTarget,
@@ -17,7 +17,7 @@ import { buildOpeningMessage } from "../../ai/prompt";
 import { deriveAccessState, getActiveCooldownForTarget } from "../../blocking/access-state";
 import { getCooldownClaimExpiresAt, isCooldownComplete } from "../../blocking/cooldowns";
 import {
-  AI_TRACK_MAX_ASSISTANT_TURNS,
+  AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
   BASIC_COOLDOWN_POLICIES,
   getEscalatedStrictness,
   STORAGE_KEYS
@@ -28,8 +28,8 @@ export function BlockPage() {
   const targetId = getQueryParam("targetId");
   const load = useCallback(() => sendMessage<BootstrapState>({ type: "bootstrap/getState" }), []);
   const { data, error, loading, refresh } = useAsyncState(load);
-  const [track, setTrack] = useState<AITrack | null>(null);
-  const [messages, setMessages] = useState<AITrackMessage[]>([]);
+  const [session, setSession] = useState<AICheckSession | null>(null);
+  const [messages, setMessages] = useState<AICheckMessage[]>([]);
   const [decision, setDecision] = useState<CheckpointDecision | null>(null);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -132,20 +132,20 @@ export function BlockPage() {
   }, [deletedTargetAttemptUrl, targetWasDeleted]);
 
   async function sendUserMessage() {
-    if (!input.trim() || (!track && !target)) return;
+    if (!input.trim() || (!session && !target)) return;
     setBusy(true);
     setAiError(null);
     try {
-      const result = track
-        ? await sendMessage<{ track: AITrack; messages: AITrackMessage[]; decision: CheckpointDecision }>({
+      const result = session
+        ? await sendMessage<{ session: AICheckSession; messages: AICheckMessage[]; decision: CheckpointDecision }>({
             type: "ai/sendMessage",
-            payload: { trackId: track.id, content: input }
+            payload: { sessionId: session.id, content: input }
           })
-        : await sendMessage<{ track: AITrack; messages: AITrackMessage[]; decision: CheckpointDecision }>({
+        : await sendMessage<{ session: AICheckSession; messages: AICheckMessage[]; decision: CheckpointDecision }>({
             type: "ai/startAndSend",
             payload: { targetId: target!.id, content: input }
           });
-      setTrack(result.track);
+      setSession(result.session);
       setMessages(result.messages);
       setDecision(result.decision);
       setInput("");
@@ -303,7 +303,7 @@ export function BlockPage() {
               <h2>Make the case to continue</h2>
             </div>
             <span className="turn-count">
-              {track?.assistantTurnCount ?? 0}/{track?.maxAssistantTurns ?? AI_TRACK_MAX_ASSISTANT_TURNS} turns
+              {session?.assistantTurnCount ?? 0}/{session?.maxAssistantTurns ?? AI_CHECK_SESSION_MAX_ASSISTANT_TURNS} turns
             </span>
           </div>
           <p className="muted ai-check-guidance">
@@ -311,7 +311,7 @@ export function BlockPage() {
           </p>
 
           <div className="message-list">
-            {!track && target && (
+            {!session && target && (
               <div className="message message-assistant">{buildOpeningMessage(target.display)}</div>
             )}
             {!target && (
@@ -339,7 +339,7 @@ export function BlockPage() {
               disabled={
                 busy ||
                 !aiReady ||
-                Boolean(track && ["allowed", "blocked", "expired", "provider_error", "schema_error"].includes(track.status))
+                Boolean(session && ["allowed", "blocked", "expired", "provider_error", "schema_error"].includes(session.status))
               }
               placeholder="Explain why this visit is deliberate and bounded..."
             />
@@ -370,7 +370,9 @@ function DecisionSummary({ decision }: { decision: CheckpointDecision }) {
           <span className="section-label">Latest decision</span>
           <strong>{formatDecisionLabel(decision.decision)}</strong>
         </div>
-        <span className={decision.decision === "BLOCK" ? "badge badge-danger" : "badge"}>{decision.decision}</span>
+        <span className={decision.decision === "BLOCK" ? "badge badge-danger" : "badge"}>
+          {formatDecisionBadge(decision.decision)}
+        </span>
       </div>
       <p>{decision.userFacingMessage}</p>
       <details className="decision-details">
@@ -461,7 +463,7 @@ function formatDecisionLabel(decision: CheckpointDecision["decision"]): string {
   switch (decision) {
     case "ALLOW":
       return "Temporary access approved";
-    case "DELAY":
+    case "AI_COOLDOWN":
       return "Pause before trying again";
     case "ASK_MORE":
       return "One more answer needed";
@@ -470,6 +472,10 @@ function formatDecisionLabel(decision: CheckpointDecision["decision"]): string {
     default:
       return decision;
   }
+}
+
+function formatDecisionBadge(decision: CheckpointDecision["decision"]): string {
+  return decision === "AI_COOLDOWN" ? "AI Cooldown" : decision;
 }
 
 function formatReadableToken(value: string): string {

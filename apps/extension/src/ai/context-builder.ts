@@ -1,4 +1,4 @@
-import type { AITrackMessage, PatternMemory, StrictnessLevel } from "../shared/types";
+import type { AICheckMessage, PatternMemory, StrictnessLevel } from "../shared/types";
 import { buildSystemPrompt } from "./prompt";
 
 export interface ChatMessage {
@@ -9,7 +9,7 @@ export interface ChatMessage {
 export function buildLlmMessages(input: {
   strictness: StrictnessLevel;
   targetDisplay: string;
-  messages: AITrackMessage[];
+  messages: AICheckMessage[];
   patternMemories: PatternMemory[];
 }): ChatMessage[] {
   const memoryLines = input.patternMemories

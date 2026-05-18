@@ -2,7 +2,10 @@ import { createId, nowIso } from "../shared/id";
 import { STRICTNESS_UNLOCK_CAP_MINUTES } from "../shared/constants";
 import type { AIDecision, CheckpointDecision, StrictnessLevel } from "../shared/types";
 
-const DECISIONS: AIDecision[] = ["ALLOW", "DELAY", "ASK_MORE", "BLOCK"];
+const DECISIONS: AIDecision[] = ["ALLOW", "AI_COOLDOWN", "ASK_MORE", "BLOCK"];
+const LEGACY_DECISION_MAP: Record<string, AIDecision> = {
+  DELAY: "AI_COOLDOWN"
+};
 const REASONING_CATEGORIES: CheckpointDecision["reasoningCategory"][] = [
   "repeated_excuse",
   "clear_intention",
@@ -32,7 +35,7 @@ function asNullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
-export function parseCheckpointDecision(raw: string, trackId: string): CheckpointDecision {
+export function parseCheckpointDecision(raw: string, sessionId: string): CheckpointDecision {
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -40,8 +43,8 @@ export function parseCheckpointDecision(raw: string, trackId: string): Checkpoin
     throw new Error("LLM did not return valid JSON.");
   }
 
-  const decision = parsed.decision;
-  if (!DECISIONS.includes(decision as AIDecision)) {
+  const decision = normalizeDecision(parsed.decision);
+  if (!decision) {
     throw new Error("LLM returned an invalid decision.");
   }
   if (!REASONING_CATEGORIES.includes(parsed.reasoningCategory as CheckpointDecision["reasoningCategory"])) {
@@ -56,12 +59,12 @@ export function parseCheckpointDecision(raw: string, trackId: string): Checkpoin
 
   return {
     id: createId("decision"),
-    trackId,
-    decision: decision as AIDecision,
+    sessionId,
+    decision,
     userFacingMessage: asString(parsed.userFacingMessage, "I need one more clear reason before deciding."),
     reasoningCategory: parsed.reasoningCategory as CheckpointDecision["reasoningCategory"],
     unlockMinutes: typeof parsed.unlockMinutes === "number" ? parsed.unlockMinutes : null,
-    delaySeconds: typeof parsed.delaySeconds === "number" ? parsed.delaySeconds : null,
+    aiCooldownSeconds: getAICooldownSeconds(parsed),
     nextQuestion: asNullableString(parsed.nextQuestion),
     scores: {
       repeatedReason: asNumber(scores.repeatedReason, 0),
@@ -77,15 +80,30 @@ export function parseCheckpointDecision(raw: string, trackId: string): Checkpoin
   };
 }
 
-export function createFallbackDecision(trackId: string, message: string): CheckpointDecision {
+function normalizeDecision(value: unknown): AIDecision | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = LEGACY_DECISION_MAP[value] ?? value;
+  return DECISIONS.includes(normalized as AIDecision) ? (normalized as AIDecision) : null;
+}
+
+function getAICooldownSeconds(parsed: Record<string, unknown>): number | null {
+  if (typeof parsed.aiCooldownSeconds === "number") {
+    return parsed.aiCooldownSeconds;
+  }
+  return typeof parsed.delaySeconds === "number" ? parsed.delaySeconds : null;
+}
+
+export function createFallbackDecision(sessionId: string, message: string): CheckpointDecision {
   return {
     id: createId("decision"),
-    trackId,
+    sessionId,
     decision: "ASK_MORE",
     userFacingMessage: message,
     reasoningCategory: "insufficient_reason",
     unlockMinutes: null,
-    delaySeconds: null,
+    aiCooldownSeconds: null,
     nextQuestion: message,
     scores: {
       repeatedReason: 0,
@@ -108,9 +126,9 @@ export function validateDecisionConstraints(decision: CheckpointDecision, strict
     }
   }
 
-  if (decision.decision === "DELAY") {
-    if (typeof decision.delaySeconds !== "number" || decision.delaySeconds <= 0) {
-      throw new Error("DELAY decision requires positive delaySeconds.");
+  if (decision.decision === "AI_COOLDOWN") {
+    if (typeof decision.aiCooldownSeconds !== "number" || decision.aiCooldownSeconds <= 0) {
+      throw new Error("AI_COOLDOWN decision requires positive aiCooldownSeconds.");
     }
   }
 

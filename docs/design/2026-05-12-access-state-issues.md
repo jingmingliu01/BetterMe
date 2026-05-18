@@ -36,7 +36,7 @@ Resolution:
 
 - Added stable `targetKey` identity for blocked targets.
 - Added IndexedDB `behaviorEvents` store as append-only local behavior history.
-- Added behavior event logging for blocklist add/remove/re-add, removal prompt open/cancel, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI track starts, AI decisions, block holds, and strictness changes.
+- Added behavior event logging for blocklist add/remove/re-add, removal prompt open/cancel, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, block holds, and strictness changes.
 - Settings removal now uses a 10-second delay plus typed confirmation phrase.
 - Durable attempted URL events store a privacy-minimal URL shape instead of page content.
 - E2E was updated to verify removal history and re-add history.

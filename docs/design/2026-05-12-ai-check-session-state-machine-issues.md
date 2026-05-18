@@ -1,9 +1,9 @@
-# 2026-05-12 AI Track State Machine Issues
+# 2026-05-12 AI Check Session State Machine Issues
 
 Related docs:
 
-- Design: [2026-05-12-ai-track-state-machine-design.md](2026-05-12-ai-track-state-machine-design.md)
-- Progress: [2026-05-12-ai-track-state-machine-progress.md](2026-05-12-ai-track-state-machine-progress.md)
+- Design: [2026-05-12-ai-check-session-state-machine-design.md](2026-05-12-ai-check-session-state-machine-design.md)
+- Progress: [2026-05-12-ai-check-session-state-machine-progress.md](2026-05-12-ai-check-session-state-machine-progress.md)
 - Access state issues: [2026-05-12-access-state-issues.md](2026-05-12-access-state-issues.md)
 
 Rule: when this document changes, check the design and progress documents for required updates.
@@ -27,7 +27,7 @@ Expected behavior:
 
 Design reference:
 
-- [AI Readiness](2026-05-12-ai-track-state-machine-design.md#ai-readiness)
+- [AI Readiness](2026-05-12-ai-check-session-state-machine-design.md#ai-readiness)
 
 Current update:
 
@@ -53,8 +53,8 @@ Expected behavior:
 
 Design reference:
 
-- [Provider Client](2026-05-12-ai-track-state-machine-design.md#provider-client)
-- [Error Taxonomy](2026-05-12-ai-track-state-machine-design.md#error-taxonomy)
+- [Provider Client](2026-05-12-ai-check-session-state-machine-design.md#provider-client)
+- [Error Taxonomy](2026-05-12-ai-check-session-state-machine-design.md#error-taxonomy)
 
 Current update:
 
@@ -78,32 +78,32 @@ Expected behavior:
 
 Design reference:
 
-- [Required JSON Output](2026-05-12-ai-track-state-machine-design.md#required-json-output)
+- [Required JSON Output](2026-05-12-ai-check-session-state-machine-design.md#required-json-output)
 
 Current update:
 
 - Parser now validates `decision`, `reasoningCategory`, and `memoryUpdate.reasonCategory` enums.
-- Added decision-specific validation for `ALLOW`, `DELAY`, and `ASK_MORE`.
-- Track is marked `schema_error` on validation failures.
+- Added decision-specific validation for `ALLOW`, `AI_COOLDOWN`, and `ASK_MORE`.
+- Session is marked `schema_error` on validation failures.
 - Still needs dedicated E2E coverage for malformed provider output.
 
-### ISSUE-004: DELAY needs same-track continuation
+### ISSUE-004: AI cooldown needs same-session continuation
 
 Status: open
 
 Current risk:
 
-- `DELAY` may be treated as an endpoint or require a new track.
+- `AI_COOLDOWN` may be treated as an endpoint or require a new session.
 
 Expected behavior:
 
-- `DELAY` keeps the same AI Track.
+- `AI_COOLDOWN` keeps the same AI Check session.
 - UI shows countdown.
 - After countdown, user can continue in the same conversation.
 
 Design reference:
 
-- [DELAY](2026-05-12-ai-track-state-machine-design.md#delay)
+- [AI_COOLDOWN](2026-05-12-ai-check-session-state-machine-design.md#ai-cooldown)
 
 ### ISSUE-005: ASK_MORE needs clear continuation semantics
 
@@ -116,13 +116,13 @@ Current risk:
 Expected behavior:
 
 - `ASK_MORE` appends `nextQuestion`.
-- The same track remains active.
+- The same session remains active.
 - Turn count increments.
-- User can answer without creating a new track.
+- User can answer without creating a new session.
 
 Design reference:
 
-- [ASK_MORE](2026-05-12-ai-track-state-machine-design.md#ask_more)
+- [ASK_MORE](2026-05-12-ai-check-session-state-machine-design.md#ask_more)
 
 ### ISSUE-006: BLOCK needs stronger hold-until-tomorrow UX
 
@@ -141,7 +141,7 @@ Expected behavior:
 
 Design reference:
 
-- [BLOCK](2026-05-12-ai-track-state-machine-design.md#block)
+- [BLOCK](2026-05-12-ai-check-session-state-machine-design.md#block)
 
 ## Closed Issues
 
@@ -151,21 +151,21 @@ Status: closed
 
 Current risk:
 
-- Separate `Start AI Track` introduces friction and ambiguous state.
+- Separate `Start AI Check session` introduces friction and ambiguous state.
 
 Expected behavior:
 
 - User sees local opening message.
 - User types reason and clicks Send.
-- If no track exists, app starts one automatically, then sends the message.
+- If no session exists, app starts a session automatically, then sends the message.
 
 Design reference:
 
-- [Start And Send Flow](2026-05-12-ai-track-state-machine-design.md#start-and-send-flow)
+- [Start And Send Flow](2026-05-12-ai-check-session-state-machine-design.md#start-and-send-flow)
 
 Resolution:
 
-- Block page no longer requires a separate `Start AI Track` click.
+- Block page no longer requires a separate `Start AI Check session` click.
 - User types a reason and clicks `Send`.
-- If no track exists, background handles `ai/startAndSend`, creates the track, appends the user message, and requests a decision.
+- If no session exists, background handles `ai/startAndSend`, creates the session, appends the user message, and requests a decision.
 - Existing E2E AI path now uses send-first behavior.

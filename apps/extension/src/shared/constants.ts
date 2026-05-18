@@ -14,8 +14,8 @@ export const ACCESS_TIMING = {
 } as const;
 
 export const BASIC_COOLDOWN_SECONDS = ACCESS_TIMING.basicCooldownSeconds;
-export const AI_TRACK_MAX_ASSISTANT_TURNS = 5;
-export const AI_TRACK_MAX_SECONDS = 10 * 60;
+export const AI_CHECK_SESSION_MAX_ASSISTANT_TURNS = 5;
+export const AI_CHECK_SESSION_MAX_SECONDS = 10 * 60;
 
 export const STRICTNESS_ORDER: StrictnessLevel[] = ["gentle", "balanced", "strict", "monk"];
 

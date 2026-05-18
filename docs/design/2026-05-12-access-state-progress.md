@@ -17,7 +17,7 @@ The current extension MVP exists and can run an end-to-end local extension path:
 - DNR can redirect a blocked domain to `block.html`.
 - AI Check UI becomes ready when a provider key is saved.
 
-Access-state foundation is now implemented and covered by true extension E2E. The remaining work is stronger `BlockHold` UX and AI `DELAY` continuation polish.
+Access-state foundation is now implemented and covered by true extension E2E. The remaining work is stronger `BlockHold` UX and AI cooldown continuation polish.
 
 ## Verified So Far
 
@@ -94,13 +94,13 @@ Last known build status:
 - Deleted target recovery is implemented for stale `block.html?targetId=...` pages.
 - Blocked targets now have stable `targetKey` identity for future remove/re-add analysis.
 - Added append-only `BehaviorEvent` history in IndexedDB.
-- Behavior history records add, remove, re-add, blocked attempts, cooldown starts/continues/claim expiry, temporary unlock creation/expiry, AI track starts, AI decisions, block holds, and strictness changes.
+- Behavior history records add, remove, re-add, blocked attempts, cooldown starts/continues/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, block holds, and strictness changes.
 - Settings removal now uses a 10-second confirmation delay plus exact typed confirmation phrase.
 
 ## Not Yet Implemented
 
 - Future refinement: add local behavior summaries for AI prompt context.
-- Future refinement: add stronger UI around active `BlockHold` and AI `DELAY` continuation.
+- Future refinement: add stronger UI around active `BlockHold` and AI cooldown continuation.
 
 ## Recommended Next Milestone
 
@@ -215,7 +215,7 @@ Scope:
 - Design doc updated with durable behavior history and stable `targetKey` semantics.
 - Issues doc updated with ISSUE-016 for removal friction and local behavior history.
 - Added IndexedDB `behaviorEvents` store.
-- Added behavior event logging for blocklist add/remove/re-add, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI track starts, AI decisions, block holds, and strictness changes.
+- Added behavior event logging for blocklist add/remove/re-add, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, block holds, and strictness changes.
 - Settings removal now requires a 10-second delay and typing `I choose to remove this block`.
 - E2E updated to verify removal history and re-add history.
 - Validation status:

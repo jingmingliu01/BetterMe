@@ -1,11 +1,11 @@
 const DB_NAME = "betterme-db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 const STORE_NAMES = [
-  "aiTracks",
-  "aiTrackMessages",
+  "aiCheckSessions",
+  "aiCheckMessages",
   "checkpointDecisions",
-  "aiTrackSummaries",
+  "aiCheckSummaries",
   "patternMemories",
   "behaviorEvents",
   "cryptoKeys",

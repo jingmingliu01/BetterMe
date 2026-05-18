@@ -32,7 +32,7 @@ export function getNextLocalMidnight(now = new Date()): Date {
 export function createBlockHoldUntilNextDay(input: {
   targetId: string;
   targetDisplay: string;
-  sourceTrackId: string;
+  sourceSessionId: string;
   now?: Date;
 }): BlockHold {
   const now = input.now ?? new Date();
@@ -42,7 +42,7 @@ export function createBlockHoldUntilNextDay(input: {
     targetDisplay: input.targetDisplay,
     createdAt: now.toISOString(),
     expiresAt: getNextLocalMidnight(now).toISOString(),
-    sourceTrackId: input.sourceTrackId
+    sourceSessionId: input.sourceSessionId
   };
 }
 

@@ -1,9 +1,9 @@
-# 2026-05-12 AI Track State Machine Design
+# 2026-05-12 AI Check Session State Machine Design
 
 Related docs:
 
-- Progress: [2026-05-12-ai-track-state-machine-progress.md](2026-05-12-ai-track-state-machine-progress.md)
-- Issues: [2026-05-12-ai-track-state-machine-issues.md](2026-05-12-ai-track-state-machine-issues.md)
+- Progress: [2026-05-12-ai-check-session-state-machine-progress.md](2026-05-12-ai-check-session-state-machine-progress.md)
+- Issues: [2026-05-12-ai-check-session-state-machine-issues.md](2026-05-12-ai-check-session-state-machine-issues.md)
 - Access state foundation: [2026-05-12-access-state-design.md](2026-05-12-access-state-design.md)
 
 Rule: when this document changes, check the progress and issues documents for required updates.
@@ -28,8 +28,8 @@ Separate conversation, provider execution, validation, and enforcement.
 
 Conversation:
 
-- `AITrack`
-- `AITrackMessage`
+- `AICheckSession`
+- `AICheckMessage`
 - local opening message
 - bounded assistant turns and time window
 
@@ -49,8 +49,8 @@ Validation:
 Enforcement:
 
 - `ALLOW` creates `TemporaryUnlock`
-- `DELAY` creates delay state inside same track
-- `ASK_MORE` appends one question inside same track
+- `AI_COOLDOWN` creates delay state inside same session
+- `ASK_MORE` appends one question inside same session
 - `BLOCK` creates `BlockHold` until local next midnight
 
 No provider result may directly mutate browser access before validation.
@@ -74,7 +74,7 @@ type AIReadiness =
 
 Meaning:
 
-- `ready`: user can send a message and create/continue an AI Track.
+- `ready`: user can send a message and create/continue an AI Check session.
 - `missing_provider_key`: selected provider has no saved API key.
 - `invalid_provider_model`: saved model is no longer in provider registry.
 - `blocked_by_hold`: target has active `BlockHold`.
@@ -87,13 +87,13 @@ The block page should render AI Chat from `AIReadiness`, not from duplicated loc
 ## Track State Model
 
 ```ts
-type AITrackStatus =
+type AICheckSessionStatus =
   | "idle"
   | "starting"
   | "active"
   | "waiting_user"
   | "thinking"
-  | "delayed"
+  | "ai_cooling_down"
   | "allowed"
   | "blocked"
   | "provider_error"
@@ -107,17 +107,17 @@ User-facing states can be simpler:
 - Ready
 - Thinking
 - Need one more answer
-- Delay timer
+- AI cooldown timer
 - Allowed
 - Blocked until tomorrow
 - AI unavailable
 
 Rules:
 
-- One AI Track has maximum 5 assistant turns.
-- One AI Track has maximum 10 minutes.
-- `ASK_MORE` stays in the same track.
-- `DELAY` stays in the same track and resumes after the timer.
+- One AI Check session has maximum 5 assistant turns.
+- One AI Check session has maximum 10 minutes.
+- `ASK_MORE` stays in the same session.
+- `AI_COOLDOWN` stays in the same session and resumes after the timer.
 - `ALLOW` and `BLOCK` are terminal enforcement decisions.
 - Provider errors are technical failures, not user failures.
 
@@ -131,7 +131,7 @@ Recommended UX:
 blocked page
   -> local opening message appears
   -> user types reason and clicks Send
-  -> if no track exists, create AITrack
+  -> if no session exists, create AICheckSession
   -> append user message
   -> call provider
   -> validate provider JSON
@@ -139,7 +139,7 @@ blocked page
   -> apply decision
 ```
 
-This removes the need for a separate `Start AI Track` click in the main path.
+This removes the need for a separate `Start AI Check session` click in the main path.
 
 ## Provider Client
 
@@ -189,11 +189,11 @@ MVP context:
 - attempted URL
 - local time
 - recent pattern notes for this target
-- current track messages
+- current session messages
 
 Future context:
 
-- Recent track summaries
+- Recent session summaries
 - Pattern memory with repeated reason counters
 - High-risk time windows
 
@@ -203,7 +203,7 @@ Provider output must validate against:
 
 ```ts
 interface CheckpointDecisionPayload {
-  decision: "ALLOW" | "DELAY" | "ASK_MORE" | "BLOCK";
+  decision: "ALLOW" | "AI_COOLDOWN" | "ASK_MORE" | "BLOCK";
   userFacingMessage: string;
   reasoningCategory:
     | "repeated_excuse"
@@ -212,7 +212,7 @@ interface CheckpointDecisionPayload {
     | "low_risk"
     | "insufficient_reason";
   unlockMinutes: number | null;
-  delaySeconds: number | null;
+  aiCooldownSeconds: number | null;
   nextQuestion: string | null;
   scores: {
     repeatedReason: number;
@@ -236,13 +236,13 @@ interface CheckpointDecisionPayload {
 Decision-specific validation:
 
 - `ALLOW`: `unlockMinutes` must be positive and within strictness cap.
-- `DELAY`: `delaySeconds` must be positive.
+- `AI_COOLDOWN`: `aiCooldownSeconds` must be positive.
 - `ASK_MORE`: `nextQuestion` must be non-empty.
 - `BLOCK`: no unlock should be created.
 
 Schema failure:
 
-- Mark track as `schema_error`.
+- Mark session as `schema_error`.
 - Show a technical error.
 - Do not unlock.
 
@@ -262,7 +262,7 @@ Local effects:
 - Save summary.
 - Update pattern memory.
 
-### DELAY
+### AI Cooldown
 
 Meaning:
 
@@ -271,11 +271,11 @@ Meaning:
 Local effects:
 
 - Keep site blocked.
-- Set `track.status = "delayed"`.
-- Set `delayUntil`.
+- Set `session.status = "ai_cooling_down"`.
+- Set `aiCooldownUntil`.
 - Show countdown.
-- After countdown, allow same track to continue.
-- Do not consume or create a new track.
+- After countdown, allow same session to continue.
+- Do not consume or create a new session.
 
 ### ASK_MORE
 
@@ -287,7 +287,7 @@ Local effects:
 
 - Append `nextQuestion` as assistant message.
 - Increment assistant turn count.
-- Keep same track active.
+- Keep same session active.
 - Do not unlock or hold.
 
 ### BLOCK
@@ -300,7 +300,7 @@ Local effects:
 
 - Create `BlockHold` until local next midnight.
 - Rebuild DNR rules.
-- Mark track blocked/completed.
+- Mark session blocked/completed.
 - Save summary.
 - Update pattern memory.
 
@@ -332,11 +332,11 @@ Technical errors must never create unlocks.
 Right chat panel:
 
 - turn count
-- remaining track time
+- remaining session time
 - message list
 - decision card
 - provider error card when relevant
-- textarea/button state based on track status
+- textarea/button state based on session status
 
 Left checkpoint panel:
 
@@ -364,16 +364,16 @@ Suggested modules:
   - `parseCheckpointDecision(raw)`
   - `validateDecisionConstraints(decision, strictness)`
 
-- `src/ai/track-state-machine.ts`
-  - `startOrResumeTrack(input)`
+- `src/ai/ai-check-session-state-machine.ts`
+  - `startOrResumeSession(input)`
   - `applyDecision(input)`
-  - `expireTrackIfNeeded(track)`
+  - `expireSessionIfNeeded(session)`
 
 - `src/ai/context-builder.ts`
-  - `buildTrackMessages(input)`
+  - `buildSessionMessages(input)`
 
 - `src/pages/block/BlockPage.tsx`
-  - render from `AIReadiness`, `AITrackStatus`, and `AccessState`
+  - render from `AIReadiness`, `AICheckSessionStatus`, and `AccessState`
 
 ## Validation Plan
 
@@ -384,8 +384,8 @@ E2E or integration tests should cover:
 - invalid model shows provider/model error.
 - provider timeout shows technical error and does not unlock.
 - schema error does not unlock.
-- `ASK_MORE` asks another question in the same track.
-- `DELAY` starts countdown and resumes same track.
+- `ASK_MORE` asks another question in the same session.
+- `AI_COOLDOWN` starts countdown and resumes same session.
 - `ALLOW` creates temporary unlock and returns to attempted URL.
 - `BLOCK` creates hold until tomorrow and keeps the site blocked.
 - repeated reason pattern affects later prompt context.

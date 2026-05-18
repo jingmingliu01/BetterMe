@@ -1,16 +1,16 @@
-# 2026-05-12 AI Track State Machine Progress
+# 2026-05-12 AI Check Session State Machine Progress
 
 Related docs:
 
-- Design: [2026-05-12-ai-track-state-machine-design.md](2026-05-12-ai-track-state-machine-design.md)
-- Issues: [2026-05-12-ai-track-state-machine-issues.md](2026-05-12-ai-track-state-machine-issues.md)
+- Design: [2026-05-12-ai-check-session-state-machine-design.md](2026-05-12-ai-check-session-state-machine-design.md)
+- Issues: [2026-05-12-ai-check-session-state-machine-issues.md](2026-05-12-ai-check-session-state-machine-issues.md)
 - Access state progress: [2026-05-12-access-state-progress.md](2026-05-12-access-state-progress.md)
 
 Rule: when this document changes, check the design and issues documents for required updates.
 
 ## Current Status
 
-Implementation has started on `dev/ai-track-state-machine`.
+Implementation has started on the AI Check session feature branch.
 
 The current product now has the first state-machine foundation pieces: derived AI readiness, send-first UX, typed provider errors, AI-specific message timeout, and stricter decision validation.
 
@@ -18,27 +18,27 @@ Current product direction: there is no paywall or license unlock surface. AI Che
 
 ## Already Exists
 
-- `AITrack`, `AITrackMessage`, `CheckpointDecision` model types.
+- `AICheckSession`, `AICheckMessage`, `CheckpointDecision` model types.
 - Local encrypted provider key storage.
 - Provider registry for OpenAI, DeepSeek, and Kimi.
 - Block page AI panel.
 - Access-state enforcement for `ALLOW` via temporary unlock.
 - Access-state enforcement foundation for block holds and cooldowns.
 - `AIReadiness` derived state.
-- Send-first UX that auto-starts track.
+- Send-first UX that auto-starts an AI Check session.
 - Provider client timeout and typed provider error classification.
 - JSON parsing with enum validation for decision categories.
-- Decision-specific validation constraints for `ALLOW`, `DELAY`, and `ASK_MORE`.
-- `schema_error` track status for validation failures.
+- Decision-specific validation constraints for `ALLOW`, `AI_COOLDOWN`, and `ASK_MORE`.
+- `schema_error` session status for validation failures.
 - AI Check readiness based on saved provider key, valid model, and access state.
 - Live AI readiness refresh for already-open block pages after provider key save/delete.
 
 ## Not Yet Implemented
 
-- Unified AI Track status model.
+- Unified AI Check session status model.
 - Real-provider manual verification for OpenAI, DeepSeek, and Kimi.
-- Full `DELAY` continuation inside same track.
-- Full `ASK_MORE` continuation inside same track.
+- Full AI cooldown continuation inside same session.
+- Full `ASK_MORE` continuation inside same session.
 - Strong `BLOCK` UX with hold-until-tomorrow display.
 - Pattern memory updates driven by validated decisions.
 - E2E coverage for all decision outcomes and provider failures.
@@ -48,7 +48,7 @@ Current product direction: there is no paywall or license unlock surface. AI Che
 Milestone name:
 
 ```text
-AI Track State Machine Foundation
+AI Check Session State Machine Foundation
 ```
 
 Scope:
@@ -58,8 +58,8 @@ Scope:
 3. Add provider client for OpenAI-compatible Chat Completions.
 4. Add provider error taxonomy.
 5. Add JSON decision parser and validator.
-6. Refactor track service around explicit state transitions.
-7. Implement `ASK_MORE`, `DELAY`, `ALLOW`, and `BLOCK` effects.
+6. Refactor session service around explicit state transitions.
+7. Implement `ASK_MORE`, `AI_COOLDOWN`, `ALLOW`, and `BLOCK` effects.
 8. Update Block page UI to render by state.
 9. Add E2E tests for success, product denial, and technical failures.
 
@@ -97,7 +97,7 @@ Additional current validation:
 
 2026-05-12:
 
-- Implemented first AI Track foundation slice on `dev/ai-track-state-machine`.
+- Implemented first AI Check session foundation slice.
 - Issues doc updated:
   - ISSUE-001 partially complete; real provider verification still needed.
   - ISSUE-002 partially complete; provider client now has timeout/error taxonomy, but manual provider verification remains.

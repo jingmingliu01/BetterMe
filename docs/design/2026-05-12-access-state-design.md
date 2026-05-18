@@ -26,7 +26,7 @@ Temporary:
 - `BasicCooldown`: the user is waiting before deciding.
 - `TemporaryUnlock`: the user may access a target until `expiresAt`.
 - `BlockHold`: the target is blocked until a fixed time, currently local next midnight.
-- `AITrack`: one bounded AI checkpoint conversation.
+- `AICheckSession`: one bounded AI checkpoint conversation.
 
 Historical:
 
@@ -73,7 +73,7 @@ Initial event types:
 - `cooldown_continued`
 - `temporary_unlock_created`
 - `temporary_unlock_expired`
-- `ai_track_started`
+- `ai_check_session_started`
 - `ai_decision_applied`
 - `block_hold_created`
 - `strictness_changed`
@@ -305,7 +305,7 @@ Reason:
 
 - DNR is reliable for new navigation.
 - A tab already visible during a temporary unlock may need an in-page redirect when the unlock expires.
-- `chrome.alarms` can be delayed by browser scheduling, so the content script makes the visible tab behavior deterministic without reading page content.
+- `chrome.alarms` can be ai_cooling_down by browser scheduling, so the content script makes the visible tab behavior deterministic without reading page content.
 
 ## In-Page Unlock Warning
 
@@ -346,7 +346,7 @@ When a `BlockedTarget` is deleted:
 - Rebuild DNR rules.
 - Reschedule access-state alarms.
 - Preserve recent target attempts long enough for an already-open block page to recover to the attempted URL.
-- Do not delete behavior history, AI tracks, pattern memory, or historical cooldown/attempt events for that target.
+- Do not delete behavior history, AI Check sessions, pattern memory, or historical cooldown/attempt events for that target.
 
 If an existing `block.html?targetId=<deleted-id>` page is refreshed or receives storage updates:
 
@@ -389,7 +389,7 @@ Flow:
 blocked page
   -> local opening message appears
   -> user sends reason
-  -> if no track exists, extension starts an AI Track
+  -> if no session exists, extension starts an AI Check session
   -> LLM returns structured decision
   -> extension validates decision
   -> extension applies local enforcement
@@ -398,9 +398,9 @@ blocked page
 Decision effects:
 
 - `ALLOW`: create `TemporaryUnlock`, rebuild DNR, navigate to `attemptUrl`.
-- `DELAY`: keep blocked, show timer, allow same track to continue after delay.
-- `ASK_MORE`: keep blocked, add assistant question, continue same track.
-- `BLOCK`: create `BlockHold` until local next midnight, rebuild DNR, complete track.
+- `AI_COOLDOWN`: keep blocked, show timer, allow same session to continue after delay.
+- `ASK_MORE`: keep blocked, add assistant question, continue same session.
+- `BLOCK`: create `BlockHold` until local next midnight, rebuild DNR, complete session.
 
 ## Provider Key Semantics
 

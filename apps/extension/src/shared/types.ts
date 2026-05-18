@@ -1,6 +1,6 @@
 export type StrictnessLevel = "gentle" | "balanced" | "strict" | "monk";
 export type BlockedTargetType = "domain" | "exactUrl";
-export type AIDecision = "ALLOW" | "DELAY" | "ASK_MORE" | "BLOCK";
+export type AIDecision = "ALLOW" | "AI_COOLDOWN" | "ASK_MORE" | "BLOCK";
 export type ProviderId = "openai" | "deepseek" | "kimi";
 export type AccessState =
   | "not_blocked"
@@ -16,9 +16,9 @@ export type AIReadiness =
   | "cooling_down"
   | "temporarily_unlocked"
   | "target_missing";
-export type TrackStatus =
+export type AICheckSessionStatus =
   | "active"
-  | "delayed"
+  | "ai_cooling_down"
   | "allowed"
   | "blocked"
   | "expired"
@@ -84,7 +84,7 @@ export interface BlockHold {
   targetDisplay: string;
   expiresAt: string;
   createdAt: string;
-  sourceTrackId: string;
+  sourceSessionId: string;
 }
 
 export interface TargetAttempt {
@@ -117,12 +117,12 @@ export interface ProviderKeyRevision {
   action: "saved" | "deleted";
 }
 
-export interface AITrack {
+export interface AICheckSession {
   id: string;
   targetId: string;
   targetKey?: string;
   targetDisplay: string;
-  status: TrackStatus;
+  status: AICheckSessionStatus;
   startedAt: string;
   expiresAt: string;
   completedAt?: string;
@@ -132,9 +132,9 @@ export interface AITrack {
   finalDecisionId?: string;
 }
 
-export interface AITrackMessage {
+export interface AICheckMessage {
   id: string;
-  trackId: string;
+  sessionId: string;
   role: "system" | "assistant" | "user";
   content: string;
   source: "local_opening" | "user" | "llm" | "system";
@@ -143,7 +143,7 @@ export interface AITrackMessage {
 
 export interface CheckpointDecision {
   id: string;
-  trackId: string;
+  sessionId: string;
   decision: AIDecision;
   userFacingMessage: string;
   reasoningCategory:
@@ -153,7 +153,7 @@ export interface CheckpointDecision {
     | "low_risk"
     | "insufficient_reason";
   unlockMinutes: number | null;
-  delaySeconds: number | null;
+  aiCooldownSeconds: number | null;
   nextQuestion: string | null;
   scores: {
     repeatedReason: number;
@@ -185,9 +185,9 @@ export interface PatternMemory {
   updatedAt: string;
 }
 
-export interface AITrackSummary {
+export interface AICheckSummary {
   id: string;
-  trackId: string;
+  sessionId: string;
   targetDisplay: string;
   finalDecision: AIDecision;
   reasonCategory: CheckpointDecision["memoryUpdate"]["reasonCategory"];
@@ -216,7 +216,7 @@ export type BehaviorEventType =
   | "cooldown_continued"
   | "temporary_unlock_created"
   | "temporary_unlock_expired"
-  | "ai_track_started"
+  | "ai_check_session_started"
   | "ai_decision_applied"
   | "block_hold_created"
   | "strictness_changed";
@@ -251,9 +251,9 @@ export type ExtensionMessage =
   | { type: "blocking/startCooldown"; payload: { targetId: string } }
   | { type: "blocking/completeCooldown"; payload: { cooldownId: string } }
   | { type: "ai/startAndSend"; payload: { targetId: string; content: string } }
-  | { type: "ai/sendMessage"; payload: { trackId: string; content: string } }
-  | { type: "ai/getTrack"; payload: { trackId: string } }
-  | { type: "ai/recentTracks" }
+  | { type: "ai/sendMessage"; payload: { sessionId: string; content: string } }
+  | { type: "ai/getSession"; payload: { sessionId: string } }
+  | { type: "ai/recentSessions" }
   | { type: "settings/update"; payload: Partial<UserSettings> }
   | { type: "provider/saveApiKey"; payload: { provider: ProviderId; apiKey: string } }
   | { type: "provider/deleteApiKey"; payload: { provider: ProviderId } }
