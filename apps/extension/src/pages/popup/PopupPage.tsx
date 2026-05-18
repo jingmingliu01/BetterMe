@@ -74,6 +74,11 @@ export function PopupPage() {
     const target = blockedTargets.find((item) => item.type === "domain" && item.value === currentPage.domain);
     return target ? unlocks.find((unlock) => unlock.targetId === target.id) ?? null : null;
   }, [blockedTargets, currentPage.domain, currentPage.targetId, unlocks]);
+  const currentPageStatus = isDomainBlocked
+    ? "Domain checkpoint active"
+    : isExactUrlBlocked
+      ? "Exact URL checkpoint active"
+      : "Not blocked yet";
 
   async function initializePopup() {
     await Promise.all([loadCurrentPage(), loadLocalSummary()]);
@@ -163,7 +168,7 @@ export function PopupPage() {
           <img className="popup-logo-icon" src="/icon.svg" alt="" aria-hidden="true" />
           <span>BetterMe</span>
         </div>
-        <p>Block the current site, then reload to enter the AI checkpoint.</p>
+        <p>Create a checkpoint for the current page, then reload when you are ready to test it.</p>
       </header>
 
       <section className="popup-card stack">
@@ -172,6 +177,7 @@ export function PopupPage() {
           <div>
             <div className="muted">Current domain</div>
             <strong>{currentPage.domain ?? "Unsupported page"}</strong>
+            <span>{currentPageStatus}</span>
           </div>
         </div>
 
@@ -188,6 +194,7 @@ export function PopupPage() {
         )}
         {status && <p className="inline-status">{status}</p>}
 
+        <div className="popup-button-stack">
         <button
           className="btn btn-primary"
           disabled={!currentPage.supported || isDomainBlocked || busy}
@@ -207,6 +214,7 @@ export function PopupPage() {
         <button className="btn" disabled={!currentPage.supported} onClick={() => reloadTab(currentPage.tabId)}>
           <RefreshCw size={16} /> Reload Page
         </button>
+        </div>
       </section>
 
       <section className="popup-card blocked-summary-card">
@@ -216,7 +224,7 @@ export function PopupPage() {
           aria-expanded={blockedListOpen}
           onClick={() => setBlockedListOpen((isOpen) => !isOpen)}
         >
-          <span className="badge">{blockedTargets.length} blocked</span>
+          <span className="badge">{blockedTargets.length} blocked {blockedTargets.length === 1 ? "site" : "sites"}</span>
           {blockedListOpen ? <ChevronDown size={17} /> : <ChevronRight size={17} />}
         </button>
         {blockedListOpen && (
@@ -227,7 +235,7 @@ export function PopupPage() {
               blockedTargets.map((target) => (
                 <div className="blocked-list-item" key={target.id}>
                   <span>{target.display}</span>
-                  <small>{target.type === "domain" ? "Domain" : "Exact URL"}</small>
+                  <small>{target.type === "domain" ? "Domain + subdomains" : "Exact URL only"}</small>
                 </div>
               ))
             )}
@@ -237,7 +245,7 @@ export function PopupPage() {
 
       <section className="popup-actions">
         <button className="btn btn-ghost" onClick={() => openExtensionPage("settings.html")}>
-          <Settings size={16} /> Settings
+          <Settings size={16} /> Open Settings
         </button>
       </section>
     </main>

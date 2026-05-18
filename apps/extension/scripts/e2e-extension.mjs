@@ -44,7 +44,7 @@ try {
   await page.waitForTimeout(500);
   const settingsText = await page.locator("body").innerText();
   assertIncludes(settingsText, "example.com", "Settings did not save blocked site.");
-  assertIncludes(settingsText, "Save a OpenAI key before using AI Check.", "Settings should start without provider key.");
+  assertIncludes(settingsText, "Save an OpenAI key before using AI Check.", "Settings should start without provider key.");
   assertNotIncludes(settingsText, "Lifetime", "Settings still exposes lifetime license UI.");
   assertNotIncludes(settingsText, "Demo AI", "Settings still exposes demo AI UI.");
   console.log("SETTINGS_OK true");
@@ -65,6 +65,7 @@ try {
   }
   await firstAttemptPage.reload();
   await firstAttemptPage.waitForLoadState("load");
+  await firstAttemptPage.getByText("Attempted page").click();
   const firstAttemptText = await firstAttemptPage.locator("body").innerText();
   assertIncludes(firstAttemptText, "bettermeAttempt=first", "First tab lost its tab-level attempted URL.");
   if (firstAttemptText.includes("bettermeAttempt=second")) {
@@ -83,14 +84,14 @@ try {
   console.log(`REDIRECT_URL ${page.url()}`);
   const blockUrlBeforeKey = page.url();
   let blockText = await page.locator("body").innerText();
-  assertIncludes(blockText, "AI locked", "AI should be locked before a provider key is saved.");
+  assertIncludes(blockText, "Provider Key Needed", "AI should be locked before a provider key is saved.");
 
   const settingsPage = await context.newPage();
   await settingsPage.goto(`chrome-extension://${extensionId}/settings.html`);
   await settingsPage.getByPlaceholder("Paste provider API key").fill("sk-test-betterme-e2e");
   await settingsPage.getByRole("button", { name: /^Save Key$/ }).click();
   await settingsPage.getByText("key is saved on this device").waitFor({ timeout: 5_000 });
-  await page.getByText("AI ready").waitFor({ timeout: 5_000 });
+  await page.getByText("Ready").waitFor({ timeout: 5_000 });
   if (page.url() !== blockUrlBeforeKey) {
     throw new Error(`Block page should not navigate while provider key refreshes: ${page.url()}`);
   }
@@ -100,7 +101,7 @@ try {
   await page.getByRole("button", { name: /Basic Cooldown/ }).click();
   await page.waitForTimeout(500);
   blockText = await page.locator("body").innerText();
-  assertIncludes(blockText, "Wait before deciding", "Basic Cooldown did not start a wait state.");
+  assertIncludes(blockText, "The site stays blocked while the timer runs.", "Basic Cooldown did not start a wait state.");
   assertIncludes(blockText, "5:00", "Basic Cooldown did not start from 5:00.");
   await page.goto("https://example.com/");
   await page.waitForLoadState("load");
@@ -138,7 +139,7 @@ try {
   console.log("UNLOCK_EXPIRY_OK true");
 
   blockText = await page.locator("body").innerText();
-  assertIncludes(blockText, "AI ready", "AI Check should be available after saving a provider key.");
+  assertIncludes(blockText, "Ready", "AI Check should be available after saving a provider key.");
   assertNotIncludes(blockText, "AI PM Review", "Block page still exposes AI PM Review.");
   console.log("AI_READY_UI_OK true");
   await page.screenshot({ path: "/tmp/betterme-extension-e2e.png", fullPage: true });
@@ -155,7 +156,7 @@ try {
   }
   const deletedBlockUrl = page.url();
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
-  await page.locator(".card").filter({ hasText: "example.org" }).getByTitle("Review removal").click();
+  await page.locator(".settings-list-row").filter({ hasText: "example.org" }).getByTitle("Review removal").click();
   await page.getByPlaceholder("I choose to remove this block").fill("I choose to remove this block");
   await page.getByRole("button", { name: /Remove Permanently/ }).click({ timeout: 12_000 });
   await page.waitForTimeout(500);

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, DoorOpen, Settings } from "lucide-react";
+import { AlertCircle, Clock, DoorOpen, MessageCircle, Settings } from "lucide-react";
 import { AppShell } from "../shared/AppShell";
 import { getQueryParam, openExtensionPage, sendMessage } from "../shared/api";
 import { useAsyncState } from "../shared/useAsyncState";
 import type {
   AITrack,
   AITrackMessage,
+  AIReadiness,
   BasicCooldown,
   BlockedTarget,
   BootstrapState,
@@ -222,66 +223,101 @@ export function BlockPage() {
   return (
     <AppShell
       title={target ? `Blocked: ${target.display}` : "Blocked"}
-      subtitle="Convince the AI before you continue — and it remembers your excuses."
+      subtitle="Pause before continuing. BetterMe checks whether this visit is deliberate."
     >
       {error && <p className="badge badge-danger">{error}</p>}
-      <section className="grid two-col">
-        <aside className="panel stack">
-          <h2>Checkpoint</h2>
-          <div className="row">
-            <span className="badge">{data.settings.strictness}</span>
-            <span className="badge badge-warn">{formatAccessState(accessState)}</span>
-            <span className={aiReady ? "badge" : "badge badge-warn"}>{aiReady ? "AI ready" : "AI locked"}</span>
+      <section className="grid two-col block-grid">
+        <aside className="panel stack checkpoint-rail">
+          <div className="section-heading">
+            <span className="section-label">Current checkpoint</span>
+            <h2>{formatAccessState(accessState)}</h2>
           </div>
-          {!aiReady && <p className="muted">{blockedReason}</p>}
-          {attemptUrl && <p className="muted">Attempted URL: {attemptUrl}</p>}
-          <button className="btn btn-primary" onClick={leave}>
-            <DoorOpen size={16} /> Leave Site
-          </button>
-          {activeCooldown ? (
-            <div className="card stack">
-              <h3>Basic Cooldown</h3>
-              <p className="muted">Wait before deciding. The site is still blocked.</p>
-              <strong>{formatRemaining(new Date(activeCooldown.endsAt).getTime() - now.getTime())}</strong>
+
+          <div className="target-summary">
+            <span className="muted">Blocked target</span>
+            <strong>{target?.display ?? "No matching target"}</strong>
+            {attemptUrl && (
+              <details className="attempt-details">
+                <summary>Attempted page</summary>
+                <span>{attemptUrl}</span>
+              </details>
+            )}
+          </div>
+
+          <div className="status-list" aria-label="Checkpoint status">
+            <StatusItem label="Strictness" value={data.settings.strictness} />
+            <StatusItem label="Access" value={formatAccessState(accessState)} />
+            <StatusItem label="AI Check" value={getAIReadinessLabel(aiReadiness)} muted={!aiReady} />
+          </div>
+
+          {!aiReady && (
+            <div className="readiness-callout">
+              <AlertCircle size={16} />
+              <div>
+                <strong>{getAIReadinessLabel(aiReadiness)}</strong>
+                <p>{blockedReason}</p>
+              </div>
             </div>
-          ) : completedCooldown ? (
-            <div className="stack">
-              <button className="btn" disabled={busy} onClick={completeCooldown}>
-                <Clock size={16} /> Continue for {formatDuration(getCooldownUnlockSeconds(completedCooldown))}
-              </button>
-              <p className="muted">
-                Available for {formatRemaining(getCooldownClaimExpiresAt(completedCooldown).getTime() - now.getTime())}
-              </p>
-            </div>
-          ) : (
-            <button className="btn" disabled={!target || busy} onClick={startCooldown}>
-              <Clock size={16} /> Basic Cooldown {formatDuration(nextCooldownPolicy.cooldownSeconds)}
+          )}
+
+          <div className="checkpoint-actions stack">
+            <button className="btn btn-primary" onClick={leave}>
+              <DoorOpen size={16} /> Leave Site
             </button>
-          )}
-          <button className="btn btn-ghost" onClick={() => openExtensionPage("settings.html")}>
-            <Settings size={16} /> Settings
-          </button>
-          {decision && (
-            <div className="card stack">
-              <h3>Final/Latest Decision</h3>
-              <span className={decision.decision === "BLOCK" ? "badge badge-danger" : "badge"}>{decision.decision}</span>
-              <p className="muted">{decision.userFacingMessage}</p>
-              <pre className="code">{JSON.stringify(decision.scores, null, 2)}</pre>
-            </div>
-          )}
+            {activeCooldown ? (
+              <div className="cooldown-card stack">
+                <div className="row space-between">
+                  <strong>Basic Cooldown</strong>
+                  <span className="timer-value">{formatRemaining(new Date(activeCooldown.endsAt).getTime() - now.getTime())}</span>
+                </div>
+                <p className="muted">The site stays blocked while the timer runs.</p>
+              </div>
+            ) : completedCooldown ? (
+              <div className="stack">
+                <button className="btn" disabled={busy} onClick={completeCooldown}>
+                  <Clock size={16} /> Continue for {formatDuration(getCooldownUnlockSeconds(completedCooldown))}
+                </button>
+                <p className="muted">
+                  Claim window: {formatRemaining(getCooldownClaimExpiresAt(completedCooldown).getTime() - now.getTime())}
+                </p>
+              </div>
+            ) : (
+              <button className="btn" disabled={!target || busy} onClick={startCooldown}>
+                <Clock size={16} /> Basic Cooldown {formatDuration(nextCooldownPolicy.cooldownSeconds)}
+              </button>
+            )}
+            <button className="btn btn-ghost" onClick={() => openExtensionPage("settings.html")}>
+              <Settings size={16} /> Settings
+            </button>
+          </div>
+
+          {activeCooldown ? (
+            <p className="microcopy">Cooldown does not change your blocked list. It only creates a short access window after waiting.</p>
+          ) : null}
         </aside>
 
-        <section className="panel stack">
-          <div className="row space-between">
-            <h2>AI Check Chatbot</h2>
-            <span className="badge">
+        <section className="panel stack ai-check-panel">
+          <div className="ai-check-header">
+            <div className="section-heading">
+              <span className="section-label">AI Check</span>
+              <h2>Make the case to continue</h2>
+            </div>
+            <span className="turn-count">
               {track?.assistantTurnCount ?? 0}/{track?.maxAssistantTurns ?? AI_TRACK_MAX_ASSISTANT_TURNS} turns
             </span>
           </div>
+          <p className="muted ai-check-guidance">
+            Explain what you plan to do, how long it should take, and why this is worth opening now.
+          </p>
 
           <div className="message-list">
             {!track && target && (
               <div className="message message-assistant">{buildOpeningMessage(target.display)}</div>
+            )}
+            {!target && (
+              <div className="message message-assistant">
+                BetterMe could not find a matching blocked target for this checkpoint.
+              </div>
             )}
             {messages.map((message) => (
               <div
@@ -293,8 +329,9 @@ export function BlockPage() {
             ))}
           </div>
 
+          {decision && <DecisionSummary decision={decision} />}
           {aiError && <p className="badge badge-danger">{aiError}</p>}
-          <div className="stack">
+          <div className="composer stack">
             <textarea
               className="textarea"
               value={input}
@@ -307,12 +344,57 @@ export function BlockPage() {
               placeholder="Explain why this visit is deliberate and bounded..."
             />
             <button className="btn btn-primary" onClick={sendUserMessage} disabled={busy || !aiReady || !input.trim()}>
-              {busy ? "Thinking..." : "Send"}
+              <MessageCircle size={16} /> {busy ? "Thinking..." : "Send"}
             </button>
           </div>
         </section>
       </section>
     </AppShell>
+  );
+}
+
+function StatusItem({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="status-item">
+      <span>{label}</span>
+      <strong className={muted ? "muted" : undefined}>{value}</strong>
+    </div>
+  );
+}
+
+function DecisionSummary({ decision }: { decision: CheckpointDecision }) {
+  return (
+    <div className="decision-summary">
+      <div className="row space-between">
+        <div>
+          <span className="section-label">Latest decision</span>
+          <strong>{formatDecisionLabel(decision.decision)}</strong>
+        </div>
+        <span className={decision.decision === "BLOCK" ? "badge badge-danger" : "badge"}>{decision.decision}</span>
+      </div>
+      <p>{decision.userFacingMessage}</p>
+      <details className="decision-details">
+        <summary>Decision details</summary>
+        <dl>
+          <div>
+            <dt>Reason</dt>
+            <dd>{formatReadableToken(decision.reasoningCategory)}</dd>
+          </div>
+          <div>
+            <dt>Impulse</dt>
+            <dd>{decision.scores.impulse}/10</dd>
+          </div>
+          <div>
+            <dt>Deliberateness</dt>
+            <dd>{decision.scores.deliberateness}/10</dd>
+          </div>
+          <div>
+            <dt>Repeated reason</dt>
+            <dd>{decision.scores.repeatedReason}/10</dd>
+          </div>
+        </dl>
+      </details>
+    </div>
   );
 }
 
@@ -352,6 +434,49 @@ function formatAccessState(accessState: string): string {
     default:
       return "Blocked";
   }
+}
+
+function getAIReadinessLabel(readiness: AIReadiness): string {
+  switch (readiness) {
+    case "ready":
+      return "Ready";
+    case "missing_provider_key":
+      return "Provider key needed";
+    case "invalid_provider_model":
+      return "Model unavailable";
+    case "blocked_by_hold":
+      return "Held until tomorrow";
+    case "cooling_down":
+      return "Cooling down";
+    case "temporarily_unlocked":
+      return "Already unlocked";
+    case "target_missing":
+      return "Target missing";
+    default:
+      return "Unavailable";
+  }
+}
+
+function formatDecisionLabel(decision: CheckpointDecision["decision"]): string {
+  switch (decision) {
+    case "ALLOW":
+      return "Temporary access approved";
+    case "DELAY":
+      return "Pause before trying again";
+    case "ASK_MORE":
+      return "One more answer needed";
+    case "BLOCK":
+      return "Blocked until tomorrow";
+    default:
+      return decision;
+  }
+}
+
+function formatReadableToken(value: string): string {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function formatRemaining(ms: number): string {

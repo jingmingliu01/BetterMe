@@ -35,7 +35,7 @@ export function getAIReadinessMessage(readiness: AIReadiness, provider?: Provide
   switch (readiness) {
     case "missing_provider_key":
       return providerLabel
-        ? `Save a ${providerLabel} API key to use AI Check.`
+        ? `Save ${getArticle(providerLabel)} ${providerLabel} API key to use AI Check.`
         : "Save a provider API key to use AI Check.";
     case "invalid_provider_model":
       return "The selected provider model is no longer available. Choose a valid model in Settings.";
@@ -50,4 +50,8 @@ export function getAIReadinessMessage(readiness: AIReadiness, provider?: Provide
     default:
       return "";
   }
+}
+
+function getArticle(label: string): "a" | "an" {
+  return /^[aeiou]/i.test(label) ? "an" : "a";
 }

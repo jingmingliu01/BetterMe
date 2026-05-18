@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Database, Link2, ShieldPlus, Trash2 } from "lucide-react";
+import { Database, KeyRound, Link2, ShieldCheck, ShieldPlus, SlidersHorizontal, Trash2 } from "lucide-react";
 import { AppShell } from "../shared/AppShell";
 import { sendMessage } from "../shared/api";
 import { useAsyncState } from "../shared/useAsyncState";
@@ -13,7 +13,14 @@ import {
   STRICTNESS_ORDER,
   STRICTNESS_UNLOCK_CAP_MINUTES
 } from "../../shared/constants";
-import type { BlockedTarget, BlockedTargetType, BootstrapState, ProviderId, StrictnessLevel } from "../../shared/types";
+import type {
+  BlockedTarget,
+  BlockedTargetType,
+  BootstrapState,
+  ProviderId,
+  StrictnessLevel,
+  UserSettings
+} from "../../shared/types";
 import "../shared/styles.css";
 
 const REMOVE_CONFIRMATION_PHRASE = "I choose to remove this block";
@@ -21,7 +28,7 @@ const REMOVE_CONFIRMATION_WAIT_MS = 10_000;
 
 export function SettingsPage() {
   const load = useCallback(() => sendMessage<BootstrapState>({ type: "bootstrap/getState" }), []);
-  const { data, error, loading, refresh } = useAsyncState(load);
+  const { data, error, loading, refresh, setData } = useAsyncState(load);
   const [siteInput, setSiteInput] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [confirmingTarget, setConfirmingTarget] = useState<BlockedTarget | null>(null);
@@ -44,26 +51,41 @@ export function SettingsPage() {
 
   async function addTarget(targetType: BlockedTargetType) {
     if (!siteInput.trim()) return;
-    await sendMessage<BlockedTarget[]>({
+    const blockedTargets = await sendMessage<BlockedTarget[]>({
       type: "blockedTargets/add",
       payload: { input: siteInput, targetType }
     });
     setSiteInput("");
-    await refresh();
+    setData((current) => (current ? { ...current, blockedTargets } : current));
   }
 
   async function updateSettings(patch: { strictness?: StrictnessLevel; provider?: ProviderId; model?: string }) {
-    await sendMessage({ type: "settings/update", payload: patch });
-    await refresh();
+    const settings = await sendMessage<UserSettings>({ type: "settings/update", payload: patch });
+    setData((current) => (current ? { ...current, settings } : current));
   }
 
   async function saveKey(key: string) {
-    await sendMessage({
+    const providerKeys = await sendMessage<Record<ProviderId, boolean>>({
       type: "provider/saveApiKey",
       payload: { provider: data?.settings.provider ?? "openai", apiKey: key.trim() }
     });
     setApiKey("");
+    setData((current) => (current ? { ...current, providerKeys } : current));
+  }
+
+  async function deleteKey() {
+    if (!data) return;
+    const providerKeys = await sendMessage<Record<ProviderId, boolean>>({
+      type: "provider/deleteApiKey",
+      payload: { provider: data.settings.provider }
+    });
+    setData((current) => (current ? { ...current, providerKeys } : current));
+  }
+
+  async function refreshKeepingScroll() {
+    const scrollY = window.scrollY;
     await refresh();
+    window.requestAnimationFrame(() => window.scrollTo({ top: scrollY }));
   }
 
   async function openRemoveConfirmation(target: BlockedTarget) {
@@ -100,7 +122,7 @@ export function SettingsPage() {
 
   async function removeConfirmedTarget() {
     if (!confirmingTarget) return;
-    await sendMessage({
+    const blockedTargets = await sendMessage<BlockedTarget[]>({
       type: "blockedTargets/delete",
       payload: {
         id: confirmingTarget.id,
@@ -111,7 +133,7 @@ export function SettingsPage() {
     setConfirmingTarget(null);
     setRemoveConfirmationText("");
     setRemoveConfirmationStartedAt(null);
-    await refresh();
+    setData((current) => (current ? { ...current, blockedTargets } : current));
   }
 
   if (loading || !data) {
@@ -120,6 +142,8 @@ export function SettingsPage() {
 
   const providerKeySaved = data.providerKeys[data.settings.provider];
   const cooldownPolicy = BASIC_COOLDOWN_POLICIES[data.settings.strictness];
+  const blockedDomainCount = data.blockedTargets.filter((target) => target.type === "domain").length;
+  const exactUrlCount = data.blockedTargets.length - blockedDomainCount;
   const removeWaitRemainingMs =
     removeConfirmationStartedAt === null
       ? REMOVE_CONFIRMATION_WAIT_MS
@@ -130,191 +154,231 @@ export function SettingsPage() {
   return (
     <AppShell title="BetterMe Settings" subtitle="Manage blocked sites, AI Check provider settings, and local data.">
       {error && <p className="badge badge-danger">{error}</p>}
-      <section className="grid two-col">
-        <div className="panel stack">
-          <h2>Blocked Sites</h2>
-          <p className="muted">Domain blocks the site and all subdomains. Exact URL only blocks this one page.</p>
-          <input
-            className="input"
-            value={siteInput}
-            onChange={(event) => setSiteInput(event.target.value)}
-            placeholder="example.com or https://example.com/path"
-          />
-          <button className="btn btn-primary" onClick={() => addTarget("domain")}>
-            <ShieldPlus size={16} /> {BLOCK_TARGET_ACTION_LABELS.domain}
-          </button>
-          <button className="btn" onClick={() => addTarget("exactUrl")}>
-            <Link2 size={16} /> {BLOCK_TARGET_ACTION_LABELS.exactUrl}
-          </button>
-          <div className="stack">
-            {data.blockedTargets.map((target) => (
-              <div className="card row space-between" key={target.id}>
-                <div>
-                  <strong>{target.display}</strong>
-                  <div className="muted">{target.type === "domain" ? "Domain + subdomains" : "Exact URL only"}</div>
-                </div>
-                <button
-                  className="btn btn-ghost"
-                  title="Review removal"
-                  onClick={() => void openRemoveConfirmation(target)}
-                >
-                  <Trash2 size={16} /> Review removal
-                </button>
-              </div>
-            ))}
+      <section className="settings-layout">
+        <aside className="panel settings-sidebar">
+          <div className="section-heading">
+            <span className="section-label">Settings overview</span>
+            <h2>Local control</h2>
           </div>
-          {confirmingTarget && (
-            <div className="removal-confirmation stack">
-              <div>
-                <h3>Remove this blocked site?</h3>
-                <p className="muted">
-                  This permanently removes {confirmingTarget.display} from your blocked list. BetterMe will stop
-                  redirecting it, but the local behavior history stays available for future AI pattern checks.
-                </p>
-              </div>
-              <label className="stack">
-                <span>Type this sentence to confirm:</span>
-                <code className="inline-code">{REMOVE_CONFIRMATION_PHRASE}</code>
-                <input
-                  className="input"
-                  value={removeConfirmationText}
-                  onChange={(event) => setRemoveConfirmationText(event.target.value)}
-                  placeholder={REMOVE_CONFIRMATION_PHRASE}
-                />
-              </label>
-              <div className="row">
-                <button className="btn btn-primary" onClick={() => void cancelRemoveConfirmation()}>
-                  Keep Blocked
+          <div className="settings-summary-list">
+            <SummaryItem label="Blocked sites" value={String(data.blockedTargets.length)} />
+            <SummaryItem label="Strictness" value={STRICTNESS_LABELS[data.settings.strictness]} />
+            <SummaryItem label="AI provider" value={providerKeySaved ? "Ready" : "Needs key"} muted={!providerKeySaved} />
+          </div>
+          <nav className="settings-nav" aria-label="Settings sections">
+            <a href="#blocked-sites">
+              <ShieldPlus size={16} /> Blocked Sites
+            </a>
+            <a href="#checkpoint-rules">
+              <SlidersHorizontal size={16} /> Checkpoint Rules
+            </a>
+            <a href="#ai-provider">
+              <KeyRound size={16} /> AI Provider
+            </a>
+            <a href="#local-data">
+              <Database size={16} /> Local Data
+            </a>
+          </nav>
+        </aside>
+
+        <div className="settings-content stack">
+          <section className="panel settings-section stack" id="blocked-sites">
+            <SectionHeader
+              kicker="Blocked Sites"
+              title="Choose what BetterMe should intercept"
+              description="Domain blocks cover subdomains. Exact URL blocks only one page."
+            />
+            <div className="settings-form-row">
+              <input
+                className="input"
+                value={siteInput}
+                onChange={(event) => setSiteInput(event.target.value)}
+                placeholder="example.com or https://example.com/path"
+              />
+              <div className="button-pair">
+                <button className="btn btn-primary" onClick={() => addTarget("domain")}>
+                  <ShieldPlus size={16} /> {BLOCK_TARGET_ACTION_LABELS.domain}
                 </button>
-                <button className="btn btn-danger" disabled={!removeCanProceed} onClick={() => void removeConfirmedTarget()}>
-                  <Trash2 size={16} />
-                  {removeWaitRemainingMs > 0
-                    ? `Remove in ${Math.ceil(removeWaitRemainingMs / 1000)}s`
-                    : "Remove Permanently"}
+                <button className="btn" onClick={() => addTarget("exactUrl")}>
+                  <Link2 size={16} /> {BLOCK_TARGET_ACTION_LABELS.exactUrl}
                 </button>
               </div>
             </div>
-          )}
-        </div>
-
-        <div className="panel stack">
-          <h2>Checkpoint Rules</h2>
-          <p className="muted">Strictness controls Basic Cooldown timing and AI Check access caps.</p>
-
-          <label className="stack">
-            <span>Strictness</span>
-            <select
-              className="select"
-              value={data.settings.strictness}
-              onChange={(event) => updateSettings({ strictness: event.target.value as StrictnessLevel })}
-            >
-              {Object.entries(STRICTNESS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <span className="muted">
-              Cooldown {formatDuration(cooldownPolicy.cooldownSeconds)} · Continue{" "}
-              {formatDuration(cooldownPolicy.unlockSeconds)}
-            </span>
-          </label>
-          <div className="card stack">
-            <div>
-              <strong>{STRICTNESS_LABELS[data.settings.strictness]}</strong>
-              <p className="muted">{STRICTNESS_DESCRIPTIONS[data.settings.strictness]}</p>
+            <div className="settings-meta-row">
+              <span>{blockedDomainCount} domain blocks</span>
+              <span>{exactUrlCount} exact URL blocks</span>
             </div>
-            <div className="stack compact-stack">
+
+            <div className="settings-list">
+              {data.blockedTargets.length === 0 ? (
+                <p className="settings-empty">No blocked sites yet. Add a domain to create your first checkpoint.</p>
+              ) : (
+                data.blockedTargets.map((target) => (
+                  <div className="settings-list-row" key={target.id}>
+                    <div>
+                      <strong>{target.display}</strong>
+                      <span>{target.type === "domain" ? "Domain + subdomains" : "Exact URL only"}</span>
+                    </div>
+                    <button
+                      className="btn btn-ghost"
+                      title="Review removal"
+                      onClick={() => void openRemoveConfirmation(target)}
+                    >
+                      <Trash2 size={16} /> Review removal
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            {confirmingTarget && (
+              <div className="removal-confirmation stack">
+                <div>
+                  <h3>Remove this blocked site?</h3>
+                  <p className="muted">
+                    This permanently removes {confirmingTarget.display} from your blocked list. BetterMe will stop
+                    redirecting it, but the local behavior history stays available for future AI pattern checks.
+                  </p>
+                </div>
+                <label className="stack">
+                  <span>Type this sentence to confirm:</span>
+                  <code className="inline-code">{REMOVE_CONFIRMATION_PHRASE}</code>
+                  <input
+                    className="input"
+                    value={removeConfirmationText}
+                    onChange={(event) => setRemoveConfirmationText(event.target.value)}
+                    placeholder={REMOVE_CONFIRMATION_PHRASE}
+                  />
+                </label>
+                <div className="row">
+                  <button className="btn btn-primary" onClick={() => void cancelRemoveConfirmation()}>
+                    Keep Blocked
+                  </button>
+                  <button className="btn btn-danger" disabled={!removeCanProceed} onClick={() => void removeConfirmedTarget()}>
+                    <Trash2 size={16} />
+                    {removeWaitRemainingMs > 0
+                      ? `Remove in ${Math.ceil(removeWaitRemainingMs / 1000)}s`
+                      : "Remove Permanently"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="panel settings-section stack" id="checkpoint-rules">
+            <SectionHeader
+              kicker="Checkpoint Rules"
+              title="Tune the amount of friction"
+              description="Strictness controls Basic Cooldown timing, temporary access, and AI ALLOW caps."
+            />
+            <div className="strictness-options" role="radiogroup" aria-label="Strictness">
               {STRICTNESS_ORDER.map((level) => {
                 const policy = BASIC_COOLDOWN_POLICIES[level];
+                const selected = data.settings.strictness === level;
                 return (
-                  <div className="row space-between strictness-row" key={level}>
-                    <span>{STRICTNESS_LABELS[level]}</span>
-                    <span className="muted">
-                      {formatDuration(policy.cooldownSeconds)} cooldown · {formatDuration(policy.unlockSeconds)} access ·{" "}
+                  <button
+                    className={selected ? "strictness-option strictness-option-selected" : "strictness-option"}
+                    key={level}
+                    onClick={() => void updateSettings({ strictness: level })}
+                    role="radio"
+                    type="button"
+                    aria-checked={selected}
+                  >
+                    <span className="strictness-option-main">
+                      <strong>{STRICTNESS_LABELS[level]}</strong>
+                      <span>{STRICTNESS_DESCRIPTIONS[level]}</span>
+                    </span>
+                    <span className="strictness-option-timing">
+                      {formatDuration(policy.cooldownSeconds)} wait · {formatDuration(policy.unlockSeconds)} access ·{" "}
                       {formatDuration(policy.claimWindowSeconds)} claim
                     </span>
-                  </div>
+                    {selected && <ShieldCheck size={18} />}
+                  </button>
                 );
               })}
             </div>
-            <p className="muted">
-              AI ALLOW is capped at {STRICTNESS_UNLOCK_CAP_MINUTES[data.settings.strictness]}m. Repeated cooldowns on
-              the same target within {formatDuration(COOLDOWN_ESCALATION_WINDOW_SECONDS)} temporarily step up to the
-              next stricter preset.
-            </p>
-          </div>
+            <div className="settings-note">
+              Current mode gives {formatDuration(cooldownPolicy.cooldownSeconds)} cooldown and{" "}
+              {formatDuration(cooldownPolicy.unlockSeconds)} post-cooldown access. AI ALLOW is capped at{" "}
+              {STRICTNESS_UNLOCK_CAP_MINUTES[data.settings.strictness]}m. Repeated cooldowns on the same target within{" "}
+              {formatDuration(COOLDOWN_ESCALATION_WINDOW_SECONDS)} temporarily step up one level.
+            </div>
+          </section>
 
-          <h2>AI Provider</h2>
-          <p className="muted">Save your own provider key locally to enable live AI decisions.</p>
-
-          <div className="grid two-col">
-            <label className="stack">
-              <span>Provider</span>
-              <select
-                className="select"
-                value={data.settings.provider}
-                onChange={(event) => {
-                  const nextProvider = PROVIDERS.find((item) => item.id === event.target.value) ?? PROVIDERS[0];
-                  void updateSettings({ provider: nextProvider.id, model: nextProvider.defaultModel });
-                }}
-              >
-                {PROVIDERS.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="stack">
-              <span>Model</span>
-              <select
-                className="select"
-                value={data.settings.model}
-                onChange={(event) => updateSettings({ model: event.target.value })}
-              >
-                {provider.models.map((model) => (
-                  <option key={model}>{model}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <label className="stack">
-            <span>API Key</span>
-            <input
-              className="input"
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              type="password"
-              placeholder={providerKeySaved ? "Saved locally, encrypted" : "Paste provider API key"}
+          <section className="panel settings-section stack" id="ai-provider">
+            <SectionHeader
+              kicker="AI Provider"
+              title="Use your own model key"
+              description="Keys stay encrypted on this device. BetterMe sends only checkpoint context, not page content."
             />
-          </label>
-          <div className="row">
-            <button className="btn btn-primary" onClick={() => saveKey(apiKey)} disabled={!apiKey.trim()}>
-              Save Key
-            </button>
-            <button
-              className="btn btn-ghost"
-              disabled={!providerKeySaved}
-              onClick={async () => {
-                await sendMessage({ type: "provider/deleteApiKey", payload: { provider: data.settings.provider } });
-                await refresh();
-              }}
-            >
-              Delete Key
-            </button>
-          </div>
-          <p className={providerKeySaved ? "inline-status" : "inline-error"}>
-            {providerKeySaved
-              ? `${provider.label} key is saved on this device.`
-              : `Save a ${provider.label} key before using AI Check.`}
-          </p>
+            <p className={providerKeySaved ? "inline-status" : "inline-error"}>
+              {providerKeySaved
+                ? `${provider.label} key is saved on this device.`
+                : `Save ${getArticle(provider.label)} ${provider.label} key before using AI Check.`}
+            </p>
 
-          <div className="card stack">
-            <h3>Local Data</h3>
-            <p className="muted">Export/delete uses only local extension data. No browser history or page content is read.</p>
+            <div className="grid two-col settings-provider-grid">
+              <label className="stack">
+                <span>Provider</span>
+                <select
+                  className="select"
+                  value={data.settings.provider}
+                  onChange={(event) => {
+                    const nextProvider = PROVIDERS.find((item) => item.id === event.target.value) ?? PROVIDERS[0];
+                    void updateSettings({ provider: nextProvider.id, model: nextProvider.defaultModel });
+                  }}
+                >
+                  {PROVIDERS.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="stack">
+                <span>Model</span>
+                <select
+                  className="select"
+                  value={data.settings.model}
+                  onChange={(event) => void updateSettings({ model: event.target.value })}
+                >
+                  {provider.models.map((model) => (
+                    <option key={model}>{model}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className="stack">
+              <span>API Key</span>
+              <input
+                className="input"
+                value={apiKey}
+                onChange={(event) => setApiKey(event.target.value)}
+                type="password"
+                placeholder={providerKeySaved ? "Saved locally, encrypted" : "Paste provider API key"}
+              />
+            </label>
             <div className="row">
+              <button className="btn btn-primary" onClick={() => saveKey(apiKey)} disabled={!apiKey.trim()}>
+                Save Key
+              </button>
+              <button
+                className="btn btn-ghost"
+                disabled={!providerKeySaved}
+                onClick={() => void deleteKey()}
+              >
+                Delete Key
+              </button>
+            </div>
+          </section>
+
+          <section className="panel settings-section stack" id="local-data">
+            <SectionHeader
+              kicker="Local Data"
+              title="Export or reset this device"
+              description="Export/delete uses only local extension data. No browser history or page content is read."
+            />
+            <div className="local-data-actions">
               <button
                 className="btn"
                 onClick={async () => {
@@ -329,16 +393,37 @@ export function SettingsPage() {
                 className="btn btn-danger"
                 onClick={async () => {
                   await sendMessage({ type: "data/deleteAll" });
-                  await refresh();
+                  await refreshKeepingScroll();
                 }}
               >
                 Delete All
               </button>
             </div>
-          </div>
+          </section>
         </div>
       </section>
     </AppShell>
+  );
+}
+
+function SectionHeader({ kicker, title, description }: { kicker: string; title: string; description: string }) {
+  return (
+    <div className="settings-section-header">
+      <div className="section-heading">
+        <span className="section-label">{kicker}</span>
+        <h2>{title}</h2>
+      </div>
+      <p>{description}</p>
+    </div>
+  );
+}
+
+function SummaryItem({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
+  return (
+    <div className="summary-item">
+      <span>{label}</span>
+      <strong className={muted ? "muted" : undefined}>{value}</strong>
+    </div>
   );
 }
 
@@ -350,4 +435,8 @@ function formatDuration(seconds: number): string {
     return `${seconds / 60}m`;
   }
   return `${seconds}s`;
+}
+
+function getArticle(label: string): "a" | "an" {
+  return /^[aeiou]/i.test(label) ? "an" : "a";
 }
