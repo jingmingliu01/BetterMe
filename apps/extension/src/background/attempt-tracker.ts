@@ -1,5 +1,6 @@
 import { findMatchingTarget } from "../blocking/match-rules";
 import { createId, nowIso } from "../shared/id";
+import { appendBehaviorEvent, buildAttemptPayload } from "../storage/behavior-events";
 import { getBlockedTargets, saveTargetAttempt } from "../storage/domain-store";
 
 function hasWebNavigation(): boolean {
@@ -30,11 +31,21 @@ async function captureAttempt(url: string, tabId?: number): Promise<void> {
     return;
   }
 
+  const createdAt = nowIso();
   await saveTargetAttempt({
     id: createId("attempt"),
     targetId: target.id,
     tabId,
     attemptUrl: url,
-    createdAt: nowIso()
+    createdAt
+  });
+  await appendBehaviorEvent({
+    type: "blocked_url_attempted",
+    target,
+    createdAt,
+    payload: {
+      tabId: tabId ?? null,
+      attempt: buildAttemptPayload(url)
+    }
   });
 }

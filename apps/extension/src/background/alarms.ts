@@ -1,8 +1,23 @@
-import { ACCESS_TIMING } from "../shared/constants";
 import { findMatchingTarget } from "../blocking/match-rules";
-import { getBlockedTargets, getCooldowns, getHolds, getStoredUnlocks, getUnlocks } from "../storage/domain-store";
+import {
+  getCooldownClaimExpiresAt,
+  isCooldownActive,
+  isCooldownClaimExpired,
+  isCooldownComplete
+} from "../blocking/cooldowns";
+import {
+  getBlockedTargets,
+  getCooldowns,
+  getHolds,
+  getStoredCooldowns,
+  getStoredUnlocks,
+  getUnlocks,
+  saveCooldowns,
+  saveUnlocks
+} from "../storage/domain-store";
 import type { TemporaryUnlock } from "../shared/types";
 import { rebuildDnrRules } from "./dnr-rules";
+import { appendBehaviorEvent } from "../storage/behavior-events";
 
 const ACCESS_STATE_ALARM = "betterme.access-state";
 
@@ -26,7 +41,15 @@ export async function scheduleNextAccessStateAlarm(): Promise<void> {
   const timestamps = [
     ...unlocks.map((unlock) => new Date(unlock.expiresAt).getTime()),
     ...holds.map((hold) => new Date(hold.expiresAt).getTime()),
-    ...cooldowns.filter((cooldown) => !cooldown.completedAt).map((cooldown) => new Date(cooldown.endsAt).getTime())
+    ...cooldowns.flatMap((cooldown) => {
+      if (isCooldownActive(cooldown)) {
+        return [new Date(cooldown.endsAt).getTime()];
+      }
+      if (isCooldownComplete(cooldown)) {
+        return [getCooldownClaimExpiresAt(cooldown).getTime()];
+      }
+      return [];
+    })
   ].filter((timestamp) => Number.isFinite(timestamp) && timestamp > Date.now());
 
   await chrome.alarms.clear(ACCESS_STATE_ALARM);
@@ -41,7 +64,47 @@ export async function handleAccessStateAlarm(alarmName: string): Promise<void> {
     return;
   }
   const storedUnlocks = await getStoredUnlocks();
+  const storedCooldowns = await getStoredCooldowns();
   const expiredUnlocks = getExpiredUnlocks(storedUnlocks);
+  const expiredCooldownClaims = storedCooldowns.filter((cooldown) => isCooldownClaimExpired(cooldown));
+  await Promise.all(
+    expiredCooldownClaims.map((cooldown) =>
+      appendBehaviorEvent({
+        type: "cooldown_claim_expired",
+        targetId: cooldown.targetId,
+        targetDisplay: cooldown.targetDisplay,
+        payload: {
+          cooldownId: cooldown.id,
+          startedAt: cooldown.createdAt,
+          endedAt: cooldown.endsAt,
+          claimExpiresAt: getCooldownClaimExpiresAt(cooldown).toISOString(),
+          effectiveStrictness: cooldown.strictness ?? null,
+          attemptCountInWindow: cooldown.attemptCount ?? null
+        }
+      })
+    )
+  );
+  if (expiredCooldownClaims.length > 0) {
+    await saveCooldowns(storedCooldowns);
+  }
+  await Promise.all(
+    expiredUnlocks.map((unlock) =>
+      appendBehaviorEvent({
+        type: "temporary_unlock_expired",
+        targetId: unlock.targetId,
+        targetDisplay: unlock.targetDisplay,
+        payload: {
+          unlockId: unlock.id,
+          source: unlock.source,
+          createdAt: unlock.createdAt,
+          expiredAt: unlock.expiresAt
+        }
+      })
+    )
+  );
+  if (expiredUnlocks.length > 0) {
+    await saveUnlocks(storedUnlocks);
+  }
   await rebuildDnrRules();
   await redirectExpiredUnlockTabs(expiredUnlocks);
   await scheduleNextAccessStateAlarm();

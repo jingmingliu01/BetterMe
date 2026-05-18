@@ -9,15 +9,13 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-The current extension MVP exists and can run an end-to-end demo path:
+The current extension MVP exists and can run an end-to-end local extension path:
 
 - popup renders a lightweight entry.
 - settings can add a blocked domain.
-- Dev Unlock Lifetime exists.
-- Demo Model can be enabled.
+- settings can save a local provider key.
 - DNR can redirect a blocked domain to `block.html`.
-- AI Check can produce a structured demo decision.
-- AI PM Review can create bad cases and eval cases.
+- AI Check UI becomes ready when a provider key is saved.
 
 Access-state foundation is now implemented and covered by true extension E2E. The remaining work is stronger `BlockHold` UX and AI `DELAY` continuation polish.
 
@@ -34,10 +32,10 @@ Last known passing assertions:
 - `POPUP_BOX width=360`
 - `SETTINGS_OK true`
 - `REDIRECT_URL chrome-extension://.../block.html?targetId=...`
+- `PROVIDER_KEY_LIVE_REFRESH_OK true`
 - `COOLDOWN_UNLOCK_OK true`
 - `UNLOCK_EXPIRY_OK true`
-- `AI_CHECK_OK true`
-- `REVIEW_OK true`
+- `AI_READY_UI_OK true`
 
 Additional latest assertions:
 
@@ -52,7 +50,7 @@ npm --workspace apps/extension run build
 
 Last known build status:
 
-- Passed after implementing Basic Cooldown, access-state rendering, alarm-driven unlock expiry, AI ALLOW return flow, and updated Demo AI labeling.
+- Passed after implementing Basic Cooldown, access-state rendering, alarm-driven unlock expiry, provider-key AI readiness, and removing license/demo/AIPM surfaces.
 
 ## Implemented
 
@@ -61,26 +59,31 @@ Last known build status:
 - Basic blocked target storage.
 - Dynamic DNR rebuild.
 - Temporary unlock model for AI/basic unlock source.
-- AI Track demo flow.
 - Local encrypted API key storage.
-- AI PM bad case and eval case workflow.
 - Popup lightweight entry for current domain.
 - `BasicCooldown` type and storage helpers.
 - `TargetAttempt` type and storage helpers.
 - `AccessState` derivation helpers.
-- `AIAvailability` derivation helpers.
+- `AIReadiness` derivation helpers.
 - `chrome.alarms` access-state alarm wiring.
 - Alarm scheduling after blocklist changes, cooldown creation, cooldown completion, AI decision enforcement, and data deletion.
 - `webNavigation` attempt tracker that stores latest attempted URL by target without reading page content.
 - Block page rendering based on `AccessState`.
-- Block page AI readiness based on `AIAvailability`.
+- Block page AI readiness based on `AIReadiness`.
+- Block page live-refreshes AI readiness when settings or provider-key revision changes.
 - Basic Cooldown countdown state.
 - Completed Basic Cooldown continue flow.
 - Temporary unlock creation after completed Basic Cooldown.
 - Alarm-driven DNR restoration after short temporary unlock expiry.
 - AI `ALLOW` now creates temporary unlock and returns to attempted/fallback URL.
-- Settings button renamed from `Use Demo Model` to `Enable Demo AI`.
+- Settings no longer exposes Lifetime, Demo AI, or AI PM mode controls.
+- Settings no longer shows an AI Check status badge or other paywall framing.
+- Provider key save/delete publishes a non-sensitive revision signal for already-open extension pages.
 - Shared `ACCESS_TIMING` config for cooldown duration, post-cooldown browse duration, and unlock warning threshold.
+- Strictness-based Basic Cooldown policies: gentle, balanced default, strict, and monk.
+- Completed cooldown claim windows so old completed cooldowns cannot be used days later.
+- Per-target cooldown escalation so repeated Basic Cooldown starts within 1 hour temporarily use stricter timing.
+- Settings explains strictness presets, timing differences, AI `ALLOW` caps, and repeat escalation.
 - Popup resolves BetterMe block page `targetId` to the real blocked domain.
 - Popup shows active temporary unlock remaining time.
 - Popup `Blocked` count is now a separate collapsed card that expands into the blocked list.
@@ -89,9 +92,14 @@ Last known build status:
 - A content-script expiry guard also schedules redirect inside temporarily unlocked pages without reading page content.
 - In-page unlock warning overlay appears at the configured warning threshold and requires user confirmation before continuing.
 - Deleted target recovery is implemented for stale `block.html?targetId=...` pages.
+- Blocked targets now have stable `targetKey` identity for future remove/re-add analysis.
+- Added append-only `BehaviorEvent` history in IndexedDB.
+- Behavior history records add, remove, re-add, blocked attempts, cooldown starts/continues/claim expiry, temporary unlock creation/expiry, AI track starts, AI decisions, block holds, and strictness changes.
+- Settings removal now uses a 10-second confirmation delay plus exact typed confirmation phrase.
 
 ## Not Yet Implemented
 
+- Future refinement: add local behavior summaries for AI prompt context.
 - Future refinement: add stronger UI around active `BlockHold` and AI `DELAY` continuation.
 
 ## Recommended Next Milestone
@@ -165,6 +173,21 @@ Scope:
   - `UNLOCK_EXPIRY_OK true`
   - `DELETED_TARGET_RECOVERY_OK true`
 
+2026-05-18:
+
+- Added strictness-based Basic Cooldown timing policies.
+- Default `balanced` policy remains 5m cooldown plus 5m temporary access.
+- Added a short completed-cooldown claim window; completed cooldowns expire if the user does not click Continue in time.
+- Added per-target 1-hour recent cooldown escalation, capped at `monk`, without changing saved strictness.
+- Added Settings descriptions for strictness presets, including cooldown/access/claim timings and AI access caps.
+- Updated extension E2E selectors for current `Block This Domain` UI copy.
+- Design and issues docs updated because cooldown timing semantics and stale-completion risk changed.
+- Latest E2E passes:
+  - `COOLDOWN_UNLOCK_OK true`
+  - `IN_PAGE_WARNING_OK true`
+  - `UNLOCK_EXPIRY_OK true`
+  - `DELETED_TARGET_RECOVERY_OK true`
+
 2026-05-12:
 
 - Design doc updated to choose tab-level attempted URL mapping.
@@ -179,6 +202,24 @@ Scope:
 - Issues doc updated: ISSUE-014 closed.
 - Latest E2E includes:
   - `TAB_ATTEMPT_MAPPING_OK true`
+
+2026-05-17:
+
+- Added `providerKeyRevision` as a non-sensitive storage invalidation signal for provider key save/delete.
+- Block page now watches `settings` and `providerKeyRevision`, then refreshes bootstrap state from background.
+- Latest E2E includes:
+  - `PROVIDER_KEY_LIVE_REFRESH_OK true`
+
+2026-05-18:
+
+- Design doc updated with durable behavior history and stable `targetKey` semantics.
+- Issues doc updated with ISSUE-016 for removal friction and local behavior history.
+- Added IndexedDB `behaviorEvents` store.
+- Added behavior event logging for blocklist add/remove/re-add, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI track starts, AI decisions, block holds, and strictness changes.
+- Settings removal now requires a 10-second delay and typing `I choose to remove this block`.
+- E2E updated to verify removal history and re-add history.
+- Validation status:
+  - `npm --workspace apps/extension run typecheck` passed.
 
 ## Update Checklist
 

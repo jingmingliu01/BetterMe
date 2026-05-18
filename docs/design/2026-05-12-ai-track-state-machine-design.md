@@ -64,7 +64,6 @@ Define a derived state:
 ```ts
 type AIReadiness =
   | "ready"
-  | "locked_free"
   | "missing_provider_key"
   | "invalid_provider_model"
   | "blocked_by_hold"
@@ -76,8 +75,7 @@ type AIReadiness =
 Meaning:
 
 - `ready`: user can send a message and create/continue an AI Track.
-- `locked_free`: Lifetime license is not unlocked.
-- `missing_provider_key`: selected provider has no saved API key or demo model.
+- `missing_provider_key`: selected provider has no saved API key.
 - `invalid_provider_model`: saved model is no longer in provider registry.
 - `blocked_by_hold`: target has active `BlockHold`.
 - `cooling_down`: Basic Cooldown is active.
@@ -175,6 +173,8 @@ Reason:
 - Error taxonomy is centralized.
 - JSON validation is centralized.
 - Future backend/Codex-server migration is easier.
+
+Provider key save/delete should publish only a non-sensitive readiness invalidation signal, not key material, so already-open block pages can refresh AI readiness without a reload.
 
 ## Prompt Context Layers
 
@@ -319,7 +319,7 @@ type ProviderErrorCode =
   | "unknown_provider_error";
 ```
 
-Technical errors should disable AI Chat temporarily but leave free controls usable:
+Technical errors should disable AI Chat temporarily but leave non-AI controls usable:
 
 - Leave Site
 - Basic Cooldown
@@ -347,7 +347,6 @@ Left checkpoint panel:
 - Leave Site
 - Basic Cooldown
 - Settings
-- AI PM Review
 
 ## Implementation Modules
 
@@ -381,6 +380,7 @@ Suggested modules:
 E2E or integration tests should cover:
 
 - missing key disables AI Chat but keeps Basic Cooldown usable.
+- saving provider key in Settings makes an already-open block page AI-ready without leaving the redirected page.
 - invalid model shows provider/model error.
 - provider timeout shows technical error and does not unlock.
 - schema error does not unlock.

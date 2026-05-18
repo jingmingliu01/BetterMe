@@ -1,10 +1,8 @@
 import type {
-  AIAvailability,
   AccessState,
   BasicCooldown,
   BlockHold,
   BlockedTarget,
-  LicenseState,
   TemporaryUnlock
 } from "../shared/types";
 import { isCooldownActive } from "./cooldowns";
@@ -52,21 +50,4 @@ export function deriveAccessState(input: {
     return "cooling_down";
   }
   return "blocked";
-}
-
-export function deriveAIAvailability(input: {
-  license: LicenseState;
-  providerKeyReady: boolean;
-  accessState: AccessState;
-}): AIAvailability {
-  if (input.accessState === "block_held_until_tomorrow") {
-    return "blocked_by_hold";
-  }
-  if (input.license.status !== "lifetime_mock") {
-    return "locked_free";
-  }
-  if (!input.providerKeyReady) {
-    return "missing_provider_key";
-  }
-  return "ready";
 }

@@ -13,6 +13,71 @@ No open access-state issues at this checkpoint.
 
 ## Closed Issues
 
+### ISSUE-016: Removing a blocked target should preserve behavior history
+
+Status: closed
+
+Current behavior:
+
+- Settings removed a blocked target with a single click.
+- Removing a target also cleared access state tied to that target.
+- Add/remove/re-add cycles were not preserved as durable local history.
+- Cooldown, attempt, unlock, and AI decision data lived mostly in runtime state that can be overwritten, filtered, or expired.
+
+Expected behavior:
+
+- Removing a blocked target should require deliberate confirmation friction.
+- The confirmation flow should wait 10 seconds and require the exact typed phrase `I choose to remove this block`.
+- Removing the target should stop active enforcement but keep local behavior history.
+- Re-adding the same target should be connected through a stable identity.
+- Future AI features should be able to summarize remove/re-add cycles, blocked attempts, cooldown starts, cooldown continues, cooldown abandons, strictness changes, and AI decisions.
+
+Resolution:
+
+- Added stable `targetKey` identity for blocked targets.
+- Added IndexedDB `behaviorEvents` store as append-only local behavior history.
+- Added behavior event logging for blocklist add/remove/re-add, removal prompt open/cancel, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI track starts, AI decisions, block holds, and strictness changes.
+- Settings removal now uses a 10-second delay plus typed confirmation phrase.
+- Durable attempted URL events store a privacy-minimal URL shape instead of page content.
+- E2E was updated to verify removal history and re-add history.
+
+Design reference:
+
+- [Durable Behavior History](2026-05-12-access-state-design.md#durable-behavior-history)
+
+### ISSUE-015: Completed Basic Cooldown should not grant stale future access
+
+Status: closed
+
+Current behavior:
+
+- A `BasicCooldown` with `endsAt <= now` and no `completedAt` is treated as complete indefinitely.
+- If the user finishes a cooldown, leaves, and returns days later, the block page can still expose Continue without requiring a new cooldown.
+- Basic Cooldown timing does not yet adapt to strictness or repeated attempts.
+
+Expected behavior:
+
+- Cooldown completion should be a short-lived claim state.
+- Each cooldown should store `claimExpiresAt`.
+- If `claimExpiresAt` passes before Continue, the cooldown should expire and no longer expose temporary access.
+- Basic Cooldown should use strictness-based timing policies.
+- Repeated cooldown starts for the same target should temporarily escalate to stricter timing within a 1-hour recent-use window without changing saved user settings.
+- Settings should explain what each strictness preset changes.
+
+Resolution:
+
+- Added strictness-based Basic Cooldown policies for `gentle`, `balanced`, `strict`, and `monk`.
+- `balanced` remains the default 5m cooldown plus 5m unlock.
+- `BasicCooldown` now stores `claimExpiresAt`, `strictness`, and `attemptCount` for new cooldowns.
+- `isCooldownComplete` now requires the completion claim window to still be open.
+- Added per-target `CooldownEscalation` storage using a 1-hour recent-use window.
+- Block page now renders Continue duration from the actual completed cooldown and shows remaining claim time.
+- Settings now describes the selected strictness preset, all preset timings, the AI `ALLOW` cap, and repeat escalation.
+
+Design reference:
+
+- [Basic Cooldown Flow](2026-05-12-access-state-design.md#basic-cooldown-flow)
+
 ### ISSUE-014: Attempted URL should be recovered by targetId + tabId
 
 Status: closed
@@ -123,13 +188,13 @@ Current behavior:
 
 Expected behavior:
 
-- Cooldown duration, post-cooldown unlock duration, and unlock warning threshold should live in one shared timing config.
+- Cooldown duration, post-cooldown unlock duration, completed-cooldown claim window, and unlock warning threshold should live in shared timing config.
 - UI labels and timers should use that config.
 
 Resolution:
 
 - Added shared `ACCESS_TIMING` config.
-- Basic Cooldown duration, post-cooldown unlock duration, and warning threshold now come from the same config.
+- Basic Cooldown duration, post-cooldown unlock duration, completed-cooldown claim window, and warning threshold now come from shared config/policy.
 - E2E verifies initial cooldown display includes `5:00`.
 
 ### ISSUE-008: Popup should show remaining temporary unlock time
@@ -195,7 +260,7 @@ Status: closed
 
 Current behavior:
 
-- Popup shows AI readiness/free badge.
+- Popup shows AI readiness badge.
 - Popup includes `AI PM Review`.
 
 Expected behavior:
@@ -206,7 +271,7 @@ Expected behavior:
 
 Resolution:
 
-- Removed AI readiness/free badge from popup.
+- Removed AI readiness badge from popup.
 - Removed AI PM Review button from popup.
 
 ### ISSUE-001: Basic Cooldown is not implemented as a real timer flow
@@ -262,32 +327,33 @@ Design reference:
 
 - [DNR Rule Strategy](2026-05-12-access-state-design.md#dnr-rule-strategy)
 
-### ISSUE-003: Dev Unlock and AI readiness are easy to confuse
+### ISSUE-003: Legacy license/demo controls confuse AI readiness
 
 Status: closed
 
 Current behavior:
 
-- Settings has `Dev Unlock Lifetime`.
-- Settings also has `Use Demo Model`.
-- Block page requires both license and provider key, but the UX does not clearly explain the split.
+- Older settings UI exposed `Dev Unlock Lifetime`.
+- Older settings UI exposed demo AI setup.
+- Block page could require both license and provider key, which made AI readiness look like a paid gate.
 
 Expected behavior:
 
-- Show two separate states:
-  - `Lifetime unlocked`
-  - `Demo AI enabled` or `Provider key saved`
-- AI Check should become ready after both are true.
+- Remove lifetime unlock and demo AI from current product flow.
+- AI Check should become ready after a real provider key is saved, subject to access state.
+- Provider readiness should stay separate from temporary unlock, cooldown, and hold state.
 
 Resolution:
 
-- Settings still shows `Dev Unlock Lifetime` for license state.
-- Demo provider setup is now labeled `Enable Demo AI`.
-- Block page derives AI readiness through `AIAvailability`, not local ad hoc license checks.
+- Settings no longer shows Lifetime, Dev Unlock, Demo AI, or AI PM mode controls.
+- Settings no longer shows an AI Check status badge or paywall framing.
+- Background routes no longer accept license unlock/reset messages.
+- Demo provider execution was removed.
+- Block page derives AI readiness through `AIReadiness`, not local ad hoc license checks.
 
 Design reference:
 
-- [Dev Unlock Semantics](2026-05-12-access-state-design.md#dev-unlock-semantics)
+- [Provider Key Semantics](2026-05-12-access-state-design.md#provider-key-semantics)
 
 ### ISSUE-004: Redirect does not preserve original attempted URL
 
@@ -325,13 +391,13 @@ Current behavior:
 
 Expected behavior:
 
-- Block page receives or derives `AccessState` and `AIAvailability`.
+- Block page receives or derives `AccessState` and `AIReadiness`.
 - UI branches should map directly from those states.
 
 Resolution:
 
 - Added `deriveAccessState`.
-- Added `deriveAIAvailability`.
+- Added `deriveAIReadiness`.
 - Block page now renders access badge, cooldown UI, and AI readiness from those derived states.
 
 Design reference:

@@ -1,5 +1,5 @@
 const DB_NAME = "betterme-db";
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 
 const STORE_NAMES = [
   "aiTracks",
@@ -7,11 +7,12 @@ const STORE_NAMES = [
   "checkpointDecisions",
   "aiTrackSummaries",
   "patternMemories",
-  "badCaseReviews",
-  "evalCases",
+  "behaviorEvents",
   "cryptoKeys",
   "encryptedApiKeys"
 ] as const;
+
+const LEGACY_STORE_NAMES = ["badCaseReviews", "evalCases"] as const;
 
 export type StoreName = (typeof STORE_NAMES)[number];
 
@@ -27,6 +28,11 @@ export function openBetterMeDb(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const db = request.result;
+      for (const storeName of LEGACY_STORE_NAMES) {
+        if (db.objectStoreNames.contains(storeName)) {
+          db.deleteObjectStore(storeName);
+        }
+      }
       for (const storeName of STORE_NAMES) {
         if (!db.objectStoreNames.contains(storeName)) {
           db.createObjectStore(storeName, { keyPath: "id" });

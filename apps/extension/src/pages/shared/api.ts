@@ -7,7 +7,11 @@ function hasRuntimeMessaging(): boolean {
 export async function sendMessage<T>(message: ExtensionMessage): Promise<T> {
   let result: ExtensionResult<T>;
   if (hasRuntimeMessaging()) {
-    result = await withTimeout(chrome.runtime.sendMessage(message), 4_000, "BetterMe background did not respond.");
+    result = await withTimeout(
+      chrome.runtime.sendMessage(message),
+      getMessageTimeoutMs(message),
+      "BetterMe background did not respond."
+    );
   } else {
     const { routeMessage } = await import("../../background/message-router");
     result = (await routeMessage(message)) as ExtensionResult<T>;
@@ -19,11 +23,15 @@ export async function sendMessage<T>(message: ExtensionMessage): Promise<T> {
   return result.data as T;
 }
 
+function getMessageTimeoutMs(message: ExtensionMessage): number {
+  return message.type === "ai/sendMessage" || message.type === "ai/startAndSend" ? 35_000 : 4_000;
+}
+
 export function getQueryParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }
 
-export function openExtensionPage(path: "settings.html" | "review.html" | "onboarding.html"): void {
+export function openExtensionPage(path: "settings.html" | "onboarding.html"): void {
   if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
     const url = chrome.runtime.getURL(path);
     if (chrome.tabs?.create) {

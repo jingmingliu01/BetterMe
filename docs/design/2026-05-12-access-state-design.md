@@ -11,7 +11,7 @@ Rule: when this document changes, check the progress and issues documents for re
 
 BetterMe is not just a website blocker. It is a self-control checkpoint that appears when a user tries to visit a user-defined high-dopamine site.
 
-The user should always have a free path to leave. The user may also use free Basic Cooldown. If Lifetime and AI provider configuration are ready, the user may start an AI Check. AI Check and Basic Cooldown must grant only temporary access. They must never mutate or weaken the permanent blocklist.
+The user should always have a path to leave. The user may also use Basic Cooldown. AI Check becomes available when provider configuration is ready. AI Check and Basic Cooldown must grant only temporary access. They must never mutate or weaken the permanent blocklist.
 
 ## Core Principle
 
@@ -28,12 +28,63 @@ Temporary:
 - `BlockHold`: the target is blocked until a fixed time, currently local next midnight.
 - `AITrack`: one bounded AI checkpoint conversation.
 
+Historical:
+
+- `targetKey`: stable identity for a blocked domain or exact URL across remove/re-add cycles.
+- `BehaviorEvent`: append-only local event log used for future AI pattern analysis.
+
 Capability:
 
-- `LicenseState`: whether AI features are unlocked.
 - `ProviderKeyState`: whether the selected model can be called.
+- `ProviderKeyRevision`: non-sensitive storage signal used to refresh already-open extension pages after provider key changes.
 
 Do not use one of these states as a proxy for another.
+
+## Durable Behavior History
+
+Future AI behavior analysis needs more than current access state. BetterMe should preserve local behavioral evidence even when a blocked target is removed from the active blocklist.
+
+Runtime state and history have different jobs:
+
+- Runtime state answers: should this tab be blocked right now?
+- Behavior history answers: what pattern has the user shown around this target over time?
+
+Every blocked target has a stable `targetKey`:
+
+```text
+domain:example.com
+exactUrl:https://example.com/path
+```
+
+`BlockedTarget.id` may change when the user removes and later re-adds the same item. `targetKey` must stay stable so AI can connect remove/re-add cycles to the same long-term target.
+
+Behavior events are append-only IndexedDB records. They should not be removed when a target is removed from the active blocklist. Data deletion remains the explicit full reset path.
+
+Initial event types:
+
+- `blocked_target_added`
+- `blocked_target_remove_prompt_opened`
+- `blocked_target_remove_cancelled`
+- `blocked_target_removed`
+- `blocked_target_readded`
+- `blocked_url_attempted`
+- `cooldown_started`
+- `cooldown_claim_expired`
+- `cooldown_continued`
+- `temporary_unlock_created`
+- `temporary_unlock_expired`
+- `ai_track_started`
+- `ai_decision_applied`
+- `block_hold_created`
+- `strictness_changed`
+
+Rules:
+
+- Store enough data to reconstruct behavior patterns: timestamps, `targetKey`, strictness, cooldown policy snapshot, claim window, unlock duration, and AI decision metadata.
+- Do not read page content.
+- For attempted URLs, keep full URL only in short-lived runtime attempt state used to return the user to the attempted page. The durable behavior event should store a privacy-minimal URL shape: origin, path, and whether query/hash existed.
+- AI context should consume a local summary of behavior events, not raw full history.
+- Removing a blocked target should stop enforcement but preserve behavior history.
 
 ## Derived State
 
@@ -68,24 +119,30 @@ Precedence:
 
 `BlockHold` wins over `TemporaryUnlock`. A user should not be able to bypass an AI `BLOCK` with a stale unlock.
 
-### AIAvailability
+### AIReadiness
 
 ```ts
-type AIAvailability =
-  | "locked_free"
+type AIReadiness =
+  | "ready"
   | "missing_provider_key"
+  | "invalid_provider_model"
   | "blocked_by_hold"
-  | "ready";
+  | "cooling_down"
+  | "temporarily_unlocked"
+  | "target_missing";
 ```
 
 Meaning:
 
-- `locked_free`: Lifetime license is not unlocked.
-- `missing_provider_key`: Lifetime is unlocked but no provider key or demo model is configured.
+- `ready`: user can send a message and create or continue an AI Check.
+- `missing_provider_key`: selected provider has no saved API key.
+- `invalid_provider_model`: selected model is no longer in the provider registry.
 - `blocked_by_hold`: target has active block hold.
-- `ready`: user can start AI Check.
+- `cooling_down`: Basic Cooldown is active.
+- `temporarily_unlocked`: access is already allowed temporarily.
+- `target_missing`: target was deleted or cannot be resolved.
 
-`LicenseState` affects AI availability only. It must not add, remove, or disable block rules.
+Provider key state affects AI readiness only. It must not add, remove, or disable block rules.
 
 ## DNR Rule Strategy
 
@@ -102,7 +159,6 @@ Exception:
 No exception:
 
 - `BasicCooldown` does not remove DNR rules.
-- `LicenseState` does not remove DNR rules.
 - Provider key state does not remove DNR rules.
 - `BlockHold` keeps or restores DNR rules.
 
@@ -183,27 +239,38 @@ Reason:
 
 ## Basic Cooldown Flow
 
-Basic Cooldown is free and does not consume AI Check.
+Basic Cooldown does not consume AI Check.
 
-Timing values are centralized in shared configuration:
+Timing values are centralized in shared configuration and selected from the user's strictness setting:
 
-- `basicCooldownSeconds`: default `5 * 60`.
-- `basicCooldownUnlockSeconds`: default `5 * 60`.
-- `unlockWarningRemainingSeconds`: default `60`.
+| Strictness | Cooldown | Post-cooldown unlock | Continue claim window |
+| --- | ---: | ---: | ---: |
+| `gentle` | 3m | 10m | 10m |
+| `balanced` | 5m | 5m | 5m |
+| `strict` | 10m | 3m | 3m |
+| `monk` | 15m | 2m | 2m |
 
-UI labels, countdowns, unlock creation, alarms, and in-page warnings should use these values rather than hard-coded durations.
+`balanced` is the default. UI labels, countdowns, unlock creation, alarms, and in-page warnings should use the selected policy rather than hard-coded durations.
+
+Cooldown completion is a short-lived eligibility state, not a permanent entitlement. If the user does not click Continue before `claimExpiresAt`, the completed cooldown expires and the user must start a new cooldown. A completed cooldown from days ago must never allow direct access.
+
+Repeated Basic Cooldown starts for the same target are automatically escalated within a recent-use window, currently 1 hour. Each repeat moves the effective cooldown policy one strictness level higher, capped at `monk`, without changing the user's saved base strictness setting.
+
+Settings must explain each strictness preset in product language. The user should be able to see the cooldown duration, post-cooldown access duration, Continue claim window, AI `ALLOW` cap, and the 1-hour repeat escalation rule before choosing a mode.
 
 Flow:
 
 ```text
 blocked page
   -> user clicks Basic Cooldown
-  -> create BasicCooldown(targetId, attemptUrl, endsAt = now + 5m)
+  -> record target cooldown attempt
+  -> derive effective strictness from saved strictness + recent attempt count
+  -> create BasicCooldown(targetId, attemptUrl, endsAt, claimExpiresAt, unlockMinutes)
   -> page shows countdown
   -> DNR remains active
   -> countdown complete
-  -> user clicks Continue for 5m
-  -> create TemporaryUnlock(source = "basic_cooldown", expiresAt = now + 5m)
+  -> if now <= claimExpiresAt, user can click Continue
+  -> create TemporaryUnlock(source = "basic_cooldown", expiresAt = now + policy unlock duration)
   -> rebuild DNR
   -> navigate to attemptUrl
 ```
@@ -213,6 +280,7 @@ Important:
 - Clicking Basic Cooldown alone should not unlock the site.
 - The user must wait.
 - After waiting, the user gets a short temporary unlock.
+- Waiting completion expires after the policy claim window.
 - When unlock expires, DNR must be restored automatically.
 
 ## Active Page Expiry Guard
@@ -273,13 +341,12 @@ Deleting a blocked target should synchronize all visible state.
 When a `BlockedTarget` is deleted:
 
 - Remove the permanent target.
-- Remove access states tied to that target:
-  - temporary unlocks,
-  - cooldowns,
-  - block holds.
+- Record `blocked_target_removed` in behavior history.
+- Stop active enforcement for that target.
 - Rebuild DNR rules.
 - Reschedule access-state alarms.
 - Preserve recent target attempts long enough for an already-open block page to recover to the attempted URL.
+- Do not delete behavior history, AI tracks, pattern memory, or historical cooldown/attempt events for that target.
 
 If an existing `block.html?targetId=<deleted-id>` page is refreshed or receives storage updates:
 
@@ -303,7 +370,6 @@ It should show:
 It should not show:
 
 - AI readiness badge.
-- AI PM Review entry.
 - Full AI Check UI.
 
 Blocked list behavior:
@@ -315,15 +381,15 @@ Blocked list behavior:
 
 ## AI Check Flow
 
-AI Check is available only when `AIAvailability === "ready"`.
+AI Check is available only when `AIReadiness === "ready"`.
 
 Flow:
 
 ```text
 blocked page
   -> local opening message appears
-  -> user starts AI Track
   -> user sends reason
+  -> if no track exists, extension starts an AI Track
   -> LLM returns structured decision
   -> extension validates decision
   -> extension applies local enforcement
@@ -336,26 +402,21 @@ Decision effects:
 - `ASK_MORE`: keep blocked, add assistant question, continue same track.
 - `BLOCK`: create `BlockHold` until local next midnight, rebuild DNR, complete track.
 
-## Dev Unlock Semantics
+## Provider Key Semantics
 
-`Dev Unlock Lifetime` means:
+Saving a provider key means:
 
-- `LicenseState.status = "lifetime_mock"`
-- AI UI can be unlocked if provider config is also ready.
+- AI Check can call the selected provider/model.
+- The key is stored locally through encrypted extension storage.
+- The UI can derive `AIReadiness = "ready"` when access state also allows AI.
+- Already-open blocked pages receive a non-sensitive `providerKeyRevision` change through `chrome.storage.local` and refresh bootstrap state immediately.
 
 It does not mean:
 
 - blocklist is disabled,
-- DNR rules are removed,
-- AI provider key exists.
+- DNR rules are removed.
 
-For demos, provide a separate explicit action:
-
-```text
-Enable Demo AI
-```
-
-This can store `demo-local-model` as the selected provider key so `AIAvailability` becomes `ready`.
+`ProviderKeyRevision` must never contain the API key or ciphertext. It only carries provider id, action, and timestamp so extension pages can invalidate stale readiness state.
 
 ## Implementation Modules
 
@@ -363,15 +424,23 @@ Suggested files:
 
 - `src/blocking/access-state.ts`
   - `deriveAccessState(input)`
-  - `deriveAIAvailability(input)`
   - `getActiveUnlockForTarget(targetId)`
   - `getActiveCooldownForTarget(targetId)`
   - `getActiveHoldForTarget(targetId)`
+
+- `src/ai/ai-readiness.ts`
+  - `deriveAIReadiness(input)`
+  - `getAIReadinessMessage(readiness)`
+
+- `src/background/message-router.ts`
+  - publish `ProviderKeyRevision` after provider key save/delete.
 
 - `src/blocking/cooldowns.ts`
   - `createBasicCooldown(input)`
   - `isCooldownActive(cooldown, now)`
   - `isCooldownComplete(cooldown, now)`
+  - `isCooldownClaimExpired(cooldown, now)`
+  - `getCooldownClaimExpiresAt(cooldown)`
   - `createUnlockFromCompletedCooldown(cooldown, now)`
 
 - `src/background/alarms.ts`
@@ -382,7 +451,7 @@ Suggested files:
   - rebuild from blocked targets + active temporary unlocks only.
 
 - `src/pages/block/BlockPage.tsx`
-  - render from `AccessState` and `AIAvailability`.
+  - render from `AccessState` and `AIReadiness`.
 
 ## Validation Plan
 
@@ -390,11 +459,12 @@ E2E tests should cover:
 
 - popup can add current domain.
 - blocked domain redirects to block page.
-- Dev Unlock alone does not disable blocking.
-- Demo AI enabled makes AI ready after page refresh.
+- saving a provider key makes an already-open block page AI-ready without reload or navigation.
 - Basic Cooldown starts timer but does not unlock immediately.
 - Completed Basic Cooldown creates temporary unlock.
 - Temporary unlock allows original URL.
 - Unlock expiry restores DNR blocking.
 - AI `ALLOW` creates temporary unlock.
 - AI `BLOCK` creates hold until next local midnight.
+- Removing a blocked target requires the 10-second confirmation flow and exact confirmation phrase.
+- Removing and re-adding the same target records `blocked_target_removed` and `blocked_target_readded` under one stable target identity.

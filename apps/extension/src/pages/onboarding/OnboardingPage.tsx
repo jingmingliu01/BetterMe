@@ -21,7 +21,7 @@ export function OnboardingPage() {
   return (
     <AppShell
       title="Set up BetterMe"
-      subtitle="Block first. AI Check comes alive after Lifetime unlock and provider setup."
+      subtitle="Block first. AI Check comes alive after local provider setup."
     >
       <section className="grid three-col">
         <div className="card">
@@ -34,8 +34,8 @@ export function OnboardingPage() {
           <p className="muted">A track has max turns, max time, one structured decision, and local enforcement.</p>
         </div>
         <div className="card">
-          <h3>AI PM workflow</h3>
-          <p className="muted">Review bad cases, classify root cause, and convert failures into eval cases.</p>
+          <h3>Local provider key</h3>
+          <p className="muted">Use your own AI provider key; it stays encrypted on this device.</p>
         </div>
       </section>
       <section className="panel stack">

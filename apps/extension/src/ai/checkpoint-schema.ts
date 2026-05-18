@@ -1,7 +1,24 @@
 import { createId, nowIso } from "../shared/id";
-import type { AIDecision, CheckpointDecision } from "../shared/types";
+import { STRICTNESS_UNLOCK_CAP_MINUTES } from "../shared/constants";
+import type { AIDecision, CheckpointDecision, StrictnessLevel } from "../shared/types";
 
 const DECISIONS: AIDecision[] = ["ALLOW", "DELAY", "ASK_MORE", "BLOCK"];
+const REASONING_CATEGORIES: CheckpointDecision["reasoningCategory"][] = [
+  "repeated_excuse",
+  "clear_intention",
+  "high_risk_pattern",
+  "low_risk",
+  "insufficient_reason"
+];
+const MEMORY_REASON_CATEGORIES: CheckpointDecision["memoryUpdate"]["reasonCategory"][] = [
+  "stress",
+  "boredom",
+  "loneliness",
+  "escape",
+  "habit",
+  "intentional",
+  "other"
+];
 
 function asNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -27,16 +44,22 @@ export function parseCheckpointDecision(raw: string, trackId: string): Checkpoin
   if (!DECISIONS.includes(decision as AIDecision)) {
     throw new Error("LLM returned an invalid decision.");
   }
+  if (!REASONING_CATEGORIES.includes(parsed.reasoningCategory as CheckpointDecision["reasoningCategory"])) {
+    throw new Error("LLM returned an invalid reasoningCategory.");
+  }
 
   const scores = (parsed.scores ?? {}) as Record<string, unknown>;
   const memoryUpdate = (parsed.memoryUpdate ?? {}) as Record<string, unknown>;
+  if (!MEMORY_REASON_CATEGORIES.includes(memoryUpdate.reasonCategory as CheckpointDecision["memoryUpdate"]["reasonCategory"])) {
+    throw new Error("LLM returned an invalid memoryUpdate.reasonCategory.");
+  }
 
   return {
     id: createId("decision"),
     trackId,
     decision: decision as AIDecision,
     userFacingMessage: asString(parsed.userFacingMessage, "I need one more clear reason before deciding."),
-    reasoningCategory: asString(parsed.reasoningCategory, "insufficient_reason") as CheckpointDecision["reasoningCategory"],
+    reasoningCategory: parsed.reasoningCategory as CheckpointDecision["reasoningCategory"],
     unlockMinutes: typeof parsed.unlockMinutes === "number" ? parsed.unlockMinutes : null,
     delaySeconds: typeof parsed.delaySeconds === "number" ? parsed.delaySeconds : null,
     nextQuestion: asNullableString(parsed.nextQuestion),
@@ -46,7 +69,7 @@ export function parseCheckpointDecision(raw: string, trackId: string): Checkpoin
       deliberateness: asNumber(scores.deliberateness, 50)
     },
     memoryUpdate: {
-      reasonCategory: asString(memoryUpdate.reasonCategory, "other") as CheckpointDecision["memoryUpdate"]["reasonCategory"],
+      reasonCategory: memoryUpdate.reasonCategory as CheckpointDecision["memoryUpdate"]["reasonCategory"],
       patternNote: asNullableString(memoryUpdate.patternNote)
     },
     createdAt: nowIso(),
@@ -75,4 +98,25 @@ export function createFallbackDecision(trackId: string, message: string): Checkp
     },
     createdAt: nowIso()
   };
+}
+
+export function validateDecisionConstraints(decision: CheckpointDecision, strictness: StrictnessLevel): void {
+  if (decision.decision === "ALLOW") {
+    const cap = STRICTNESS_UNLOCK_CAP_MINUTES[strictness];
+    if (typeof decision.unlockMinutes !== "number" || decision.unlockMinutes <= 0 || decision.unlockMinutes > cap) {
+      throw new Error(`ALLOW decision requires unlockMinutes between 1 and ${cap}.`);
+    }
+  }
+
+  if (decision.decision === "DELAY") {
+    if (typeof decision.delaySeconds !== "number" || decision.delaySeconds <= 0) {
+      throw new Error("DELAY decision requires positive delaySeconds.");
+    }
+  }
+
+  if (decision.decision === "ASK_MORE") {
+    if (!decision.nextQuestion?.trim()) {
+      throw new Error("ASK_MORE decision requires nextQuestion.");
+    }
+  }
 }

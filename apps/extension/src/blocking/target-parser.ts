@@ -28,6 +28,7 @@ export function normalizeDomainTarget(input: string): BlockedTarget {
 
   return {
     id: createId("target"),
+    targetKey: createTargetKey("domain", domain),
     type: "domain",
     value: domain,
     display: domain,
@@ -43,6 +44,7 @@ export function normalizeExactUrlTarget(input: string): BlockedTarget {
   url.hash = "";
   return {
     id: createId("target"),
+    targetKey: createTargetKey("exactUrl", url.toString()),
     type: "exactUrl",
     value: url.toString(),
     display: url.toString(),
@@ -55,6 +57,14 @@ export function normalizeExactUrlTarget(input: string): BlockedTarget {
 
 export function createBlockedTarget(input: string, targetType: BlockedTargetType): BlockedTarget {
   return targetType === "domain" ? normalizeDomainTarget(input) : normalizeExactUrlTarget(input);
+}
+
+export function createTargetKey(type: BlockedTargetType, value: string): string {
+  return `${type}:${value}`;
+}
+
+export function getTargetKey(target: BlockedTarget): string {
+  return target.targetKey ?? createTargetKey(target.type, target.value);
 }
 
 export function getDisplayTarget(target: BlockedTarget): string {
