@@ -17,7 +17,7 @@ export function buildLlmMessages(input: {
 }): ChatMessage[] {
   const memoryLines = input.patternMemories
     .slice(0, 5)
-    .map((memory) => `- ${memory.reasonCategory}: ${memory.guidance} Last reason: "${memory.lastUserReason}"`)
+    .map((memory) => `- ${memory.behaviorReasonCategory}: ${memory.guidance} Last reason: "${memory.lastUserReason}"`)
     .join("\n");
 
   const system = [

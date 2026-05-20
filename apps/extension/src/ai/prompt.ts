@@ -21,9 +21,9 @@ export function buildSystemPrompt(input: {
     `AI_COOLDOWN range for this strictness: ${policy.minSeconds}-${policy.maxSeconds} seconds. Recommended default: ${policy.defaultSeconds} seconds.`,
     "Return json only. Do not wrap it in Markdown.",
     "Valid decision values: ALLOW, AI_COOLDOWN, ASK_MORE, BLOCK.",
-    "Valid reasoningCategory values: repeated_excuse, clear_intention, high_risk_pattern, low_risk, insufficient_reason.",
-    "Valid memoryUpdate.reasonCategory values: stress, boredom, loneliness, escape, habit, intentional, other.",
-    "reasoningCategory explains why this decision is being made now. memoryUpdate.reasonCategory describes the user's underlying behavior pattern for future memory.",
+    "Valid decisionReasonCategory values: repeated_excuse, clear_intention, high_risk_pattern, low_risk, insufficient_reason.",
+    "Valid memoryUpdate.behaviorReasonCategory values: stress, boredom, loneliness, escape, habit, intentional, other.",
+    "decisionReasonCategory explains why this decision is being made now. memoryUpdate.behaviorReasonCategory describes the user's underlying behavior pattern for future memory.",
     "Category mapping rubric:",
     "- intentional behavior with a specific purpose, time boundary, and exit plan usually maps to clear_intention and ALLOW.",
     "- boredom, stress, escape, loneliness, or habit without a time boundary usually maps to insufficient_reason and ASK_MORE or AI_COOLDOWN.",
@@ -34,8 +34,8 @@ export function buildSystemPrompt(input: {
     "Use BLOCK when the reason is clearly impulsive or repeats a high-risk pattern.",
     "Use ALLOW only when the user's reason is intentional, specific, and bounded.",
     "scores.repeatedReason, scores.impulse, and scores.deliberateness must each be independent 0-100 ratings. They are not percentages and do not need to sum to 100.",
-    'Example json: {"decision":"ASK_MORE","userFacingMessage":"What do you need to finish, and when will you leave?","reasoningCategory":"insufficient_reason","unlockMinutes":null,"aiCooldownSeconds":null,"nextQuestion":"What do you need to finish, and when will you leave?","scores":{"repeatedReason":20,"impulse":55,"deliberateness":40},"memoryUpdate":{"reasonCategory":"other","patternNote":null}}',
-    "JSON schema: { decision, userFacingMessage, reasoningCategory, unlockMinutes, aiCooldownSeconds, nextQuestion, scores: { repeatedReason, impulse, deliberateness }, memoryUpdate: { reasonCategory, patternNote } }"
+    'Example json: {"decision":"ASK_MORE","userFacingMessage":"What do you need to finish, and when will you leave?","decisionReasonCategory":"insufficient_reason","unlockMinutes":null,"aiCooldownSeconds":null,"nextQuestion":"What do you need to finish, and when will you leave?","scores":{"repeatedReason":20,"impulse":55,"deliberateness":40},"memoryUpdate":{"behaviorReasonCategory":"other","patternNote":null}}',
+    "JSON schema: { decision, userFacingMessage, decisionReasonCategory, unlockMinutes, aiCooldownSeconds, nextQuestion, scores: { repeatedReason, impulse, deliberateness }, memoryUpdate: { behaviorReasonCategory, patternNote } }"
   ].join("\n");
 }
 

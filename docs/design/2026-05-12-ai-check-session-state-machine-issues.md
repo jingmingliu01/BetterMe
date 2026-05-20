@@ -190,7 +190,7 @@ Design reference:
 
 Current update:
 
-- Parser now validates `decision`, `reasoningCategory`, and `memoryUpdate.reasonCategory` enums.
+- Parser now validates `decision`, `decisionReasonCategory`, and `memoryUpdate.behaviorReasonCategory` enums.
 - Added decision-specific validation for `ALLOW`, `AI_COOLDOWN`, and `ASK_MORE`.
 - Session is marked `schema_error` on validation failures.
 - Non-critical category labels are now normalized when possible so a valid provider decision is not rejected only because category wording differs.

@@ -27,7 +27,7 @@ try {
     JSON.stringify({
       decision: "AI_COOLDOWN",
       userFacingMessage: "Pause first.",
-      reasoningCategory: "insufficient_reason",
+      decisionReasonCategory: "insufficient_reason",
       unlockMinutes: null,
       aiCooldownSeconds: 20,
       nextQuestion: null,
@@ -37,7 +37,7 @@ try {
         deliberateness: 30
       },
       memoryUpdate: {
-        reasonCategory: "habit",
+        behaviorReasonCategory: "habit",
         patternNote: "Weak reason while blocked."
       }
     }),
@@ -51,7 +51,7 @@ try {
     JSON.stringify({
       decision: "ASK_MORE",
       userFacingMessage: "One more thing.",
-      reasoningCategory: "insufficient_reason",
+      decisionReasonCategory: "insufficient_reason",
       unlockMinutes: null,
       aiCooldownSeconds: null,
       nextQuestion: "What will make you leave?",
@@ -61,7 +61,7 @@ try {
         deliberateness: 40
       },
       memoryUpdate: {
-        reasonCategory: "other",
+        behaviorReasonCategory: "other",
         patternNote: null
       }
     }),
@@ -80,7 +80,7 @@ try {
     JSON.stringify({
       decision: "ASK_MORE",
       userFacingMessage: "What would make this deliberate?",
-      reasoningCategory: "vague reason",
+      decisionReasonCategory: "vague reason",
       unlockMinutes: null,
       aiCooldownSeconds: null,
       nextQuestion: "What would make this deliberate?",
@@ -90,14 +90,14 @@ try {
         deliberateness: 40
       },
       memoryUpdate: {
-        reasonCategory: "relaxation",
+        behaviorReasonCategory: "relaxation",
         patternNote: null
       }
     }),
     "session_test"
   );
-  assert.equal(relaxedCategoryDecision.reasoningCategory, "insufficient_reason");
-  assert.equal(relaxedCategoryDecision.memoryUpdate.reasonCategory, "other");
+  assert.equal(relaxedCategoryDecision.decisionReasonCategory, "insufficient_reason");
+  assert.equal(relaxedCategoryDecision.memoryUpdate.behaviorReasonCategory, "other");
 
   assert.throws(
     () =>
@@ -105,7 +105,7 @@ try {
         JSON.stringify({
           decision: "ASK_MORE",
           userFacingMessage: "What is the specific task?",
-          reasoningCategory: "insufficient_reason",
+          decisionReasonCategory: "insufficient_reason",
           unlockMinutes: null,
           aiCooldownSeconds: null,
           nextQuestion: "What is the specific task?",
@@ -115,7 +115,7 @@ try {
             deliberateness: 40
           },
           memoryUpdate: {
-            reasonCategory: "other",
+            behaviorReasonCategory: "other",
             patternNote: null
           }
         }),
@@ -139,7 +139,7 @@ try {
               content: JSON.stringify({
                 decision: "ASK_MORE",
                 userFacingMessage: "What is the specific task?",
-                reasoningCategory: "insufficient_reason",
+                decisionReasonCategory: "insufficient_reason",
                 unlockMinutes: null,
                 aiCooldownSeconds: null,
                 nextQuestion: "What is the specific task?",
@@ -149,7 +149,7 @@ try {
                   deliberateness: 45
                 },
                 memoryUpdate: {
-                  reasonCategory: "other",
+                  behaviorReasonCategory: "other",
                   patternNote: null
                 }
               })

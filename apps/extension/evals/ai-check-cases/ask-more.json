@@ -2,131 +2,458 @@
   {
     "id": "under_ask_missing_time_reddit_strict_001",
     "title": "Programming reason without time boundary should ask more",
-    "targetDisplay": "reddit.com",
-    "strictness": "strict",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open reddit.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need to check one answer for programming." }
-    ],
-    "expectedDecision": "ASK_MORE",
-    "mustAskAbout": ["How long", "when"],
-    "tags": ["under_ask", "work", "strict"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "reddit.com",
+      "strictness": "strict",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open reddit.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need to check one answer for programming."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ASK_MORE"
+      },
+      "mustAskAbout": [
+        "How long",
+        "when"
+      ],
+      "tags": [
+        "under_ask",
+        "work",
+        "strict"
+      ]
+    }
   },
   {
     "id": "under_ask_work_need_vague_balanced_001",
     "title": "Work need is too vague without task detail",
-    "targetDisplay": "youtube.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need it for work." }
-    ],
-    "expectedDecision": "ASK_MORE",
-    "mustAskAbout": ["How long", "when"],
-    "tags": ["under_ask", "work", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need it for work."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ASK_MORE"
+      },
+      "mustAskAbout": [
+        "How long",
+        "when"
+      ],
+      "tags": [
+        "under_ask",
+        "work",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "under_ask_research_missing_exit_balanced_001",
     "title": "Research reason needs an exit plan",
-    "targetDisplay": "twitter.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open twitter.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need to research something for school." }
-    ],
-    "expectedDecision": "ASK_MORE",
-    "mustAskAbout": ["How long", "when"],
-    "tags": ["under_ask", "school", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "twitter.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open twitter.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need to research something for school."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ASK_MORE"
+      },
+      "mustAskAbout": [
+        "How long",
+        "when"
+      ],
+      "tags": [
+        "under_ask",
+        "school",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "under_ask_chinese_work_missing_time_001",
     "title": "Chinese work task without time should ask more",
-    "targetDisplay": "bilibili.com",
-    "strictness": "strict",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open bilibili.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "我需要看一个教程来学习。" }
-    ],
-    "expectedDecision": "ASK_MORE",
-    "mustAskAbout": ["How long", "when"],
-    "tags": ["under_ask", "zh", "strict"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "bilibili.com",
+      "strictness": "strict",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open bilibili.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "我需要看一个教程来学习。"
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ASK_MORE"
+      },
+      "mustAskAbout": [
+        "How long",
+        "when"
+      ],
+      "tags": [
+        "under_ask",
+        "zh",
+        "strict"
+      ]
+    }
   },
   {
     "id": "under_ask_homework_missing_time_001",
     "title": "Homework task needs duration and exit",
-    "targetDisplay": "youtube.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need help with homework." }
-    ],
-    "expectedDecision": "ASK_MORE",
-    "mustAskAbout": ["How long", "when"],
-    "tags": ["under_ask", "school", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need help with homework."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ASK_MORE"
+      },
+      "mustAskAbout": [
+        "How long",
+        "when"
+      ],
+      "tags": [
+        "under_ask",
+        "school",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "under_ask_recipe_missing_time_001",
     "title": "Low-risk task still needs a time box",
-    "targetDisplay": "youtube.com",
-    "strictness": "strict",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need a recipe." }
-    ],
-    "expectedDecision": "ASK_MORE",
-    "mustAskAbout": ["How long", "when"],
-    "tags": ["under_ask", "low_risk", "strict"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "strict",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need a recipe."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ASK_MORE"
+      },
+      "mustAskAbout": [
+        "How long",
+        "when"
+      ],
+      "tags": [
+        "under_ask",
+        "low_risk",
+        "strict"
+      ]
+    }
   },
   {
     "id": "unnecessary_ask_clear_tutorial_gentle_001",
     "title": "Clear tutorial plan should not be questioned again",
-    "targetDisplay": "youtube.com",
-    "strictness": "gentle",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need to watch a 5 minute tutorial for a CSS bug, then I will close the tab." }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["ASK_MORE"],
-    "tags": ["unnecessary_ask", "work", "gentle"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "gentle",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need to watch a 5 minute tutorial for a CSS bug, then I will close the tab."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "ASK_MORE"
+      ],
+      "tags": [
+        "unnecessary_ask",
+        "work",
+        "gentle"
+      ]
+    }
   },
   {
     "id": "unnecessary_ask_clear_answer_balanced_001",
     "title": "Clear answer lookup should be allowed",
-    "targetDisplay": "stackoverflow.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open stackoverflow.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need one answer for a build error, then I will close the tab after 4 minutes." }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["ASK_MORE"],
-    "tags": ["unnecessary_ask", "work", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "stackoverflow.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open stackoverflow.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need one answer for a build error, then I will close the tab after 4 minutes."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "ASK_MORE"
+      ],
+      "tags": [
+        "unnecessary_ask",
+        "work",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "unnecessary_ask_clear_chinese_balanced_001",
     "title": "Clear Chinese task should not be over-questioned",
-    "targetDisplay": "zhihu.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open zhihu.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "我要查一个工作资料，预计 5 分钟，然后关掉页面。" }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["ASK_MORE"],
-    "tags": ["unnecessary_ask", "zh", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "zhihu.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open zhihu.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "我要查一个工作资料，预计 5 分钟，然后关掉页面。"
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "ASK_MORE"
+      ],
+      "tags": [
+        "unnecessary_ask",
+        "zh",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "unnecessary_ask_appointment_strict_001",
     "title": "Clear important appointment task should not be questioned",
-    "targetDisplay": "facebook.com",
-    "strictness": "strict",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open facebook.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need to reply to an appointment message. I will spend 2 minutes and close the tab." }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["ASK_MORE", "BLOCK"],
-    "tags": ["unnecessary_ask", "important_task", "strict"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "facebook.com",
+      "strictness": "strict",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open facebook.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need to reply to an appointment message. I will spend 2 minutes and close the tab."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "ASK_MORE",
+        "BLOCK"
+      ],
+      "tags": [
+        "unnecessary_ask",
+        "important_task",
+        "strict"
+      ]
+    }
   }
 ]

@@ -2,80 +2,275 @@
   {
     "id": "over_block_work_tutorial_gentle_001",
     "title": "Bounded work tutorial should be allowed in gentle mode",
-    "targetDisplay": "youtube.com",
-    "strictness": "gentle",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need to watch a 6 minute tutorial for a bug I am fixing, then I will close the tab." }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["BLOCK"],
-    "expectedReasoningCategory": "clear_intention",
-    "tags": ["over_block", "work", "gentle"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "gentle",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need to watch a 6 minute tutorial for a bug I am fixing, then I will close the tab."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW",
+        "decisionReasonCategory": "clear_intention"
+      },
+      "disallowedDecisions": [
+        "BLOCK"
+      ],
+      "tags": [
+        "over_block",
+        "work",
+        "gentle"
+      ]
+    }
   },
   {
     "id": "over_block_stackoverflow_answer_balanced_001",
     "title": "Specific programming answer should be allowed",
-    "targetDisplay": "stackoverflow.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open stackoverflow.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need one answer for a TypeScript build error, then I will return to my IDE after 5 minutes." }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["BLOCK", "AI_COOLDOWN"],
-    "tags": ["over_block", "work", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "stackoverflow.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open stackoverflow.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need one answer for a TypeScript build error, then I will return to my IDE after 5 minutes."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "BLOCK",
+        "AI_COOLDOWN"
+      ],
+      "tags": [
+        "over_block",
+        "work",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "over_block_reddit_debug_balanced_001",
     "title": "Bounded Reddit debugging search should be allowed",
-    "targetDisplay": "reddit.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open reddit.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need to find a discussion about this Xcode error. I will spend 4 minutes and close the tab after I copy the fix." }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["BLOCK"],
-    "tags": ["over_block", "work", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "reddit.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open reddit.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need to find a discussion about this Xcode error. I will spend 4 minutes and close the tab after I copy the fix."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "BLOCK"
+      ],
+      "tags": [
+        "over_block",
+        "work",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "over_block_recipe_video_gentle_001",
     "title": "Low-risk recipe video with time box should be allowed",
-    "targetDisplay": "youtube.com",
-    "strictness": "gentle",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need a 3 minute recipe video while cooking, then I will close the tab." }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["BLOCK"],
-    "tags": ["over_block", "low_risk", "gentle"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "gentle",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need a 3 minute recipe video while cooking, then I will close the tab."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "BLOCK"
+      ],
+      "tags": [
+        "over_block",
+        "low_risk",
+        "gentle"
+      ]
+    }
   },
   {
     "id": "over_block_chinese_work_balanced_001",
     "title": "Chinese bounded work reason should be allowed",
-    "targetDisplay": "zhihu.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open zhihu.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "我要查一个报错的解决方案，预计 3 分钟，看完就关。" }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["BLOCK", "AI_COOLDOWN"],
-    "tags": ["over_block", "work", "zh", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "zhihu.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open zhihu.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "我要查一个报错的解决方案，预计 3 分钟，看完就关。"
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "BLOCK",
+        "AI_COOLDOWN"
+      ],
+      "tags": [
+        "over_block",
+        "work",
+        "zh",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "over_block_doctor_appointment_strict_001",
     "title": "Important bounded appointment task should be allowed even in strict mode",
-    "targetDisplay": "facebook.com",
-    "strictness": "strict",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open facebook.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need to confirm a doctor appointment message. I will spend 2 minutes, reply, then close the tab." }
-    ],
-    "expectedDecision": "ALLOW",
-    "disallowedDecisions": ["BLOCK"],
-    "tags": ["over_block", "important_task", "strict"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "facebook.com",
+      "strictness": "strict",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open facebook.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need to confirm a doctor appointment message. I will spend 2 minutes, reply, then close the tab."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "disallowedDecisions": [
+        "BLOCK"
+      ],
+      "tags": [
+        "over_block",
+        "important_task",
+        "strict"
+      ]
+    }
   }
 ]

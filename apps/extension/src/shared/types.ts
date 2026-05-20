@@ -155,7 +155,7 @@ export interface AICheckSession {
   aiCooldownSeconds?: number;
   aiCooldownDecisionId?: string;
   aiCooldownCompletedAt?: string;
-  patternMemoryUpdatedCategories?: Array<CheckpointDecision["memoryUpdate"]["reasonCategory"]>;
+  patternMemoryUpdatedCategories?: BehaviorReasonCategory[];
 }
 
 export interface AICheckMessage {
@@ -172,7 +172,7 @@ export interface CheckpointDecision {
   sessionId: string;
   decision: AIDecision;
   userFacingMessage: string;
-  reasoningCategory: DecisionReasonCategory;
+  decisionReasonCategory: DecisionReasonCategory;
   unlockMinutes: number | null;
   aiCooldownSeconds: number | null;
   aiCooldownNormalization?: {
@@ -184,7 +184,7 @@ export interface CheckpointDecision {
   nextQuestion: string | null;
   scores: AICheckScores;
   memoryUpdate: {
-    reasonCategory: BehaviorReasonCategory;
+    behaviorReasonCategory: BehaviorReasonCategory;
     patternNote: string | null;
   };
   createdAt: string;
@@ -194,7 +194,7 @@ export interface CheckpointDecision {
 export interface PatternMemory {
   id: string;
   targetDisplay: string;
-  reasonCategory: CheckpointDecision["memoryUpdate"]["reasonCategory"];
+  behaviorReasonCategory: BehaviorReasonCategory;
   repeatedCount: number;
   lastUserReason: string;
   guidance: string;
@@ -206,7 +206,7 @@ export interface AICheckSummary {
   sessionId: string;
   targetDisplay: string;
   finalDecision: AIDecision;
-  reasonCategory: CheckpointDecision["memoryUpdate"]["reasonCategory"];
+  behaviorReasonCategory: BehaviorReasonCategory;
   shortSummary: string;
   createdAt: string;
 }
@@ -239,27 +239,6 @@ export interface BadCaseReview {
   updatedAt: string;
 }
 
-export interface AICheckEvalCase {
-  id: string;
-  sourceBadCaseId?: string;
-  title: string;
-  targetDisplay: string;
-  strictness: StrictnessLevel;
-  messages: Array<Pick<AICheckMessage, "role" | "content" | "source">>;
-  patternMemorySnapshot: PatternMemory[];
-  expectedDecision: AIDecision;
-  allowedDecisions?: AIDecision[];
-  disallowedDecisions?: AIDecision[];
-  expectedReasoningCategory?: CheckpointDecision["reasoningCategory"];
-  expectedCooldownRangeSeconds?: { min: number; max: number };
-  expectedScoreRanges?: Partial<Record<AICheckScoreName, { min: number; max: number }>>;
-  mustAskAbout?: string[];
-  mustNotSay?: string[];
-  tags: BadCaseErrorType[];
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface AICheckCaseInput {
   targetDisplay: string;
   strictness: StrictnessLevel;
@@ -270,9 +249,8 @@ export interface AICheckCaseInput {
   };
   messages: Array<Pick<AICheckMessage, "role" | "content" | "source">>;
   patternMemorySnapshot: Array<
-    Omit<PatternMemory, "id" | "reasonCategory"> & {
+    Omit<PatternMemory, "id"> & {
       id?: string;
-      behaviorReasonCategory: BehaviorReasonCategory;
     }
   >;
 }
@@ -281,7 +259,7 @@ export interface AICheckCaseOutput {
   provider?: ProviderId | "mock";
   model?: string;
   rawProvider?: string;
-  parsed: Omit<CheckpointDecision, "id" | "sessionId" | "createdAt" | "reasoningCategory" | "memoryUpdate"> & {
+  parsed: Omit<CheckpointDecision, "id" | "sessionId" | "createdAt" | "decisionReasonCategory" | "memoryUpdate"> & {
     decisionReasonCategory: DecisionReasonCategory;
     memoryUpdate: {
       behaviorReasonCategory: BehaviorReasonCategory;

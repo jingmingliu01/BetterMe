@@ -232,7 +232,7 @@ Provider output must validate against:
 interface CheckpointDecisionPayload {
   decision: "ALLOW" | "AI_COOLDOWN" | "ASK_MORE" | "BLOCK";
   userFacingMessage: string;
-  reasoningCategory:
+  decisionReasonCategory:
     | "repeated_excuse"
     | "clear_intention"
     | "high_risk_pattern"
@@ -247,7 +247,7 @@ interface CheckpointDecisionPayload {
     deliberateness: number;
   };
   memoryUpdate: {
-    reasonCategory:
+    behaviorReasonCategory:
       | "stress"
       | "boredom"
       | "loneliness"

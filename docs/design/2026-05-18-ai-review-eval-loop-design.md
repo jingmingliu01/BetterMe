@@ -94,26 +94,24 @@ interface BadCaseReview {
 ## Eval Case Model
 
 ```ts
-interface AICheckEvalCase {
+interface AICheckCase {
   id: string;
-  sourceBadCaseId?: string;
   title: string;
-  targetDisplay: string;
-  strictness: StrictnessLevel;
-  messages: Array<Pick<AICheckMessage, "role" | "content" | "source">>;
-  patternMemorySnapshot: PatternMemory[];
-  expectedDecision: AIDecision;
-  allowedDecisions?: AIDecision[];
-  disallowedDecisions?: AIDecision[];
-  expectedReasoningCategory?: CheckpointDecision["reasoningCategory"];
-  expectedCooldownRangeSeconds?: { min: number; max: number };
-  mustAskAbout?: string[];
-  mustNotSay?: string[];
-  tags: BadCaseErrorType[];
-  createdAt: string;
-  updatedAt: string;
+  source: "authored_eval" | "real_session" | "bad_case_review";
+  versions: {
+    promptVersion: string;
+    schemaVersion: string;
+    rubricVersion: string;
+  };
+  input: AICheckCaseInput;
+  output?: AICheckCaseOutput;
+  eval?: AICheckCaseEval;
 }
 ```
+
+The eval case shape is unified around `input`, optional `output`, and optional `eval`.
+`input` is the only model-visible section. `eval` contains PM/evaluator-only assertions.
+The detailed schema lives in [2026-05-20-ai-check-case-schema-design.md](2026-05-20-ai-check-case-schema-design.md).
 
 ## Eval Runner
 

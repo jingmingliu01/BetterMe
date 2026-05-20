@@ -1,5 +1,5 @@
 const DB_NAME = "betterme-db";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 const STORE_NAMES = [
   "aiCheckSessions",
@@ -18,6 +18,19 @@ const STORE_NAMES = [
 
 export type StoreName = (typeof STORE_NAMES)[number];
 
+const AI_HISTORY_STORES_TO_CLEAR_ON_SCHEMA_UNIFICATION: StoreName[] = [
+  "aiCheckSessions",
+  "aiCheckMessages",
+  "checkpointDecisions",
+  "aiCheckSummaries",
+  "patternMemories",
+  "behaviorEvents",
+  "badCaseReviews",
+  "evalCases",
+  "evalRuns",
+  "evalResults"
+];
+
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 export function openBetterMeDb(): Promise<IDBDatabase> {
@@ -28,11 +41,17 @@ export function openBetterMeDb(): Promise<IDBDatabase> {
   dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const db = request.result;
       for (const storeName of STORE_NAMES) {
         if (!db.objectStoreNames.contains(storeName)) {
           db.createObjectStore(storeName, { keyPath: "id" });
+        }
+      }
+      if (event.oldVersion > 0 && event.oldVersion < 6) {
+        const tx = request.transaction;
+        for (const storeName of AI_HISTORY_STORES_TO_CLEAR_ON_SCHEMA_UNIFICATION) {
+          tx?.objectStore(storeName).clear();
         }
       }
     };

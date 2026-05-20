@@ -231,7 +231,7 @@ export async function sendAICheckMessage(input: {
       ...nextSession,
       patternMemoryUpdatedCategories: [
         ...(nextSession.patternMemoryUpdatedCategories ?? []),
-        decision.memoryUpdate.reasonCategory
+        decision.memoryUpdate.behaviorReasonCategory
       ]
     };
   }
@@ -252,7 +252,7 @@ export async function sendAICheckMessage(input: {
 }
 
 function shouldUpdatePatternMemory(session: AICheckSession, decision: CheckpointDecision): boolean {
-  const alreadyUpdated = (session.patternMemoryUpdatedCategories ?? []).includes(decision.memoryUpdate.reasonCategory);
+  const alreadyUpdated = (session.patternMemoryUpdatedCategories ?? []).includes(decision.memoryUpdate.behaviorReasonCategory);
   if (alreadyUpdated) {
     return false;
   }
@@ -454,11 +454,11 @@ function buildDecisionEventPayload(
     decisionId: decision.id,
     decision: decision.decision,
     strictness,
-    reasoningCategory: decision.reasoningCategory,
+    decisionReasonCategory: decision.decisionReasonCategory,
     unlockMinutes: decision.unlockMinutes,
     aiCooldownSeconds: decision.aiCooldownSeconds,
     scores: decision.scores,
-    reasonCategory: decision.memoryUpdate.reasonCategory
+    behaviorReasonCategory: decision.memoryUpdate.behaviorReasonCategory
   };
 }
 
@@ -472,8 +472,8 @@ async function saveSessionSummary(
     sessionId: session.id,
     targetDisplay: session.targetDisplay,
     finalDecision: decision.decision,
-    reasonCategory: decision.memoryUpdate.reasonCategory,
-    shortSummary: `User said: "${latestUserReason}". AI decided ${decision.decision} because ${decision.reasoningCategory}.`,
+    behaviorReasonCategory: decision.memoryUpdate.behaviorReasonCategory,
+    shortSummary: `User said: "${latestUserReason}". AI decided ${decision.decision} because ${decision.decisionReasonCategory}.`,
     createdAt: nowIso()
   };
   await putRecord("aiCheckSummaries", summary);

@@ -2,67 +2,241 @@
   {
     "id": "reason_strength_weak_check_one_thing_balanced_001",
     "title": "Weak one-thing reason should not pass",
-    "targetDisplay": "reddit.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open reddit.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I just want to check one thing quickly." }
-    ],
-    "expectedDecision": "AI_COOLDOWN",
-    "disallowedDecisions": ["ALLOW"],
-    "expectedScoreRanges": { "impulse": { "min": 60, "max": 100 }, "deliberateness": { "min": 0, "max": 45 } },
-    "tags": ["wrong_reason_strength", "over_allow", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "reddit.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open reddit.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I just want to check one thing quickly."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "AI_COOLDOWN"
+      },
+      "disallowedDecisions": [
+        "ALLOW"
+      ],
+      "expectedScoreRanges": {
+        "impulse": {
+          "min": 60,
+          "max": 100
+        },
+        "deliberateness": {
+          "min": 0,
+          "max": 45
+        }
+      },
+      "tags": [
+        "wrong_reason_strength",
+        "over_allow",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "reason_strength_strong_debug_balanced_001",
     "title": "Strong bounded debug reason should pass",
-    "targetDisplay": "reddit.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open reddit.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need one answer for a SwiftUI bug. I will spend 5 minutes, copy the fix, then close the tab." }
-    ],
-    "expectedDecision": "ALLOW",
-    "expectedReasoningCategory": "clear_intention",
-    "expectedScoreRanges": { "impulse": { "min": 0, "max": 35 }, "deliberateness": { "min": 75, "max": 100 } },
-    "tags": ["wrong_reason_strength", "over_block", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "reddit.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open reddit.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need one answer for a SwiftUI bug. I will spend 5 minutes, copy the fix, then close the tab."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW",
+        "decisionReasonCategory": "clear_intention"
+      },
+      "expectedScoreRanges": {
+        "impulse": {
+          "min": 0,
+          "max": 35
+        },
+        "deliberateness": {
+          "min": 75,
+          "max": 100
+        }
+      },
+      "tags": [
+        "wrong_reason_strength",
+        "over_block",
+        "balanced"
+      ]
+    }
   },
   {
     "id": "reason_strength_break_language_strict_001",
     "title": "Break language is weak without a plan",
-    "targetDisplay": "tiktok.com",
-    "strictness": "strict",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open tiktok.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need a break because I am stressed." }
-    ],
-    "expectedDecision": "AI_COOLDOWN",
-    "disallowedDecisions": ["ALLOW"],
-    "tags": ["wrong_reason_strength", "over_allow", "strict"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "tiktok.com",
+      "strictness": "strict",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open tiktok.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need a break because I am stressed."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "AI_COOLDOWN"
+      },
+      "disallowedDecisions": [
+        "ALLOW"
+      ],
+      "tags": [
+        "wrong_reason_strength",
+        "over_allow",
+        "strict"
+      ]
+    }
   },
   {
     "id": "reason_strength_specific_recipe_gentle_001",
     "title": "Specific low-risk recipe reason should pass",
-    "targetDisplay": "youtube.com",
-    "strictness": "gentle",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "I need a 3 minute recipe video, then I will close the tab and start cooking." }
-    ],
-    "expectedDecision": "ALLOW",
-    "tags": ["wrong_reason_strength", "low_risk", "gentle"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "gentle",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I need a 3 minute recipe video, then I will close the tab and start cooking."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "ALLOW"
+      },
+      "tags": [
+        "wrong_reason_strength",
+        "low_risk",
+        "gentle"
+      ]
+    }
   },
   {
     "id": "reason_strength_chinese_vague_001",
     "title": "Chinese vague browsing should pause",
-    "targetDisplay": "bilibili.com",
-    "strictness": "balanced",
-    "messages": [
-      { "role": "assistant", "source": "local_opening", "content": "You're trying to open bilibili.com. What are you here to do, and why now?" },
-      { "role": "user", "source": "user", "content": "我就随便看看，一会儿就回来。" }
-    ],
-    "expectedDecision": "AI_COOLDOWN",
-    "disallowedDecisions": ["ALLOW"],
-    "tags": ["wrong_reason_strength", "zh", "balanced"]
+    "source": "authored_eval",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v1",
+      "schemaVersion": "checkpoint-decision-v1",
+      "rubricVersion": "strictness-rubric-v1"
+    },
+    "input": {
+      "targetDisplay": "bilibili.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 3,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open bilibili.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "我就随便看看，一会儿就回来。"
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "AI_COOLDOWN"
+      },
+      "disallowedDecisions": [
+        "ALLOW"
+      ],
+      "tags": [
+        "wrong_reason_strength",
+        "zh",
+        "balanced"
+      ]
+    }
   }
 ]

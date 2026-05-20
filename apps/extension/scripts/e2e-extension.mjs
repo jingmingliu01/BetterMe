@@ -151,10 +151,10 @@ try {
     buildProviderDecision({
       decision: "AI_COOLDOWN",
       userFacingMessage: "Take a short pause before deciding whether this is still worth opening.",
-      reasoningCategory: "insufficient_reason",
+      decisionReasonCategory: "insufficient_reason",
       aiCooldownSeconds: 20,
       scores: { repeatedReason: 40, impulse: 75, deliberateness: 30 },
-      memoryUpdate: { reasonCategory: "habit", patternNote: "User tried to continue while already blocked." }
+      memoryUpdate: { behaviorReasonCategory: "habit", patternNote: "User tried to continue while already blocked." }
     })
   ]);
   await page.getByPlaceholder("Explain why this visit is deliberate and bounded...").fill("I just want to check one thing quickly.");
@@ -203,10 +203,10 @@ try {
     buildProviderDecision({
       decision: "AI_COOLDOWN",
       userFacingMessage: "Pause briefly before trying to make this case again.",
-      reasoningCategory: "insufficient_reason",
+      decisionReasonCategory: "insufficient_reason",
       aiCooldownSeconds: 120,
       scores: { repeatedReason: 35, impulse: 68, deliberateness: 38 },
-      memoryUpdate: { reasonCategory: "habit", patternNote: "Reached the final turn and still lacked a bounded plan." }
+      memoryUpdate: { behaviorReasonCategory: "habit", patternNote: "Reached the final turn and still lacked a bounded plan." }
     })
   ]);
   let aiResult = await sendRuntimeMessage(page, "ai/startAndSend", {
@@ -246,9 +246,9 @@ try {
     buildProviderDecision({
       decision: "BLOCK",
       userFacingMessage: "This looks impulsive enough that the target should stay held until tomorrow.",
-      reasoningCategory: "high_risk_pattern",
+      decisionReasonCategory: "high_risk_pattern",
       scores: { repeatedReason: 80, impulse: 90, deliberateness: 20 },
-      memoryUpdate: { reasonCategory: "habit", patternNote: "User used a high-risk impulsive reason." }
+      memoryUpdate: { behaviorReasonCategory: "habit", patternNote: "User used a high-risk impulsive reason." }
     })
   ]);
   await page.goto(`chrome-extension://${extensionId}/block.html?targetId=${encodeURIComponent(holdTargetId)}`);
@@ -313,9 +313,7 @@ try {
   const evalCases = await getIndexedDbRecords(page, "evalCases");
   if (
     !evalCases.some((item) => {
-      const targetDisplay = item.input?.targetDisplay ?? item.targetDisplay;
-      const expectedDecision = item.eval?.expectedOutput?.decision ?? item.expectedDecision;
-      return targetDisplay === "example.edu" && expectedDecision === "AI_COOLDOWN";
+      return item.input.targetDisplay === "example.edu" && item.eval.expectedOutput.decision === "AI_COOLDOWN";
     })
   ) {
     throw new Error(`Review workspace did not create expected eval case: ${JSON.stringify(evalCases)}`);
@@ -377,7 +375,7 @@ async function getBehaviorEvents(page) {
 
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 5);
+    const request = indexedDB.open("betterme-db", 6);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -476,7 +474,7 @@ function buildProviderDecision(overrides) {
   return {
     decision: "ASK_MORE",
     userFacingMessage: "Tell me more before I decide.",
-    reasoningCategory: "insufficient_reason",
+    decisionReasonCategory: "insufficient_reason",
     unlockMinutes: null,
     aiCooldownSeconds: null,
     nextQuestion: null,
@@ -486,7 +484,7 @@ function buildProviderDecision(overrides) {
       deliberateness: 45
     },
     memoryUpdate: {
-      reasonCategory: "other",
+      behaviorReasonCategory: "other",
       patternNote: null
     },
     ...overrides

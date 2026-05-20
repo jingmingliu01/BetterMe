@@ -29,7 +29,7 @@ Current product direction: there is no paywall or license unlock surface. AI Che
 - Provider client timeout and typed provider error classification.
 - Provider contract coverage for OpenAI, DeepSeek, and Kimi Chat Completions request shape.
 - JSON parsing with enum validation for decision categories.
-- Tolerant normalization for non-critical provider category labels so a valid decision is not rejected only because `reasoningCategory` wording differs.
+- Tolerant normalization for non-critical provider category labels so a valid decision is not rejected only because `decisionReasonCategory` wording differs.
 - Decision-specific validation constraints for `ALLOW`, `AI_COOLDOWN`, and `ASK_MORE`.
 - Strictness-derived AI cooldown ranges with light normalization for small provider mistakes.
 - Final-turn validation: `ASK_MORE` is rejected on the final assistant turn.
@@ -163,7 +163,7 @@ Additional current validation:
 - Updated Kimi default model to `kimi-k2.6` and refreshed the model registry.
 - Removed non-official OpenAI `gpt-5.5-pro` from the selectable API model list.
 - Added provider contract assertions for OpenAI, DeepSeek, and Kimi request URLs and JSON mode body.
-- Added tolerant category normalization to avoid `schema_error` when a provider returns a semantically valid decision with a non-exact `reasoningCategory`.
+- Added tolerant category normalization to avoid `schema_error` when a provider returns a semantically valid decision with a non-exact `decisionReasonCategory`.
 - Added Enter-to-send and desktop right-side Send button layout.
 - Latest validation:
   - `npm --workspace apps/extension run test:ai-check`

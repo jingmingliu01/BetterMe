@@ -10,18 +10,22 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-The first compatibility slice is implemented.
+The hard migration to the unified case schema is implemented.
 
 ## Completed In This Slice
 
 - Added explicit `DecisionReasonCategory` and `BehaviorReasonCategory` aliases.
 - Added unified `AICheckCase` shape with `input`, optional `output`, and optional `eval`.
-- Added `expectedScoreRanges` to the typed legacy eval case.
+- Removed the legacy `AICheckEvalCase` type.
 - Updated the runtime system prompt with category-family meaning, mapping rubric, and independent 0-100 score contract.
 - Added parser validation for missing, non-finite, or out-of-range model scores.
 - Added one provider repair retry for schema-validation failures.
-- Updated `eval:ai-check` to normalize both legacy flat cases and new `{ input, eval }` cases.
+- Updated `eval:ai-check` to accept only unified `{ input, output?, eval }` cases.
 - Updated PM bad-case conversion to write the new `{ input, eval }` eval case shape.
+- Migrated all 42 built-in JSON eval fixtures to the unified shape.
+- Renamed runtime provider output fields to `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`.
+- Removed old `DELAY` / `delaySeconds` provider-output compatibility.
+- Bumped IndexedDB to version 6 and clear old AI Check, review, and eval history stores on upgrade.
 
 ## Validation Status
 
@@ -35,6 +39,5 @@ Latest validation:
 
 ## Next Steps
 
-- Migrate built-in JSON fixtures to the new nested shape once compatibility is stable.
 - Add persisted provider eval run history before relying on provider-mode evals for release gating.
 - Consider a small UI affordance that shows `input`, `output`, and `eval` as separate panels in the AI PM Review Workspace.

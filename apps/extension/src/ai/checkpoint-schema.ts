@@ -3,17 +3,14 @@ import { normalizeAICooldownSeconds, STRICTNESS_UNLOCK_CAP_MINUTES } from "../sh
 import type { AICheckScoreName, AIDecision, CheckpointDecision, StrictnessLevel } from "../shared/types";
 
 const DECISIONS: AIDecision[] = ["ALLOW", "AI_COOLDOWN", "ASK_MORE", "BLOCK"];
-const LEGACY_DECISION_MAP: Record<string, AIDecision> = {
-  DELAY: "AI_COOLDOWN"
-};
-const REASONING_CATEGORIES: CheckpointDecision["reasoningCategory"][] = [
+const DECISION_REASON_CATEGORIES: CheckpointDecision["decisionReasonCategory"][] = [
   "repeated_excuse",
   "clear_intention",
   "high_risk_pattern",
   "low_risk",
   "insufficient_reason"
 ];
-const MEMORY_REASON_CATEGORIES: CheckpointDecision["memoryUpdate"]["reasonCategory"][] = [
+const BEHAVIOR_REASON_CATEGORIES: CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"][] = [
   "stress",
   "boredom",
   "loneliness",
@@ -43,18 +40,18 @@ export function parseCheckpointDecision(raw: string, sessionId: string): Checkpo
   if (!decision) {
     throw new Error("LLM returned an invalid decision.");
   }
-  const reasoningCategory = normalizeReasoningCategory(parsed.reasoningCategory, decision);
+  const decisionReasonCategory = normalizeDecisionReasonCategory(parsed.decisionReasonCategory, decision);
 
   const scores = (parsed.scores ?? {}) as Record<string, unknown>;
   const memoryUpdate = (parsed.memoryUpdate ?? {}) as Record<string, unknown>;
-  const memoryReasonCategory = normalizeMemoryReasonCategory(memoryUpdate.reasonCategory);
+  const behaviorReasonCategory = normalizeBehaviorReasonCategory(memoryUpdate.behaviorReasonCategory);
 
   return {
     id: createId("decision"),
     sessionId,
     decision,
     userFacingMessage: asString(parsed.userFacingMessage, "I need one more clear reason before deciding."),
-    reasoningCategory,
+    decisionReasonCategory,
     unlockMinutes: typeof parsed.unlockMinutes === "number" ? parsed.unlockMinutes : null,
     aiCooldownSeconds: getAICooldownSeconds(parsed),
     nextQuestion: asNullableString(parsed.nextQuestion),
@@ -64,7 +61,7 @@ export function parseCheckpointDecision(raw: string, sessionId: string): Checkpo
       deliberateness: readScore(scores.deliberateness, "deliberateness")
     },
     memoryUpdate: {
-      reasonCategory: memoryReasonCategory,
+      behaviorReasonCategory,
       patternNote: asNullableString(memoryUpdate.patternNote)
     },
     createdAt: nowIso(),
@@ -82,14 +79,14 @@ function readScore(value: unknown, name: AICheckScoreName): number {
   return Math.round(value);
 }
 
-function normalizeReasoningCategory(
+function normalizeDecisionReasonCategory(
   value: unknown,
   decision: AIDecision
-): CheckpointDecision["reasoningCategory"] {
+): CheckpointDecision["decisionReasonCategory"] {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-    if (REASONING_CATEGORIES.includes(normalized as CheckpointDecision["reasoningCategory"])) {
-      return normalized as CheckpointDecision["reasoningCategory"];
+    if (DECISION_REASON_CATEGORIES.includes(normalized as CheckpointDecision["decisionReasonCategory"])) {
+      return normalized as CheckpointDecision["decisionReasonCategory"];
     }
     if (["impulse", "impulsive", "weak_reason", "vague_reason", "not_enough_info"].includes(normalized)) {
       return "insufficient_reason";
@@ -115,11 +112,11 @@ function normalizeReasoningCategory(
   }
 }
 
-function normalizeMemoryReasonCategory(value: unknown): CheckpointDecision["memoryUpdate"]["reasonCategory"] {
+function normalizeBehaviorReasonCategory(value: unknown): CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"] {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-    if (MEMORY_REASON_CATEGORIES.includes(normalized as CheckpointDecision["memoryUpdate"]["reasonCategory"])) {
-      return normalized as CheckpointDecision["memoryUpdate"]["reasonCategory"];
+    if (BEHAVIOR_REASON_CATEGORIES.includes(normalized as CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"])) {
+      return normalized as CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"];
     }
     if (["relax", "relaxation", "fun", "entertainment", "curiosity"].includes(normalized)) {
       return "other";
@@ -135,15 +132,14 @@ function normalizeDecision(value: unknown): AIDecision | null {
   if (typeof value !== "string") {
     return null;
   }
-  const normalized = LEGACY_DECISION_MAP[value] ?? value;
-  return DECISIONS.includes(normalized as AIDecision) ? (normalized as AIDecision) : null;
+  return DECISIONS.includes(value as AIDecision) ? (value as AIDecision) : null;
 }
 
 function getAICooldownSeconds(parsed: Record<string, unknown>): number | null {
   if (typeof parsed.aiCooldownSeconds === "number") {
     return parsed.aiCooldownSeconds;
   }
-  return typeof parsed.delaySeconds === "number" ? parsed.delaySeconds : null;
+  return null;
 }
 
 export function createFallbackDecision(sessionId: string, message: string): CheckpointDecision {
@@ -152,7 +148,7 @@ export function createFallbackDecision(sessionId: string, message: string): Chec
     sessionId,
     decision: "ASK_MORE",
     userFacingMessage: message,
-    reasoningCategory: "insufficient_reason",
+    decisionReasonCategory: "insufficient_reason",
     unlockMinutes: null,
     aiCooldownSeconds: null,
     nextQuestion: message,
@@ -162,7 +158,7 @@ export function createFallbackDecision(sessionId: string, message: string): Chec
       deliberateness: 35
     },
     memoryUpdate: {
-      reasonCategory: "other",
+      behaviorReasonCategory: "other",
       patternNote: null
     },
     createdAt: nowIso()

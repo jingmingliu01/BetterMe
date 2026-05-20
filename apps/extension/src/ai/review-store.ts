@@ -157,7 +157,7 @@ export async function convertBadCaseToEvalCase(input: { badCaseId: string; title
         })),
       patternMemorySnapshot: (await listPatternMemory(badCase.targetDisplay)).map((memory) => ({
         targetDisplay: memory.targetDisplay,
-        behaviorReasonCategory: memory.reasonCategory,
+        behaviorReasonCategory: memory.behaviorReasonCategory,
         repeatedCount: memory.repeatedCount,
         lastUserReason: memory.lastUserReason,
         guidance: memory.guidance,

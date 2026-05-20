@@ -14,13 +14,13 @@ export async function updatePatternMemory(input: {
 }): Promise<PatternMemory> {
   const memories = await listPatternMemory(input.targetDisplay);
   const existing = memories.find(
-    (memory) => memory.reasonCategory === input.decision.memoryUpdate.reasonCategory
+    (memory) => memory.behaviorReasonCategory === input.decision.memoryUpdate.behaviorReasonCategory
   );
 
   const next: PatternMemory = {
     id: existing?.id ?? createId("memory"),
     targetDisplay: input.targetDisplay,
-    reasonCategory: input.decision.memoryUpdate.reasonCategory,
+    behaviorReasonCategory: input.decision.memoryUpdate.behaviorReasonCategory,
     repeatedCount: (existing?.repeatedCount ?? 0) + 1,
     lastUserReason: input.userReason,
     guidance:

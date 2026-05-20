@@ -75,7 +75,7 @@ Behavior reason category explains the user's underlying pattern for future memor
 - `intentional`
 - `other`
 
-The old runtime field names remain `reasoningCategory` and `memoryUpdate.reasonCategory` for compatibility, but new schema and docs should describe them as `decisionReasonCategory` and `behaviorReasonCategory`.
+Runtime, stored decisions, eval cases, and docs use `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`.
 
 ## Mapping Rubric
 
@@ -115,10 +115,14 @@ The following fields must not be included in model-visible input:
 
 These fields are not notes only. They are machine-checkable assertions for the eval runner.
 
-## Migration Strategy
+## Legacy Cleanup Policy
 
-The runner should support both legacy flat eval cases and the new `{ input, output?, eval }` shape during migration.
+The hard migration removes legacy flat eval case support.
 
-New bad-case conversions should write the new shape.
+Current rules:
 
-Built-in legacy fixtures may be migrated gradually after compatibility is proven.
+- The eval runner only accepts `{ input, output?, eval }` cases.
+- Built-in fixtures are stored in the unified shape.
+- New bad-case conversions write the unified shape.
+- IndexedDB upgrade to version 6 clears old AI Check, review, and eval history stores instead of migrating legacy local history.
+- Provider output uses `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`; old `reasoningCategory`, `memoryUpdate.reasonCategory`, `DELAY`, and `delaySeconds` are not part of the current contract.

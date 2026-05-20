@@ -533,7 +533,7 @@ function DecisionSummary({ decision }: { decision: CheckpointDecision }) {
         <dl>
           <div>
             <dt>Reason</dt>
-            <dd>{formatReadableToken(decision.reasoningCategory)}</dd>
+            <dd>{formatReadableToken(decision.decisionReasonCategory)}</dd>
           </div>
           <div>
             <dt>Impulse</dt>

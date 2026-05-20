@@ -4,7 +4,6 @@ import { dirname, resolve } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultCaseDir = resolve(here, "../evals/ai-check-cases");
-const legacyCaseFile = resolve(here, "../evals/ai-check-cases.json");
 
 const promptVersion = "ai-check-prompt-v1";
 const schemaVersion = "checkpoint-decision-v1";
@@ -90,18 +89,18 @@ async function runCase(testCase, runConfig) {
     failureReasons.push(`disallowed decision ${actual.decision}`);
   }
 
-  if (assertions.expectedOutput.decisionReasonCategory && actual.reasoningCategory !== assertions.expectedOutput.decisionReasonCategory) {
+  if (assertions.expectedOutput.decisionReasonCategory && actual.decisionReasonCategory !== assertions.expectedOutput.decisionReasonCategory) {
     failureReasons.push(
-      `expected reasoning ${assertions.expectedOutput.decisionReasonCategory}, got ${actual.reasoningCategory ?? "missing"}`
+      `expected reasoning ${assertions.expectedOutput.decisionReasonCategory}, got ${actual.decisionReasonCategory ?? "missing"}`
     );
   }
 
   if (
     assertions.expectedOutput.behaviorReasonCategory &&
-    actual.memoryUpdate?.reasonCategory !== assertions.expectedOutput.behaviorReasonCategory
+    actual.memoryUpdate?.behaviorReasonCategory !== assertions.expectedOutput.behaviorReasonCategory
   ) {
     failureReasons.push(
-      `expected behavior reason ${assertions.expectedOutput.behaviorReasonCategory}, got ${actual.memoryUpdate?.reasonCategory ?? "missing"}`
+      `expected behavior reason ${assertions.expectedOutput.behaviorReasonCategory}, got ${actual.memoryUpdate?.behaviorReasonCategory ?? "missing"}`
     );
   }
 
@@ -195,13 +194,13 @@ function buildProviderMessages(input) {
         "Use BLOCK for clearly impulsive, repeated, or high-risk patterns.",
         "Use ALLOW only for specific, bounded, intentional reasons.",
         "Do not shame the user. Do not use moral judgment. Do not generate explicit sexual content.",
-        "reasoningCategory explains the current decision. memoryUpdate.reasonCategory describes the user's behavior pattern for future memory.",
+        "decisionReasonCategory explains the current decision. memoryUpdate.behaviorReasonCategory describes the user's behavior pattern for future memory.",
         "Mapping rubric: intentional bounded use usually maps to clear_intention; vague boredom/stress/escape/loneliness/habit maps to insufficient_reason; repeated remembered patterns map to repeated_excuse; sensitive impulsive patterns map to high_risk_pattern.",
         "scores.repeatedReason, scores.impulse, and scores.deliberateness must be independent 0-100 ratings and do not need to sum to 100.",
         `Strictness: ${input.strictness}.`,
         `Target: ${input.targetDisplay}.`,
         `Pattern memory: ${JSON.stringify(input.patternMemorySnapshot ?? [])}`,
-        'Schema: {"decision":"ALLOW|AI_COOLDOWN|ASK_MORE|BLOCK","userFacingMessage":"string","reasoningCategory":"repeated_excuse|clear_intention|high_risk_pattern|low_risk|insufficient_reason","unlockMinutes":number|null,"aiCooldownSeconds":number|null,"nextQuestion":string|null,"scores":{"repeatedReason":number,"impulse":number,"deliberateness":number},"memoryUpdate":{"reasonCategory":"stress|boredom|loneliness|escape|habit|intentional|other","patternNote":string|null}}'
+        'Schema: {"decision":"ALLOW|AI_COOLDOWN|ASK_MORE|BLOCK","userFacingMessage":"string","decisionReasonCategory":"repeated_excuse|clear_intention|high_risk_pattern|low_risk|insufficient_reason","unlockMinutes":number|null,"aiCooldownSeconds":number|null,"nextQuestion":string|null,"scores":{"repeatedReason":number,"impulse":number,"deliberateness":number},"memoryUpdate":{"behaviorReasonCategory":"stress|boredom|loneliness|escape|habit|intentional|other","patternNote":string|null}}'
       ].join("\n")
     },
     ...input.messages.map((message) => ({ role: message.role, content: message.content }))
@@ -224,7 +223,7 @@ function mockDecision(input) {
 
   if (sensitive && (strictness === "monk" || latestUser.includes("explicit") || latestUser.includes("色情"))) {
     return decision("BLOCK", "This looks like a high-risk impulse. Leave the site and choose a different next action.", {
-      reasoningCategory: "high_risk_pattern",
+      decisionReasonCategory: "high_risk_pattern",
       repeatedReason: repeatedCount > 0 ? 85 : 60,
       impulse: 90,
       deliberateness: 15
@@ -233,7 +232,7 @@ function mockDecision(input) {
 
   if (repeatedCount >= 3 && (highRiskEmotion || vague)) {
     return decision("BLOCK", "This repeats a pattern that has not been bounded. Stay blocked for now.", {
-      reasoningCategory: "repeated_excuse",
+      decisionReasonCategory: "repeated_excuse",
       repeatedReason: 90,
       impulse: 82,
       deliberateness: 20
@@ -242,7 +241,7 @@ function mockDecision(input) {
 
   if (hasPurpose && hasTimeBoundary && strictness !== "monk") {
     return decision("ALLOW", "Your reason is specific and bounded. Keep it short and close the tab when done.", {
-      reasoningCategory: "clear_intention",
+      decisionReasonCategory: "clear_intention",
       repeatedReason: repeatedCount * 10,
       impulse: 20,
       deliberateness: 86,
@@ -252,7 +251,7 @@ function mockDecision(input) {
 
   if (hasPurpose && hasTimeBoundary && strictness === "monk") {
     return decision("AI_COOLDOWN", "Pause first, then come back only if this task still feels necessary and bounded.", {
-      reasoningCategory: "insufficient_reason",
+      decisionReasonCategory: "insufficient_reason",
       repeatedReason: repeatedCount * 10,
       impulse: 48,
       deliberateness: 62,
@@ -262,7 +261,7 @@ function mockDecision(input) {
 
   if (highRiskEmotion || (vague && strictness === "strict")) {
     return decision("AI_COOLDOWN", "Pause first, then decide whether this is still worth opening.", {
-      reasoningCategory: repeatedCount > 0 ? "repeated_excuse" : "insufficient_reason",
+      decisionReasonCategory: repeatedCount > 0 ? "repeated_excuse" : "insufficient_reason",
       repeatedReason: repeatedCount > 0 ? 75 : 35,
       impulse: 76,
       deliberateness: 28,
@@ -272,7 +271,7 @@ function mockDecision(input) {
 
   if (hasPurpose && !hasTimeBoundary) {
     return decision("ASK_MORE", "How long will this take, and when will you leave?", {
-      reasoningCategory: "insufficient_reason",
+      decisionReasonCategory: "insufficient_reason",
       repeatedReason: repeatedCount * 10,
       impulse: 45,
       deliberateness: 48
@@ -281,7 +280,7 @@ function mockDecision(input) {
 
   if (vague) {
     return decision("AI_COOLDOWN", "Pause first, then decide whether this is still worth opening.", {
-      reasoningCategory: repeatedCount > 0 ? "repeated_excuse" : "insufficient_reason",
+      decisionReasonCategory: repeatedCount > 0 ? "repeated_excuse" : "insufficient_reason",
       repeatedReason: repeatedCount > 0 ? 75 : 35,
       impulse: 76,
       deliberateness: 28,
@@ -290,7 +289,7 @@ function mockDecision(input) {
   }
 
   return decision("ASK_MORE", "What specific task are you trying to finish, and when will you stop?", {
-    reasoningCategory: "insufficient_reason",
+    decisionReasonCategory: "insufficient_reason",
     repeatedReason: repeatedCount * 10,
     impulse: 52,
     deliberateness: 42
@@ -301,7 +300,7 @@ function decision(decisionValue, message, options = {}) {
   return {
     decision: decisionValue,
     userFacingMessage: message,
-    reasoningCategory: options.reasoningCategory ?? "insufficient_reason",
+    decisionReasonCategory: options.decisionReasonCategory ?? "insufficient_reason",
     unlockMinutes: options.unlockMinutes ?? null,
     aiCooldownSeconds: options.aiCooldownSeconds ?? null,
     nextQuestion: decisionValue === "ASK_MORE" ? message : null,
@@ -311,7 +310,7 @@ function decision(decisionValue, message, options = {}) {
       deliberateness: options.deliberateness ?? 50
     },
     memoryUpdate: {
-      reasonCategory: "other",
+      behaviorReasonCategory: "other",
       patternNote: null
     }
   };
@@ -331,10 +330,8 @@ function getMockCooldownSeconds(strictness) {
 }
 
 function normalizeDecisionPayload(payload) {
-  const decisionValue = payload.decision === "DELAY" ? "AI_COOLDOWN" : payload.decision;
   return {
     ...payload,
-    decision: decisionValue,
     userFacingMessage: String(payload.userFacingMessage ?? payload.nextQuestion ?? ""),
     scores: payload.scores ?? {}
   };
@@ -351,7 +348,7 @@ async function loadCases(path) {
   if (pathStat?.isFile()) {
     return readJsonArray(path);
   }
-  return readJsonArray(legacyCaseFile);
+  throw new Error(`Eval case path does not exist: ${path}`);
 }
 
 async function readJsonArray(path) {
@@ -381,64 +378,13 @@ function validateCase(testCase) {
 }
 
 function normalizeCase(testCase) {
-  if (testCase.input && testCase.eval) {
-    return {
-      ...testCase,
-      input: {
-        ...testCase.input,
-        sessionContext: testCase.input.sessionContext ?? {
-          assistantTurnCount: 0,
-          maxAssistantTurns: 3,
-          isFinalTurn: false
-        },
-        patternMemorySnapshot: normalizePatternMemory(testCase.input.patternMemorySnapshot ?? [])
-      }
-    };
-  }
   return {
-    id: testCase.id,
-    title: testCase.title,
-    source: "authored_eval",
-    versions: {
-      promptVersion,
-      schemaVersion,
-      rubricVersion
-    },
+    ...testCase,
     input: {
-      targetDisplay: testCase.targetDisplay,
-      strictness: testCase.strictness,
-      sessionContext: {
-        assistantTurnCount: 0,
-        maxAssistantTurns: 3,
-        isFinalTurn: false
-      },
-      messages: testCase.messages,
-      patternMemorySnapshot: normalizePatternMemory(testCase.patternMemorySnapshot ?? [])
-    },
-    eval: {
-      expectedOutput: {
-        decision: testCase.expectedDecision,
-        decisionReasonCategory: testCase.expectedReasoningCategory,
-        behaviorReasonCategory: testCase.expectedBehaviorReasonCategory
-      },
-      allowedDecisions: testCase.allowedDecisions,
-      disallowedDecisions: testCase.disallowedDecisions,
-      expectedCooldownRangeSeconds: testCase.expectedCooldownRangeSeconds,
-      expectedScoreRanges: testCase.expectedScoreRanges,
-      mustAskAbout: testCase.mustAskAbout,
-      mustNotSay: testCase.mustNotSay,
-      tags: testCase.tags ?? [],
-      reviewerNote: testCase.reviewerNote
+      ...testCase.input,
+      patternMemorySnapshot: testCase.input.patternMemorySnapshot ?? []
     }
   };
-}
-
-function normalizePatternMemory(memories) {
-  return memories.map((memory) => ({
-    ...memory,
-    reasonCategory: memory.reasonCategory ?? memory.behaviorReasonCategory,
-    behaviorReasonCategory: memory.behaviorReasonCategory ?? memory.reasonCategory
-  }));
 }
 
 function summarizeByTag(results) {

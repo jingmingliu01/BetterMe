@@ -15,18 +15,19 @@ Status: closed
 
 Risk:
 
-- `reasoningCategory` and `memoryUpdate.reasonCategory` sound like the same concept even though they operate at different levels.
+- `reasoningCategory` and `memoryUpdate.reasonCategory` sounded like the same concept even though they operated at different levels.
 - PM review can misread a behavior pattern such as `boredom` as the reason for a specific enforcement decision.
 
 Expected behavior:
 
 - Product docs and new schema distinguish `decisionReasonCategory` from `behaviorReasonCategory`.
-- Runtime compatibility can keep existing field names until a dedicated migration is safe.
+- Runtime, docs, and eval cases should use the new field names directly.
 
 Resolution:
 
 - Added explicit type aliases for both category families.
 - Added mapping rubric to the design and prompt.
+- Renamed runtime provider output and stored decision fields to `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`.
 
 ### ISSUE-002: Eval case schema mixes model-visible input with evaluator-only assertions
 
@@ -47,7 +48,7 @@ Resolution:
 
 - Added `AICheckCase`.
 - Updated bad-case conversion to write the new shape.
-- Updated runner compatibility to support both old and new case shapes.
+- Removed legacy flat-case runner compatibility after migrating built-in fixtures.
 
 ### ISSUE-003: Score contract is under-specified
 
