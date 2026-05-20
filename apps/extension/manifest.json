@@ -50,7 +50,8 @@
     {
       "resources": [
         "block.html",
-        "settings.html"
+        "settings.html",
+        "review.html"
       ],
       "matches": [
         "<all_urls>"

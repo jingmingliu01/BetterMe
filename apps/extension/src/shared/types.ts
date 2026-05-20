@@ -2,6 +2,22 @@ export type StrictnessLevel = "gentle" | "balanced" | "strict" | "monk";
 export type BlockedTargetType = "domain" | "exactUrl";
 export type AIDecision = "ALLOW" | "AI_COOLDOWN" | "ASK_MORE" | "BLOCK";
 export type ProviderId = "openai" | "deepseek" | "kimi";
+export type DecisionReasonCategory =
+  | "repeated_excuse"
+  | "clear_intention"
+  | "high_risk_pattern"
+  | "low_risk"
+  | "insufficient_reason";
+export type BehaviorReasonCategory =
+  | "stress"
+  | "boredom"
+  | "loneliness"
+  | "escape"
+  | "habit"
+  | "intentional"
+  | "other";
+export type AICheckScoreName = "repeatedReason" | "impulse" | "deliberateness";
+export type AICheckScores = Record<AICheckScoreName, number>;
 export type AccessState =
   | "not_blocked"
   | "blocked"
@@ -128,8 +144,18 @@ export interface AICheckSession {
   completedAt?: string;
   assistantTurnCount: number;
   maxAssistantTurns: number;
+  strictness?: StrictnessLevel;
+  promptVersion?: string;
+  schemaVersion?: string;
+  rubricVersion?: string;
   finalDecision?: AIDecision;
   finalDecisionId?: string;
+  aiCooldownStartedAt?: string;
+  aiCooldownUntil?: string;
+  aiCooldownSeconds?: number;
+  aiCooldownDecisionId?: string;
+  aiCooldownCompletedAt?: string;
+  patternMemoryUpdatedCategories?: Array<CheckpointDecision["memoryUpdate"]["reasonCategory"]>;
 }
 
 export interface AICheckMessage {
@@ -146,29 +172,19 @@ export interface CheckpointDecision {
   sessionId: string;
   decision: AIDecision;
   userFacingMessage: string;
-  reasoningCategory:
-    | "repeated_excuse"
-    | "clear_intention"
-    | "high_risk_pattern"
-    | "low_risk"
-    | "insufficient_reason";
+  reasoningCategory: DecisionReasonCategory;
   unlockMinutes: number | null;
   aiCooldownSeconds: number | null;
-  nextQuestion: string | null;
-  scores: {
-    repeatedReason: number;
-    impulse: number;
-    deliberateness: number;
+  aiCooldownNormalization?: {
+    originalSeconds: number;
+    normalizedSeconds: number;
+    minSeconds: number;
+    maxSeconds: number;
   };
+  nextQuestion: string | null;
+  scores: AICheckScores;
   memoryUpdate: {
-    reasonCategory:
-      | "stress"
-      | "boredom"
-      | "loneliness"
-      | "escape"
-      | "habit"
-      | "intentional"
-      | "other";
+    reasonCategory: BehaviorReasonCategory;
     patternNote: string | null;
   };
   createdAt: string;
@@ -195,6 +211,144 @@ export interface AICheckSummary {
   createdAt: string;
 }
 
+export type BadCaseErrorType =
+  | "over_allow"
+  | "over_block"
+  | "under_ask"
+  | "unnecessary_ask"
+  | "wrong_reason_strength"
+  | "wrong_strictness_application"
+  | "wrong_cooldown_duration"
+  | "unsafe_sensitive_advice"
+  | "bad_tone"
+  | "schema_or_format_failure";
+
+export interface BadCaseReview {
+  id: string;
+  sourceSessionId: string;
+  sourceDecisionId: string | null;
+  targetDisplay: string;
+  strictness: StrictnessLevel | null;
+  messages: AICheckMessage[];
+  actualDecision: AIDecision | null;
+  expectedDecision: AIDecision | null;
+  errorTypes: BadCaseErrorType[];
+  reviewerNote: string;
+  convertedEvalCaseId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AICheckEvalCase {
+  id: string;
+  sourceBadCaseId?: string;
+  title: string;
+  targetDisplay: string;
+  strictness: StrictnessLevel;
+  messages: Array<Pick<AICheckMessage, "role" | "content" | "source">>;
+  patternMemorySnapshot: PatternMemory[];
+  expectedDecision: AIDecision;
+  allowedDecisions?: AIDecision[];
+  disallowedDecisions?: AIDecision[];
+  expectedReasoningCategory?: CheckpointDecision["reasoningCategory"];
+  expectedCooldownRangeSeconds?: { min: number; max: number };
+  expectedScoreRanges?: Partial<Record<AICheckScoreName, { min: number; max: number }>>;
+  mustAskAbout?: string[];
+  mustNotSay?: string[];
+  tags: BadCaseErrorType[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AICheckCaseInput {
+  targetDisplay: string;
+  strictness: StrictnessLevel;
+  sessionContext: {
+    assistantTurnCount: number;
+    maxAssistantTurns: number;
+    isFinalTurn: boolean;
+  };
+  messages: Array<Pick<AICheckMessage, "role" | "content" | "source">>;
+  patternMemorySnapshot: Array<
+    Omit<PatternMemory, "id" | "reasonCategory"> & {
+      id?: string;
+      behaviorReasonCategory: BehaviorReasonCategory;
+    }
+  >;
+}
+
+export interface AICheckCaseOutput {
+  provider?: ProviderId | "mock";
+  model?: string;
+  rawProvider?: string;
+  parsed: Omit<CheckpointDecision, "id" | "sessionId" | "createdAt" | "reasoningCategory" | "memoryUpdate"> & {
+    decisionReasonCategory: DecisionReasonCategory;
+    memoryUpdate: {
+      behaviorReasonCategory: BehaviorReasonCategory;
+      patternNote: string | null;
+    };
+  };
+}
+
+export interface AICheckCaseEval {
+  expectedOutput: {
+    decision: AIDecision;
+    decisionReasonCategory?: DecisionReasonCategory;
+    behaviorReasonCategory?: BehaviorReasonCategory;
+  };
+  allowedDecisions?: AIDecision[];
+  disallowedDecisions?: AIDecision[];
+  expectedCooldownRangeSeconds?: { min: number; max: number };
+  expectedScoreRanges?: Partial<Record<AICheckScoreName, { min: number; max: number }>>;
+  mustAskAbout?: string[];
+  mustNotSay?: string[];
+  tags: string[];
+  reviewerNote?: string;
+}
+
+export interface AICheckCase {
+  id: string;
+  title: string;
+  source: "authored_eval" | "real_session" | "bad_case_review";
+  versions: {
+    promptVersion: string;
+    schemaVersion: string;
+    rubricVersion: string;
+  };
+  input: AICheckCaseInput;
+  output?: AICheckCaseOutput;
+  eval?: AICheckCaseEval;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AICheckEvalRun {
+  id: string;
+  promptVersion: string;
+  schemaVersion: string;
+  rubricVersion: string;
+  providerMode: "mock" | "byok";
+  createdAt: string;
+}
+
+export interface AICheckEvalResult {
+  id: string;
+  runId: string;
+  evalCaseId: string;
+  actualDecision: AIDecision | null;
+  pass: boolean;
+  failureReasons: string[];
+  rawProvider?: string;
+  createdAt: string;
+}
+
+export interface AIPMReviewSession {
+  session: AICheckSession;
+  messages: AICheckMessage[];
+  decisions: CheckpointDecision[];
+  badCase: BadCaseReview | null;
+}
+
 export interface PageAccessInfo {
   targetId: string | null;
   targetDisplay: string | null;
@@ -218,6 +372,11 @@ export type BehaviorEventType =
   | "temporary_unlock_expired"
   | "ai_check_session_started"
   | "ai_decision_applied"
+  | "ai_cooldown_started"
+  | "ai_cooldown_completed"
+  | "ai_cooldown_message_attempt_blocked"
+  | "ai_cooldown_seconds_normalized"
+  | "ai_final_turn_reached"
   | "block_hold_created"
   | "strictness_changed";
 
@@ -253,7 +412,30 @@ export type ExtensionMessage =
   | { type: "ai/startAndSend"; payload: { targetId: string; content: string } }
   | { type: "ai/sendMessage"; payload: { sessionId: string; content: string } }
   | { type: "ai/getSession"; payload: { sessionId: string } }
+  | { type: "ai/getLatestBlockedSession"; payload: { targetId: string } }
   | { type: "ai/recentSessions" }
+  | { type: "review/listSessions" }
+  | {
+      type: "review/createBadCase";
+      payload: {
+        sessionId: string;
+        decisionId?: string | null;
+        expectedDecision?: AIDecision | null;
+        errorTypes: BadCaseErrorType[];
+        reviewerNote: string;
+      };
+    }
+  | {
+      type: "review/updateBadCase";
+      payload: {
+        id: string;
+        expectedDecision?: AIDecision | null;
+        errorTypes?: BadCaseErrorType[];
+        reviewerNote?: string;
+      };
+    }
+  | { type: "review/convertBadCaseToEval"; payload: { badCaseId: string; title?: string } }
+  | { type: "review/listEvalCases" }
   | { type: "settings/update"; payload: Partial<UserSettings> }
   | { type: "provider/saveApiKey"; payload: { provider: ProviderId; apiKey: string } }
   | { type: "provider/deleteApiKey"; payload: { provider: ProviderId } }

@@ -1,0 +1,209 @@
+import assert from "node:assert/strict";
+import { createServer } from "vite";
+
+const server = await createServer({
+  configFile: false,
+  root: new URL("..", import.meta.url).pathname,
+  server: { middlewareMode: true }
+});
+
+try {
+  const { normalizeAICooldownSeconds } = await server.ssrLoadModule("/src/shared/constants.ts");
+  const { parseCheckpointDecision, validateDecisionConstraints } = await server.ssrLoadModule("/src/ai/checkpoint-schema.ts");
+  const { getDecisionMeter } = await server.ssrLoadModule("/src/ai/decision-meter.ts");
+  const { requestCheckpointDecision } = await server.ssrLoadModule("/src/ai/provider-client.ts");
+
+  const clamped = normalizeAICooldownSeconds("balanced", 20);
+  assert.deepEqual(clamped, {
+    originalSeconds: 20,
+    normalizedSeconds: 60,
+    minSeconds: 60,
+    maxSeconds: 300
+  });
+
+  assert.equal(normalizeAICooldownSeconds("balanced", 700), null);
+
+  const cooldownDecision = parseCheckpointDecision(
+    JSON.stringify({
+      decision: "AI_COOLDOWN",
+      userFacingMessage: "Pause first.",
+      reasoningCategory: "insufficient_reason",
+      unlockMinutes: null,
+      aiCooldownSeconds: 20,
+      nextQuestion: null,
+      scores: {
+        repeatedReason: 40,
+        impulse: 75,
+        deliberateness: 30
+      },
+      memoryUpdate: {
+        reasonCategory: "habit",
+        patternNote: "Weak reason while blocked."
+      }
+    }),
+    "session_test"
+  );
+  validateDecisionConstraints(cooldownDecision, "balanced");
+  assert.equal(cooldownDecision.aiCooldownSeconds, 60);
+  assert.equal(cooldownDecision.aiCooldownNormalization?.originalSeconds, 20);
+
+  const finalAskMore = parseCheckpointDecision(
+    JSON.stringify({
+      decision: "ASK_MORE",
+      userFacingMessage: "One more thing.",
+      reasoningCategory: "insufficient_reason",
+      unlockMinutes: null,
+      aiCooldownSeconds: null,
+      nextQuestion: "What will make you leave?",
+      scores: {
+        repeatedReason: 20,
+        impulse: 50,
+        deliberateness: 40
+      },
+      memoryUpdate: {
+        reasonCategory: "other",
+        patternNote: null
+      }
+    }),
+    "session_test"
+  );
+  assert.throws(
+    () => validateDecisionConstraints(finalAskMore, "balanced", { isFinalTurn: true }),
+    /final AI Check turn/
+  );
+
+  const meter = getDecisionMeter(cooldownDecision);
+  assert.equal(meter.label, "Leaning cooldown");
+  assert.ok(meter.value >= 25 && meter.value <= 58);
+
+  const relaxedCategoryDecision = parseCheckpointDecision(
+    JSON.stringify({
+      decision: "ASK_MORE",
+      userFacingMessage: "What would make this deliberate?",
+      reasoningCategory: "vague reason",
+      unlockMinutes: null,
+      aiCooldownSeconds: null,
+      nextQuestion: "What would make this deliberate?",
+      scores: {
+        repeatedReason: 20,
+        impulse: 50,
+        deliberateness: 40
+      },
+      memoryUpdate: {
+        reasonCategory: "relaxation",
+        patternNote: null
+      }
+    }),
+    "session_test"
+  );
+  assert.equal(relaxedCategoryDecision.reasoningCategory, "insufficient_reason");
+  assert.equal(relaxedCategoryDecision.memoryUpdate.reasonCategory, "other");
+
+  assert.throws(
+    () =>
+      parseCheckpointDecision(
+        JSON.stringify({
+          decision: "ASK_MORE",
+          userFacingMessage: "What is the specific task?",
+          reasoningCategory: "insufficient_reason",
+          unlockMinutes: null,
+          aiCooldownSeconds: null,
+          nextQuestion: "What is the specific task?",
+          scores: {
+            repeatedReason: 10,
+            impulse: 120,
+            deliberateness: 40
+          },
+          memoryUpdate: {
+            reasonCategory: "other",
+            patternNote: null
+          }
+        }),
+        "session_test"
+      ),
+    /outside 0-100/
+  );
+
+  const capturedRequests = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    capturedRequests.push({
+      url: String(url),
+      body: JSON.parse(String(init?.body ?? "{}"))
+    });
+    return new Response(
+      JSON.stringify({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                decision: "ASK_MORE",
+                userFacingMessage: "What is the specific task?",
+                reasoningCategory: "insufficient_reason",
+                unlockMinutes: null,
+                aiCooldownSeconds: null,
+                nextQuestion: "What is the specific task?",
+                scores: {
+                  repeatedReason: 10,
+                  impulse: 50,
+                  deliberateness: 45
+                },
+                memoryUpdate: {
+                  reasonCategory: "other",
+                  patternNote: null
+                }
+              })
+            }
+          }
+        ]
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  };
+
+  try {
+    await requestCheckpointDecision({
+      provider: "openai",
+      model: "gpt-5.4-mini",
+      apiKey: "test",
+      messages: [{ role: "system", content: "Return json." }],
+      sessionId: "session_test",
+      strictness: "balanced"
+    });
+    await requestCheckpointDecision({
+      provider: "deepseek",
+      model: "deepseek-v4-flash",
+      apiKey: "test",
+      messages: [{ role: "system", content: "Return json." }],
+      sessionId: "session_test",
+      strictness: "balanced"
+    });
+    await requestCheckpointDecision({
+      provider: "kimi",
+      model: "kimi-k2.6",
+      apiKey: "test",
+      messages: [{ role: "system", content: "Return json." }],
+      sessionId: "session_test",
+      strictness: "balanced"
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.deepEqual(
+    capturedRequests.map((request) => request.url),
+    [
+      "https://api.openai.com/v1/chat/completions",
+      "https://api.deepseek.com/chat/completions",
+      "https://api.moonshot.ai/v1/chat/completions"
+    ]
+  );
+  for (const request of capturedRequests) {
+    assert.equal(Array.isArray(request.body.messages), true);
+    assert.equal(request.body.response_format.type, "json_object");
+  }
+
+  console.log("AI_CHECK_LOGIC_OK true");
+} finally {
+  await server.close();
+}

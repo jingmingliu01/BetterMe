@@ -13,6 +13,25 @@ No open access-state issues at this checkpoint.
 
 ## Closed Issues
 
+### ISSUE-018: AI hold must suppress Basic Cooldown
+
+Status: closed
+
+Current risk:
+
+- If Basic Cooldown remains available during a hold, the user can bypass an AI `BLOCK` decision.
+
+Expected behavior:
+
+- Active hold disables or hides Basic Cooldown controls.
+- Background cooldown handlers reject start/continue while a hold is active.
+
+Resolution:
+
+- Block page now renders Basic Cooldown as unavailable while the target is held until tomorrow.
+- Background cooldown start/continue handlers reject active holds.
+- E2E covers both UI unavailability and background rejection.
+
 ### ISSUE-016: Removing a blocked target should preserve behavior history
 
 Status: closed
@@ -30,13 +49,13 @@ Expected behavior:
 - The confirmation flow should wait 10 seconds and require the exact typed phrase `I choose to remove this block`.
 - Removing the target should stop active enforcement but keep local behavior history.
 - Re-adding the same target should be connected through a stable identity.
-- Future AI features should be able to summarize remove/re-add cycles, blocked attempts, cooldown starts, cooldown continues, cooldown abandons, strictness changes, and AI decisions.
+- Future AI features should be able to summarize remove/re-add cycles, blocked attempts, cooldown starts, cooldown continues, cooldown abandons, strictness changes, AI decisions, AI cooldown lifecycle, and final-turn outcomes.
 
 Resolution:
 
 - Added stable `targetKey` identity for blocked targets.
 - Added IndexedDB `behaviorEvents` store as append-only local behavior history.
-- Added behavior event logging for blocklist add/remove/re-add, removal prompt open/cancel, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, block holds, and strictness changes.
+- Added behavior event logging for blocklist add/remove/re-add, removal prompt open/cancel, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, AI cooldown lifecycle, final-turn arrival, block holds, and strictness changes.
 - Settings removal now uses a 10-second delay plus typed confirmation phrase.
 - Durable attempted URL events store a privacy-minimal URL shape instead of page content.
 - E2E was updated to verify removal history and re-add history.

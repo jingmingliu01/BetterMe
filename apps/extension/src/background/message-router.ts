@@ -9,7 +9,7 @@ import type {
 import { createBlockedTarget } from "../blocking/target-parser";
 import { ACCESS_TIMING, BASIC_COOLDOWN_POLICIES, getEscalatedStrictness, PROVIDERS, STORAGE_KEYS } from "../shared/constants";
 import { findMatchingTarget } from "../blocking/match-rules";
-import { getActiveUnlockForTarget } from "../blocking/access-state";
+import { getActiveHoldForTarget, getActiveUnlockForTarget } from "../blocking/access-state";
 import {
   addBlockedTarget,
   addCooldown,
@@ -41,10 +41,18 @@ import { rebuildDnrRules } from "./dnr-rules";
 import { scheduleNextAccessStateAlarm } from "./alarms";
 import {
   getAICheckSessionBundle,
+  getLatestBlockedAICheckSessionForTarget,
   listRecentAICheckSessions,
   sendAICheckMessage,
   startAndSendAICheckMessage
 } from "../ai/ai-check-session-service";
+import {
+  convertBadCaseToEvalCase,
+  createBadCaseReview,
+  listEvalCases,
+  listReviewSessions,
+  updateBadCaseReview
+} from "../ai/review-store";
 import { createBasicCooldown, createUnlockFromCompletedCooldown } from "../blocking/cooldowns";
 import { getTargetKey } from "../blocking/target-parser";
 
@@ -146,7 +154,10 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         const target = (await getBlockedTargets()).find((item) => item.id === message.payload.targetId);
         if (!target) throw new Error("Target not found.");
         const now = new Date();
-        const [latestAttempt, settings] = await Promise.all([getLatestTargetAttempt(target.id), getSettings()]);
+        const [latestAttempt, settings, holds] = await Promise.all([getLatestTargetAttempt(target.id), getSettings(), getHolds()]);
+        if (getActiveHoldForTarget(target.id, holds, now)) {
+          throw new Error("This target is held until tomorrow. Basic Cooldown is unavailable.");
+        }
         const escalation = await recordCooldownAttempt(target.id, now);
         const effectiveStrictness = getEscalatedStrictness(settings.strictness, escalation.count);
         const policy = BASIC_COOLDOWN_POLICIES[effectiveStrictness];
@@ -183,6 +194,10 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         const cooldown = (await getCooldowns()).find((item) => item.id === message.payload.cooldownId);
         if (!cooldown) throw new Error("Cooldown not found.");
         const target = (await getBlockedTargets()).find((item) => item.id === cooldown.targetId) ?? null;
+        const now = new Date();
+        if (getActiveHoldForTarget(cooldown.targetId, await getHolds(), now)) {
+          throw new Error("This target is held until tomorrow. Basic Cooldown cannot create access.");
+        }
         const completedAt = new Date().toISOString();
         const unlock = createUnlockFromCompletedCooldown(cooldown);
         await addUnlock(unlock);
@@ -249,6 +264,10 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await providerStatus());
       case "ai/sendMessage": {
         const settings = await getSettings();
+        const bundle = await getAICheckSessionBundle(message.payload.sessionId);
+        if (getActiveHoldForTarget(bundle.session.targetId, await getHolds(), new Date())) {
+          throw new Error("This target is held until tomorrow. AI Check is closed for today.");
+        }
         const result = await sendAICheckMessage({
           sessionId: message.payload.sessionId,
           content: message.payload.content,
@@ -262,6 +281,9 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         const settings = await getSettings();
         const target = (await getBlockedTargets()).find((item) => item.id === message.payload.targetId);
         if (!target) throw new Error("Target not found.");
+        if (getActiveHoldForTarget(target.id, await getHolds(), new Date())) {
+          throw new Error("This target is held until tomorrow. AI Check is closed for today.");
+        }
         const result = await startAndSendAICheckMessage({
           target,
           content: message.payload.content,
@@ -273,12 +295,26 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
       }
       case "ai/getSession":
         return ok(await getAICheckSessionBundle(message.payload.sessionId));
+      case "ai/getLatestBlockedSession":
+        return ok(await getLatestBlockedAICheckSessionForTarget(message.payload.targetId));
       case "ai/recentSessions":
         return ok(await listRecentAICheckSessions());
+      case "review/listSessions":
+        return ok(await listReviewSessions());
+      case "review/createBadCase":
+        return ok(await createBadCaseReview(message.payload));
+      case "review/updateBadCase":
+        return ok(await updateBadCaseReview(message.payload));
+      case "review/convertBadCaseToEval":
+        return ok(await convertBadCaseToEvalCase(message.payload));
+      case "review/listEvalCases":
+        return ok(await listEvalCases());
       case "data/export":
         return ok({
           ...(await bootstrap()),
-          sessions: await listRecentAICheckSessions()
+          sessions: await listRecentAICheckSessions(),
+          reviewSessions: await listReviewSessions(),
+          evalCases: await listEvalCases()
         });
       case "data/deleteAll":
         await clearBetterMeLocalData();

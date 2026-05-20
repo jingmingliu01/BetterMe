@@ -15,6 +15,7 @@ export default defineConfig({
         onboarding: resolve(rootDir, "onboarding.html"),
         popup: resolve(rootDir, "popup.html"),
         settings: resolve(rootDir, "settings.html"),
+        review: resolve(rootDir, "review.html"),
         block: resolve(rootDir, "block.html"),
         background: resolve(rootDir, "src/background/service-worker.ts"),
         "expiry-guard": resolve(rootDir, "src/content/expiry-guard.ts")

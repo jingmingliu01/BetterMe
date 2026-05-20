@@ -38,7 +38,7 @@ Provider execution:
 - selected provider
 - selected model
 - encrypted local API key
-- OpenAI-compatible Chat Completions request
+- OpenAI-compatible Chat Completions request for OpenAI, DeepSeek, and Kimi
 
 Validation:
 
@@ -119,6 +119,7 @@ Rules:
 - `ASK_MORE` stays in the same session.
 - `AI_COOLDOWN` stays in the same session and resumes after the timer.
 - `ALLOW` and `BLOCK` are terminal enforcement decisions.
+- On the final assistant turn, `ASK_MORE` is invalid. The model must choose `ALLOW`, `BLOCK`, or `AI_COOLDOWN`.
 - Provider errors are technical failures, not user failures.
 
 ## Start And Send Flow
@@ -141,9 +142,26 @@ blocked page
 
 This removes the need for a separate `Start AI Check session` click in the main path.
 
+The chat UI must be optimistic:
+
+- The user's message bubble appears immediately after Send or Enter.
+- The input clears immediately.
+- An assistant thinking state appears while the provider request is pending.
+- The provider result replaces the thinking state with the validated assistant message and decision.
+- If the provider fails, the user's message remains visible and the error is shown below the conversation.
+- Enter sends the current message, Shift+Enter inserts a newline, and IME composition must not accidentally send.
+
 ## Provider Client
 
 All selected providers for MVP should use OpenAI-compatible Chat Completions.
+
+Current provider endpoints:
+
+- OpenAI: `https://api.openai.com/v1/chat/completions`
+- DeepSeek: `https://api.deepseek.com/chat/completions`
+- Kimi: `https://api.moonshot.ai/v1/chat/completions`
+
+Each request must send `model`, `messages`, `temperature`, and `response_format: { "type": "json_object" }`.
 
 ```ts
 interface ProviderRequest {
@@ -184,6 +202,8 @@ MVP context:
 
 - Gate Constitution
 - User strictness level
+- AI cooldown range for the current strictness level
+- current assistant turn count, maximum turns, and whether this request is the final turn
 - selected tone
 - current target display
 - attempted URL
@@ -196,6 +216,13 @@ Future context:
 - Recent session summaries
 - Pattern memory with repeated reason counters
 - High-risk time windows
+
+Repeated reason semantics:
+
+- `repeatedReason` is a historical signal across sessions, days, cooldowns, removals/re-adds, or prior terminal decisions.
+- Repeating the same reason inside one continuous AI Check session should not increment historical repeated-count memory multiple times.
+- Same-session repetition can still make the current answer vague or weak, but that is current-session deliberateness, not historical repetition.
+- Pattern memory should update at most once per session/reason category, preferably when the session reaches a terminal decision or summary-worthy outcome.
 
 ## Required JSON Output
 
@@ -236,8 +263,9 @@ interface CheckpointDecisionPayload {
 Decision-specific validation:
 
 - `ALLOW`: `unlockMinutes` must be positive and within strictness cap.
-- `AI_COOLDOWN`: `aiCooldownSeconds` must be positive.
+- `AI_COOLDOWN`: `aiCooldownSeconds` must be positive and fit the strictness-derived AI cooldown policy.
 - `ASK_MORE`: `nextQuestion` must be non-empty.
+- Final turn: `ASK_MORE` is rejected even if `nextQuestion` is present.
 - `BLOCK`: no unlock should be created.
 
 Schema failure:
@@ -267,15 +295,23 @@ Local effects:
 Meaning:
 
 - The user may be able to justify access, but the current reason is weak or impulsive.
+- AI cooldown duration is correlated with Strict Mode, but not fixed by it.
+- The AI may choose within the range for the current strictness level:
+  - `gentle`: 30 seconds to 3 minutes, default 1 minute.
+  - `balanced`: 1 minute to 5 minutes, default 2 minutes.
+  - `strict`: 3 minutes to 10 minutes, default 5 minutes.
+  - `monk`: 5 minutes to 20 minutes, default 10 minutes.
 
 Local effects:
 
 - Keep site blocked.
 - Set `session.status = "ai_cooling_down"`.
-- Set `aiCooldownUntil`.
+- Store `aiCooldownStartedAt`, `aiCooldownUntil`, `aiCooldownSeconds`, and the cooldown decision id.
 - Show countdown.
 - After countdown, allow same session to continue.
 - Do not consume or create a new session.
+- If the provider returns a slightly out-of-range cooldown, clamp it to the strictness range and record the normalization.
+- If the provider returns a nonsensical cooldown, reject it as a schema error.
 
 ### ASK_MORE
 
@@ -303,6 +339,20 @@ Local effects:
 - Mark session blocked/completed.
 - Save summary.
 - Update pattern memory.
+- AI-created hold outranks Basic Cooldown. While the hold is active, Basic Cooldown start/continue controls must be unavailable and background handlers must reject cooldown unlock creation.
+
+### Held Read-Only Mode
+
+When a target has an active AI-created hold, AI Check is closed until the hold expires.
+
+Rules:
+
+- Do not show a blank new AI Check conversation.
+- Load the latest AI Check session for the target whose final decision was `BLOCK`.
+- Show that session's conversation, final decision card, and real turn count as read-only evidence.
+- If no matching session exists, show a closed-state fallback instead of the local opening prompt.
+- The composer is disabled. Hovering or focusing the composer area should show a light unavailable affordance such as `Closed until tomorrow`.
+- New AI Check negotiation is not allowed while the hold is active.
 
 ## Error Taxonomy
 
@@ -334,9 +384,21 @@ Right chat panel:
 - turn count
 - remaining session time
 - message list
-- decision card
+- meter-first decision summary
 - provider error card when relevant
 - textarea/button state based on session status
+- Enter sends the current message; Shift+Enter inserts a newline.
+- Send button sits to the right of the chat box on desktop and stacks below it on narrow screens.
+- Held read-only mode displays the last blocked AI conversation and disables the composer with a clear unavailable affordance.
+
+The decision summary should put the judgment meter ahead of raw scores:
+
+- Left side means more blocked / cool down leaning.
+- Right side means more allow leaning.
+- Raw `impulse`, `deliberateness`, and `repeatedReason` scores stay available in secondary details.
+- `AI_COOLDOWN` shows the timer as the primary next action, not as a terminal failure.
+- The meter marker and fill should animate smoothly from the previous value to the new value after each turn, with `prefers-reduced-motion` respected.
+- The decision header must keep label, title, and badge visually separated.
 
 Left checkpoint panel:
 
@@ -384,8 +446,15 @@ E2E or integration tests should cover:
 - invalid model shows provider/model error.
 - provider timeout shows technical error and does not unlock.
 - schema error does not unlock.
+- provider contract test verifies OpenAI, DeepSeek, and Kimi all use Chat Completions with JSON mode.
 - `ASK_MORE` asks another question in the same session.
 - `AI_COOLDOWN` starts countdown and resumes same session.
+- final turn rejects `ASK_MORE` and allows `ALLOW`, `BLOCK`, or `AI_COOLDOWN`.
+- strictness-derived AI cooldown ranges are enforced and normalized when appropriate.
+- decision summary renders as a meter before detailed scores.
 - `ALLOW` creates temporary unlock and returns to attempted URL.
 - `BLOCK` creates hold until tomorrow and keeps the site blocked.
+- active hold reload shows the latest blocked session conversation and final decision read-only.
+- active hold disables the AI composer with hover/focus unavailable affordance.
+- active hold rejects new AI Check start/send requests until the hold expires.
 - repeated reason pattern affects later prompt context.

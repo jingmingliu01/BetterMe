@@ -6,6 +6,19 @@ export interface BasicCooldownPolicy {
   claimWindowSeconds: number;
 }
 
+export interface AICooldownPolicy {
+  minSeconds: number;
+  defaultSeconds: number;
+  maxSeconds: number;
+}
+
+export interface AICooldownNormalization {
+  originalSeconds: number;
+  normalizedSeconds: number;
+  minSeconds: number;
+  maxSeconds: number;
+}
+
 export const ACCESS_TIMING = {
   basicCooldownSeconds: 5 * 60,
   basicCooldownUnlockSeconds: 5 * 60,
@@ -41,6 +54,49 @@ export const BASIC_COOLDOWN_POLICIES: Record<StrictnessLevel, BasicCooldownPolic
     claimWindowSeconds: 2 * 60
   }
 };
+
+export const AI_COOLDOWN_POLICIES: Record<StrictnessLevel, AICooldownPolicy> = {
+  gentle: {
+    minSeconds: 30,
+    defaultSeconds: 60,
+    maxSeconds: 3 * 60
+  },
+  balanced: {
+    minSeconds: 60,
+    defaultSeconds: 2 * 60,
+    maxSeconds: 5 * 60
+  },
+  strict: {
+    minSeconds: 3 * 60,
+    defaultSeconds: 5 * 60,
+    maxSeconds: 10 * 60
+  },
+  monk: {
+    minSeconds: 5 * 60,
+    defaultSeconds: 10 * 60,
+    maxSeconds: 20 * 60
+  }
+};
+
+export function normalizeAICooldownSeconds(
+  strictness: StrictnessLevel,
+  value: number
+): AICooldownNormalization | null {
+  const policy = AI_COOLDOWN_POLICIES[strictness];
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  if (value > policy.maxSeconds * 2) {
+    return null;
+  }
+  const normalizedSeconds = Math.round(Math.min(Math.max(value, policy.minSeconds), policy.maxSeconds));
+  return {
+    originalSeconds: value,
+    normalizedSeconds,
+    minSeconds: policy.minSeconds,
+    maxSeconds: policy.maxSeconds
+  };
+}
 
 export const COOLDOWN_ESCALATION_WINDOW_SECONDS = 60 * 60;
 
@@ -84,21 +140,22 @@ export const PROVIDERS: ProviderConfig[] = [
     label: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
     defaultModel: "gpt-5.4-mini",
-    models: ["gpt-5.5", "gpt-5.5-pro", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"]
+    models: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"]
   },
   {
     id: "deepseek",
     label: "DeepSeek",
-    baseUrl: "https://api.deepseek.com/v1",
+    baseUrl: "https://api.deepseek.com",
     defaultModel: "deepseek-v4-flash",
     models: ["deepseek-v4-flash", "deepseek-v4-pro"]
   },
   {
     id: "kimi",
     label: "Kimi",
-    baseUrl: "https://api.moonshot.cn/v1",
-    defaultModel: "kimi-k2.5",
+    baseUrl: "https://api.moonshot.ai/v1",
+    defaultModel: "kimi-k2.6",
     models: [
+      "kimi-k2.6",
       "kimi-k2.5",
       "kimi-k2-0905-preview",
       "kimi-k2-0711-preview",

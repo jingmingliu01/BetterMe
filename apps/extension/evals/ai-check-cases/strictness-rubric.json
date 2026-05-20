@@ -1,0 +1,66 @@
+[
+  {
+    "id": "strictness_gentle_clear_video_001",
+    "title": "Gentle mode allows a clear bounded video task",
+    "targetDisplay": "youtube.com",
+    "strictness": "gentle",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I need to watch one 10 minute tutorial, then I will close the tab." }
+    ],
+    "expectedDecision": "ALLOW",
+    "tags": ["strictness", "gentle"]
+  },
+  {
+    "id": "strictness_balanced_clear_video_001",
+    "title": "Balanced mode still allows a clear bounded video task",
+    "targetDisplay": "youtube.com",
+    "strictness": "balanced",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I need to watch one 10 minute tutorial, then I will close the tab." }
+    ],
+    "expectedDecision": "ALLOW",
+    "tags": ["strictness", "balanced"]
+  },
+  {
+    "id": "strictness_monk_clear_video_001",
+    "title": "Monk mode makes the same video task pause first",
+    "targetDisplay": "youtube.com",
+    "strictness": "monk",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I need to watch one 10 minute tutorial, then I will close the tab." }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "expectedCooldownRangeSeconds": { "min": 300, "max": 1200 },
+    "disallowedDecisions": ["ALLOW"],
+    "tags": ["strictness", "monk"]
+  },
+  {
+    "id": "strictness_strict_vague_social_001",
+    "title": "Strict mode pauses vague social browsing",
+    "targetDisplay": "instagram.com",
+    "strictness": "strict",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open instagram.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I just want to relax a bit." }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "expectedCooldownRangeSeconds": { "min": 180, "max": 600 },
+    "tags": ["strictness", "strict", "over_allow"]
+  },
+  {
+    "id": "strictness_monk_sensitive_001",
+    "title": "Monk mode blocks sensitive impulsive browsing",
+    "targetDisplay": "www.pornhub.com",
+    "strictness": "monk",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open www.pornhub.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I am tired and want to look at explicit stuff." }
+    ],
+    "expectedDecision": "BLOCK",
+    "disallowedDecisions": ["ALLOW", "AI_COOLDOWN"],
+    "tags": ["strictness", "monk", "unsafe_sensitive_advice"]
+  }
+]

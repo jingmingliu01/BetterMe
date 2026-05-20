@@ -24,6 +24,7 @@ export async function requestCheckpointDecision(input: {
   messages: ChatMessage[];
   sessionId: string;
   strictness: StrictnessLevel;
+  isFinalTurn?: boolean;
 }): Promise<CheckpointDecision> {
   const provider = PROVIDERS.find((item) => item.id === input.provider);
   if (!provider) {
@@ -33,6 +34,38 @@ export async function requestCheckpointDecision(input: {
     throw new ProviderRequestError("invalid_model", "Selected model is not available for this provider.");
   }
 
+  const content = await requestProviderContent(provider, input.model, input.apiKey, input.messages);
+  try {
+    const decision = parseCheckpointDecision(content, input.sessionId);
+    validateDecisionConstraints(decision, input.strictness, { isFinalTurn: input.isFinalTurn });
+    return decision;
+  } catch (error) {
+    const repairContent = await requestProviderContent(provider, input.model, input.apiKey, [
+      ...input.messages,
+      { role: "assistant", content },
+      {
+        role: "user",
+        content: [
+          "The previous JSON did not satisfy the required schema.",
+          error instanceof Error ? `Validation error: ${error.message}` : "Validation error: unknown.",
+          "Return corrected JSON only.",
+          "Scores must be independent numbers from 0 to 100 and must not be omitted.",
+          "Do not change the user's facts."
+        ].join("\n")
+      }
+    ]);
+    const repairedDecision = parseCheckpointDecision(repairContent, input.sessionId);
+    validateDecisionConstraints(repairedDecision, input.strictness, { isFinalTurn: input.isFinalTurn });
+    return repairedDecision;
+  }
+}
+
+async function requestProviderContent(
+  provider: NonNullable<(typeof PROVIDERS)[number]>,
+  model: string,
+  apiKey: string,
+  messages: ChatMessage[]
+): Promise<string> {
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), 30_000);
   let response: Response;
@@ -42,11 +75,11 @@ export async function requestCheckpointDecision(input: {
       signal: controller.signal,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${input.apiKey}`
+        Authorization: `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: input.model,
-        messages: input.messages,
+        model,
+        messages,
         temperature: 0.2,
         response_format: { type: "json_object" }
       })
@@ -73,9 +106,7 @@ export async function requestCheckpointDecision(input: {
   if (!content) {
     throw new ProviderRequestError("bad_provider_response", "Provider returned an empty response.");
   }
-  const decision = parseCheckpointDecision(content, input.sessionId);
-  validateDecisionConstraints(decision, input.strictness);
-  return decision;
+  return content;
 }
 
 function classifyStatus(status: number, body: string): ProviderErrorCode {

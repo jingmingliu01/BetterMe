@@ -81,6 +81,7 @@ Initial event types:
 Rules:
 
 - Store enough data to reconstruct behavior patterns: timestamps, `targetKey`, strictness, cooldown policy snapshot, claim window, unlock duration, and AI decision metadata.
+- Store AI cooldown lifecycle data separately from basic cooldown data: selected AI cooldown seconds, normalized seconds when applicable, timer start/end, blocked send attempts during the timer, and final-turn arrival.
 - Do not read page content.
 - For attempted URLs, keep full URL only in short-lived runtime attempt state used to return the user to the attempted page. The durable behavior event should store a privacy-minimal URL shape: origin, path, and whether query/hash existed.
 - AI context should consume a local summary of behavior events, not raw full history.
@@ -118,6 +119,20 @@ Precedence:
 5. `blocked`
 
 `BlockHold` wins over `TemporaryUnlock`. A user should not be able to bypass an AI `BLOCK` with a stale unlock.
+
+Enforcement priority for active target state is:
+
+```text
+target missing / disabled
+AI block hold
+temporary unlock
+active Basic Cooldown
+normal blocked
+```
+
+An AI-created `BlockHold` is stronger than Basic Cooldown. While a hold is active, Basic Cooldown must not create a new cooldown or temporary unlock for that target.
+
+An active AI-created hold also suppresses new AI Check negotiation. The block page may show the last blocked AI session for explanation, but it must be read-only until the hold expires.
 
 ### AIReadiness
 

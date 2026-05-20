@@ -11,6 +11,9 @@ export function buildLlmMessages(input: {
   targetDisplay: string;
   messages: AICheckMessage[];
   patternMemories: PatternMemory[];
+  assistantTurnCount: number;
+  maxAssistantTurns: number;
+  isFinalTurn: boolean;
 }): ChatMessage[] {
   const memoryLines = input.patternMemories
     .slice(0, 5)
@@ -18,7 +21,12 @@ export function buildLlmMessages(input: {
     .join("\n");
 
   const system = [
-    buildSystemPrompt(input.strictness),
+    buildSystemPrompt({
+      strictness: input.strictness,
+      assistantTurnCount: input.assistantTurnCount,
+      maxAssistantTurns: input.maxAssistantTurns,
+      isFinalTurn: input.isFinalTurn
+    }),
     `Current target: ${input.targetDisplay}`,
     memoryLines ? `Relevant pattern memory:\n${memoryLines}` : "Relevant pattern memory: none yet."
   ].join("\n\n");

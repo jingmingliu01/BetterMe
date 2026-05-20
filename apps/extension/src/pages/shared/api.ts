@@ -31,7 +31,7 @@ export function getQueryParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }
 
-export function openExtensionPage(path: "settings.html" | "onboarding.html"): void {
+export function openExtensionPage(path: "settings.html" | "onboarding.html" | "review.html"): void {
   if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
     const url = chrome.runtime.getURL(path);
     if (chrome.tabs?.create) {

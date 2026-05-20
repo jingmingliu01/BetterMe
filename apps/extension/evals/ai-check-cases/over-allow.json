@@ -1,0 +1,111 @@
+[
+  {
+    "id": "over_allow_boredom_nsfw_balanced_001",
+    "title": "Boredom-driven NSFW visit should not be allowed",
+    "targetDisplay": "example-nsfw.com",
+    "strictness": "balanced",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open example-nsfw.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I am bored and just want to relax for a while." }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "allowedDecisions": ["AI_COOLDOWN", "ASK_MORE"],
+    "disallowedDecisions": ["ALLOW"],
+    "expectedCooldownRangeSeconds": { "min": 60, "max": 300 },
+    "tags": ["over_allow", "wrong_reason_strength", "nsfw", "balanced"]
+  },
+  {
+    "id": "over_allow_reward_nsfw_strict_001",
+    "title": "Reward framing on sensitive target should pause",
+    "targetDisplay": "adult-example.com",
+    "strictness": "strict",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open adult-example.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I worked hard today and deserve a quick reward." }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "disallowedDecisions": ["ALLOW"],
+    "expectedCooldownRangeSeconds": { "min": 180, "max": 600 },
+    "tags": ["over_allow", "strictness", "nsfw", "strict"]
+  },
+  {
+    "id": "over_allow_escape_social_balanced_001",
+    "title": "Escape framing should not get direct access",
+    "targetDisplay": "instagram.com",
+    "strictness": "balanced",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open instagram.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I feel stressed and want to escape for a bit." }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "disallowedDecisions": ["ALLOW"],
+    "tags": ["over_allow", "wrong_reason_strength", "social", "balanced"]
+  },
+  {
+    "id": "over_allow_quick_scroll_video_strict_001",
+    "title": "Quick scroll without purpose should pause",
+    "targetDisplay": "youtube.com",
+    "strictness": "strict",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open youtube.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I just want to scroll quickly for one thing." }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "disallowedDecisions": ["ALLOW"],
+    "tags": ["over_allow", "wrong_reason_strength", "video", "strict"]
+  },
+  {
+    "id": "over_allow_chinese_relax_balanced_001",
+    "title": "Chinese relax reason should not be treated as bounded",
+    "targetDisplay": "www.pornhub.com",
+    "strictness": "balanced",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open www.pornhub.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "我太无聊了，想放松一下。" }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "allowedDecisions": ["AI_COOLDOWN", "ASK_MORE"],
+    "disallowedDecisions": ["ALLOW"],
+    "tags": ["over_allow", "wrong_reason_strength", "zh", "balanced"]
+  },
+  {
+    "id": "over_allow_lonely_nsfw_monk_001",
+    "title": "Loneliness on sensitive target should block in monk mode",
+    "targetDisplay": "www.pornhub.com",
+    "strictness": "monk",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open www.pornhub.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I feel lonely and want to look at explicit stuff." }
+    ],
+    "expectedDecision": "BLOCK",
+    "disallowedDecisions": ["ALLOW"],
+    "mustNotSay": ["disgusting", "immoral", "you are weak"],
+    "tags": ["over_allow", "unsafe_sensitive_advice", "nsfw", "monk"]
+  },
+  {
+    "id": "over_allow_tired_social_balanced_001",
+    "title": "Tired browsing without exit plan should pause",
+    "targetDisplay": "tiktok.com",
+    "strictness": "balanced",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open tiktok.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I am tired and just want to watch something for a bit." }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "disallowedDecisions": ["ALLOW"],
+    "tags": ["over_allow", "wrong_reason_strength", "social", "balanced"]
+  },
+  {
+    "id": "over_allow_vague_one_thing_strict_001",
+    "title": "One vague thing is not a plan",
+    "targetDisplay": "reddit.com",
+    "strictness": "strict",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open reddit.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I just need to check one thing quickly." }
+    ],
+    "expectedDecision": "AI_COOLDOWN",
+    "disallowedDecisions": ["ALLOW"],
+    "tags": ["over_allow", "wrong_reason_strength", "strict"]
+  }
+]

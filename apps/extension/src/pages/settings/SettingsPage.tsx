@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Database, KeyRound, Link2, ShieldCheck, ShieldPlus, SlidersHorizontal, Trash2 } from "lucide-react";
+import {
+  ClipboardCheck,
+  Database,
+  KeyRound,
+  Link2,
+  ShieldCheck,
+  ShieldPlus,
+  SlidersHorizontal,
+  Trash2
+} from "lucide-react";
 import { AppShell } from "../shared/AppShell";
-import { sendMessage } from "../shared/api";
+import { openExtensionPage, sendMessage } from "../shared/api";
 import { useAsyncState } from "../shared/useAsyncState";
 import {
   BASIC_COOLDOWN_POLICIES,
@@ -178,6 +187,9 @@ export function SettingsPage() {
             <a href="#local-data">
               <Database size={16} /> Local Data
             </a>
+            <button className="settings-nav-button" type="button" onClick={() => openExtensionPage("review.html")}>
+              <ClipboardCheck size={16} /> AI PM Review
+            </button>
           </nav>
         </aside>
 

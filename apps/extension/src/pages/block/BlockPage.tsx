@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Clock, DoorOpen, MessageCircle, Settings } from "lucide-react";
 import { AppShell } from "../shared/AppShell";
 import { getQueryParam, openExtensionPage, sendMessage } from "../shared/api";
@@ -12,6 +12,7 @@ import type {
   BootstrapState,
   CheckpointDecision
 } from "../../shared/types";
+import { formatScore, getDecisionMeter } from "../../ai/decision-meter";
 import { deriveAIReadiness, getAIReadinessMessage } from "../../ai/ai-readiness";
 import { buildOpeningMessage } from "../../ai/prompt";
 import { deriveAccessState, getActiveCooldownForTarget } from "../../blocking/access-state";
@@ -36,6 +37,7 @@ export function BlockPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [currentTabId, setCurrentTabId] = useState<number | null>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 1000);
@@ -120,6 +122,18 @@ export function BlockPage() {
     (target ? getFallbackAttemptUrl(target) : null) ??
     null;
   const blockedReason = data ? getAIReadinessMessage(aiReadiness, data.settings.provider) : "";
+  const aiCooldownRemainingMs =
+    session?.status === "ai_cooling_down" && session.aiCooldownUntil
+      ? new Date(session.aiCooldownUntil).getTime() - now.getTime()
+      : 0;
+  const aiCooldownActive = aiCooldownRemainingMs > 0;
+  const aiCooldownReady = session?.status === "ai_cooling_down" && !aiCooldownActive;
+  const aiSessionTerminal = Boolean(
+    session && ["allowed", "blocked", "expired", "provider_error", "schema_error", "completed"].includes(session.status)
+  );
+  const heldUntilTomorrow = accessState === "block_held_until_tomorrow";
+  const aiPanelMode = heldUntilTomorrow ? "held_readonly" : aiCooldownActive ? "cooldown" : aiSessionTerminal ? "terminal" : "interactive";
+  const composerDisabled = busy || !aiReady || aiCooldownActive || aiSessionTerminal || aiPanelMode === "held_readonly";
 
   useEffect(() => {
     if (!targetWasDeleted || !deletedTargetAttemptUrl) {
@@ -131,24 +145,70 @@ export function BlockPage() {
     return () => window.clearTimeout(timer);
   }, [deletedTargetAttemptUrl, targetWasDeleted]);
 
+  useEffect(() => {
+    if (!heldUntilTomorrow || !target) {
+      return;
+    }
+    let cancelled = false;
+    void sendMessage<{ session: AICheckSession | null; messages: AICheckMessage[]; decision: CheckpointDecision | null }>({
+      type: "ai/getLatestBlockedSession",
+      payload: { targetId: target.id }
+    })
+      .then((result) => {
+        if (cancelled) {
+          return;
+        }
+        setSession(result.session);
+        setMessages(result.messages);
+        setDecision(result.decision);
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setAiError(loadError instanceof Error ? loadError.message : "Could not load the last AI Check.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [heldUntilTomorrow, target]);
+
+  useEffect(() => {
+    const list = messageListRef.current;
+    if (!list) {
+      return;
+    }
+    list.scrollTop = list.scrollHeight;
+  }, [messages.length, busy, decision?.id, aiError, session?.status]);
+
   async function sendUserMessage() {
-    if (!input.trim() || (!session && !target)) return;
+    if (aiPanelMode === "held_readonly") return;
+    const content = input.trim();
+    if (!content || (!session && !target)) return;
+    const optimisticMessage: AICheckMessage = {
+      id: `optimistic-${Date.now()}`,
+      sessionId: session?.id ?? "pending-session",
+      role: "user",
+      source: "user",
+      content,
+      createdAt: new Date().toISOString()
+    };
+    setMessages((current) => [...current, optimisticMessage]);
+    setInput("");
     setBusy(true);
     setAiError(null);
     try {
       const result = session
         ? await sendMessage<{ session: AICheckSession; messages: AICheckMessage[]; decision: CheckpointDecision }>({
             type: "ai/sendMessage",
-            payload: { sessionId: session.id, content: input }
+            payload: { sessionId: session.id, content }
           })
         : await sendMessage<{ session: AICheckSession; messages: AICheckMessage[]; decision: CheckpointDecision }>({
             type: "ai/startAndSend",
-            payload: { targetId: target!.id, content: input }
+            payload: { targetId: target!.id, content }
           });
       setSession(result.session);
       setMessages(result.messages);
       setDecision(result.decision);
-      setInput("");
       await refresh();
       if (result.decision.decision === "ALLOW" && attemptUrl) {
         window.setTimeout(() => {
@@ -264,7 +324,15 @@ export function BlockPage() {
             <button className="btn btn-primary" onClick={leave}>
               <DoorOpen size={16} /> Leave Site
             </button>
-            {activeCooldown ? (
+            {heldUntilTomorrow ? (
+              <div className="cooldown-card stack cooldown-card-disabled">
+                <div className="row space-between">
+                  <strong>Basic Cooldown unavailable</strong>
+                  <span className="badge badge-warn">Hold</span>
+                </div>
+                <p className="muted">AI Check has held this target until tomorrow.</p>
+              </div>
+            ) : activeCooldown ? (
               <div className="cooldown-card stack">
                 <div className="row space-between">
                   <strong>Basic Cooldown</strong>
@@ -300,19 +368,30 @@ export function BlockPage() {
           <div className="ai-check-header">
             <div className="section-heading">
               <span className="section-label">AI Check</span>
-              <h2>Make the case to continue</h2>
+              <h2>{aiPanelMode === "held_readonly" ? "AI Check is closed for today" : "Make the case to continue"}</h2>
             </div>
             <span className="turn-count">
-              {session?.assistantTurnCount ?? 0}/{session?.maxAssistantTurns ?? AI_CHECK_SESSION_MAX_ASSISTANT_TURNS} turns
+              {session
+                ? `${session.assistantTurnCount}/${session.maxAssistantTurns} turns`
+                : aiPanelMode === "held_readonly"
+                  ? "Closed"
+                  : `0/${AI_CHECK_SESSION_MAX_ASSISTANT_TURNS} turns`}
             </span>
           </div>
           <p className="muted ai-check-guidance">
-            Explain what you plan to do, how long it should take, and why this is worth opening now.
+            {aiPanelMode === "held_readonly"
+              ? "This target is held until tomorrow based on the last AI decision."
+              : "Explain what you plan to do, how long it should take, and why this is worth opening now."}
           </p>
 
-          <div className="message-list">
-            {!session && target && (
+          <div className="message-list" ref={messageListRef}>
+            {!session && target && aiPanelMode !== "held_readonly" && (
               <div className="message message-assistant">{buildOpeningMessage(target.display)}</div>
+            )}
+            {!session && target && aiPanelMode === "held_readonly" && (
+              <div className="message message-assistant">
+                AI Check is closed for today. BetterMe could not find the previous decision conversation for this target.
+              </div>
             )}
             {!target && (
               <div className="message message-assistant">
@@ -327,23 +406,70 @@ export function BlockPage() {
                 {message.content}
               </div>
             ))}
+            {busy && (
+              <div className="message message-assistant message-thinking" aria-live="polite">
+                <span>AI is thinking</span>
+                <span className="thinking-dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+              </div>
+            )}
+            {decision && (
+              <div className="decision-message">
+                <DecisionSummary decision={decision} />
+              </div>
+            )}
           </div>
 
-          {decision && <DecisionSummary decision={decision} />}
+          {aiCooldownActive && (
+            <div className="ai-cooldown-banner">
+              <Clock size={17} />
+              <div>
+                <strong>AI Cooldown</strong>
+                <p>{formatRemaining(aiCooldownRemainingMs)} before this AI Check can continue.</p>
+              </div>
+            </div>
+          )}
+          {aiCooldownReady && (
+            <div className="ai-cooldown-banner ai-cooldown-ready">
+              <MessageCircle size={17} />
+              <div>
+                <strong>Ready to continue</strong>
+                <p>The AI cooldown is over. You can send one more deliberate answer in this same checkpoint.</p>
+              </div>
+            </div>
+          )}
           {aiError && <p className="badge badge-danger">{aiError}</p>}
-          <div className="composer stack">
+          <div
+            className={composerDisabled ? "composer composer-disabled stack" : "composer stack"}
+            data-disabled-reason={aiPanelMode === "held_readonly" ? "Closed until tomorrow" : "Unavailable"}
+          >
             <textarea
               className="textarea"
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              disabled={
-                busy ||
-                !aiReady ||
-                Boolean(session && ["allowed", "blocked", "expired", "provider_error", "schema_error"].includes(session.status))
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  if (!composerDisabled && input.trim()) {
+                    void sendUserMessage();
+                  }
+                }
+              }}
+              disabled={composerDisabled}
+              placeholder={
+                aiPanelMode === "held_readonly"
+                  ? "AI Check is closed until tomorrow."
+                  : "Explain why this visit is deliberate and bounded..."
               }
-              placeholder="Explain why this visit is deliberate and bounded..."
             />
-            <button className="btn btn-primary" onClick={sendUserMessage} disabled={busy || !aiReady || !input.trim()}>
+            <button
+              className="btn btn-primary"
+              onClick={sendUserMessage}
+              disabled={composerDisabled || !input.trim()}
+            >
               <MessageCircle size={16} /> {busy ? "Thinking..." : "Send"}
             </button>
           </div>
@@ -363,16 +489,43 @@ function StatusItem({ label, value, muted = false }: { label: string; value: str
 }
 
 function DecisionSummary({ decision }: { decision: CheckpointDecision }) {
+  const meter = getDecisionMeter(decision);
+  const [displayedMeter, setDisplayedMeter] = useState(() => ({
+    value: 50,
+    label: meter.label,
+    zone: meter.zone
+  }));
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setDisplayedMeter(meter));
+    return () => window.cancelAnimationFrame(frame);
+  }, [meter.label, meter.value]);
+
   return (
     <div className="decision-summary">
-      <div className="row space-between">
-        <div>
+      <div className="decision-summary-header">
+        <div className="decision-title">
           <span className="section-label">Latest decision</span>
           <strong>{formatDecisionLabel(decision.decision)}</strong>
         </div>
         <span className={decision.decision === "BLOCK" ? "badge badge-danger" : "badge"}>
           {formatDecisionBadge(decision.decision)}
         </span>
+      </div>
+      <div
+        className={`decision-meter decision-meter-${displayedMeter.zone}`}
+        aria-label={`AI judgment meter: ${displayedMeter.label}`}
+      >
+        <div className="decision-meter-labels">
+          <span>Block</span>
+          <strong>{displayedMeter.label}</strong>
+          <span>Allow</span>
+        </div>
+        <div className="decision-meter-track">
+          <span className="decision-meter-midpoint">AI Cooldown</span>
+          <span className="decision-meter-fill" style={{ width: `${displayedMeter.value}%` }} />
+          <span className="decision-meter-marker" style={{ left: `${displayedMeter.value}%` }} />
+        </div>
       </div>
       <p>{decision.userFacingMessage}</p>
       <details className="decision-details">
@@ -384,15 +537,15 @@ function DecisionSummary({ decision }: { decision: CheckpointDecision }) {
           </div>
           <div>
             <dt>Impulse</dt>
-            <dd>{decision.scores.impulse}/10</dd>
+            <dd>{formatScore(decision.scores.impulse)}</dd>
           </div>
           <div>
             <dt>Deliberateness</dt>
-            <dd>{decision.scores.deliberateness}/10</dd>
+            <dd>{formatScore(decision.scores.deliberateness)}</dd>
           </div>
           <div>
             <dt>Repeated reason</dt>
-            <dd>{decision.scores.repeatedReason}/10</dd>
+            <dd>{formatScore(decision.scores.repeatedReason)}</dd>
           </div>
         </dl>
       </details>

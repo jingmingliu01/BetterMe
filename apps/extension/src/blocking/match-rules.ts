@@ -20,7 +20,12 @@ export function doesExactUrlMatch(currentUrl: string, blockedUrl: string): boole
 }
 
 export function findMatchingTarget(url: string, targets: BlockedTarget[]): BlockedTarget | null {
-  const parsed = parseHttpUrl(url);
+  let parsed: URL;
+  try {
+    parsed = parseHttpUrl(url);
+  } catch {
+    return null;
+  }
   return (
     targets.find((target) => {
       if (!target.enabled) {

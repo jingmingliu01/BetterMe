@@ -1,6 +1,7 @@
 import {
   AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
   AI_CHECK_SESSION_MAX_SECONDS,
+  AI_COOLDOWN_POLICIES,
   STRICTNESS_UNLOCK_CAP_MINUTES
 } from "../shared/constants";
 import { createId, nowIso } from "../shared/id";
@@ -22,8 +23,12 @@ import { appendBehaviorEvent } from "../storage/behavior-events";
 import { createBlockHoldUntilNextDay, createTemporaryUnlock } from "../blocking/unlocks";
 import { loadDecryptedApiKey } from "../storage/crypto-key-store";
 import { getTargetKey } from "../blocking/target-parser";
+import { AI_CHECK_PROMPT_VERSION, AI_CHECK_RUBRIC_VERSION, AI_CHECK_SCHEMA_VERSION } from "./review-store";
 
-export async function startAICheckSession(target: BlockedTarget): Promise<{ session: AICheckSession; messages: AICheckMessage[] }> {
+export async function startAICheckSession(
+  target: BlockedTarget,
+  settings?: UserSettings
+): Promise<{ session: AICheckSession; messages: AICheckMessage[] }> {
   const now = new Date();
   const session: AICheckSession = {
     id: createId("session"),
@@ -34,7 +39,11 @@ export async function startAICheckSession(target: BlockedTarget): Promise<{ sess
     startedAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + AI_CHECK_SESSION_MAX_SECONDS * 1000).toISOString(),
     assistantTurnCount: 0,
-    maxAssistantTurns: AI_CHECK_SESSION_MAX_ASSISTANT_TURNS
+    maxAssistantTurns: AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
+    strictness: settings?.strictness,
+    promptVersion: AI_CHECK_PROMPT_VERSION,
+    schemaVersion: AI_CHECK_SCHEMA_VERSION,
+    rubricVersion: AI_CHECK_RUBRIC_VERSION
   };
   const opening: AICheckMessage = {
     id: createId("msg"),
@@ -64,7 +73,7 @@ export async function startAndSendAICheckMessage(input: {
   content: string;
   settings: UserSettings;
 }): Promise<{ session: AICheckSession; messages: AICheckMessage[]; decision: CheckpointDecision }> {
-  const { session } = await startAICheckSession(input.target);
+  const { session } = await startAICheckSession(input.target, input.settings);
   return sendAICheckMessage({
     sessionId: session.id,
     content: input.content,
@@ -77,10 +86,11 @@ export async function getAICheckSessionBundle(sessionId: string): Promise<{
   messages: AICheckMessage[];
   decisions: CheckpointDecision[];
 }> {
-  const session = await getRecord<AICheckSession>("aiCheckSessions", sessionId);
-  if (!session) {
+  const storedSession = await getRecord<AICheckSession>("aiCheckSessions", sessionId);
+  if (!storedSession) {
     throw new Error("Session not found.");
   }
+  const session = await resolveAICooldownIfComplete(storedSession);
 
   const [messages, decisions] = await Promise.all([
     getAllRecords<AICheckMessage>("aiCheckMessages"),
@@ -110,8 +120,41 @@ export async function sendAICheckMessage(input: {
     await putRecord("aiCheckSessions", expired);
     throw new Error("This AI Check session expired. Please leave and start a new checkpoint later.");
   }
+  if (bundle.session.status === "ai_cooling_down") {
+    const aiCooldownUntilMs = bundle.session.aiCooldownUntil ? new Date(bundle.session.aiCooldownUntil).getTime() : now;
+    await appendBehaviorEvent({
+      type: "ai_cooldown_message_attempt_blocked",
+      targetId: bundle.session.targetId,
+      targetKey: bundle.session.targetKey,
+      targetDisplay: bundle.session.targetDisplay,
+      payload: {
+        sessionId: bundle.session.id,
+        aiCooldownUntil: bundle.session.aiCooldownUntil,
+        remainingSeconds: Math.max(0, Math.ceil((aiCooldownUntilMs - now) / 1000))
+      }
+    });
+    throw new Error("AI Cooldown is still running. Wait for the timer before continuing this AI Check.");
+  }
+  if (["allowed", "blocked", "expired", "provider_error", "schema_error", "completed"].includes(bundle.session.status)) {
+    throw new Error("This AI Check session is no longer active.");
+  }
   if (bundle.session.assistantTurnCount >= bundle.session.maxAssistantTurns) {
     throw new Error("This AI Check session has reached the turn limit.");
+  }
+  const nextAssistantTurn = bundle.session.assistantTurnCount + 1;
+  const isFinalTurn = nextAssistantTurn >= bundle.session.maxAssistantTurns;
+  if (isFinalTurn) {
+    await appendBehaviorEvent({
+      type: "ai_final_turn_reached",
+      targetId: bundle.session.targetId,
+      targetKey: bundle.session.targetKey,
+      targetDisplay: bundle.session.targetDisplay,
+      payload: {
+        sessionId: bundle.session.id,
+        assistantTurnCount: bundle.session.assistantTurnCount,
+        maxAssistantTurns: bundle.session.maxAssistantTurns
+      }
+    });
   }
 
   const userMessage: AICheckMessage = {
@@ -135,7 +178,10 @@ export async function sendAICheckMessage(input: {
     strictness: input.settings.strictness,
     targetDisplay: bundle.session.targetDisplay,
     messages,
-    patternMemories
+    patternMemories,
+    assistantTurnCount: bundle.session.assistantTurnCount,
+    maxAssistantTurns: bundle.session.maxAssistantTurns,
+    isFinalTurn
   });
 
   let decision: CheckpointDecision;
@@ -146,7 +192,8 @@ export async function sendAICheckMessage(input: {
       apiKey,
       messages: llmMessages,
       sessionId: input.sessionId,
-      strictness: input.settings.strictness
+      strictness: input.settings.strictness,
+      isFinalTurn
     });
   } catch (error) {
     const failed = {
@@ -172,25 +219,47 @@ export async function sendAICheckMessage(input: {
     settings: input.settings,
     latestUserReason: userMessage.content
   });
+  let sessionToStore = nextSession;
+
+  if (shouldUpdatePatternMemory(nextSession, decision)) {
+    await updatePatternMemory({
+      targetDisplay: bundle.session.targetDisplay,
+      userReason: userMessage.content,
+      decision
+    });
+    sessionToStore = {
+      ...nextSession,
+      patternMemoryUpdatedCategories: [
+        ...(nextSession.patternMemoryUpdatedCategories ?? []),
+        decision.memoryUpdate.reasonCategory
+      ]
+    };
+  }
 
   await putRecord("checkpointDecisions", decision);
   await putRecord("aiCheckMessages", assistantMessage);
-  await putRecord("aiCheckSessions", nextSession);
-  await updatePatternMemory({
-    targetDisplay: bundle.session.targetDisplay,
-    userReason: userMessage.content,
-    decision
-  });
+  await putRecord("aiCheckSessions", sessionToStore);
 
   if (["ALLOW", "BLOCK"].includes(decision.decision)) {
-    await saveSessionSummary(nextSession, decision, userMessage.content);
+    await saveSessionSummary(sessionToStore, decision, userMessage.content);
   }
 
   return {
-    session: nextSession,
+    session: sessionToStore,
     messages: [...messages, assistantMessage],
     decision
   };
+}
+
+function shouldUpdatePatternMemory(session: AICheckSession, decision: CheckpointDecision): boolean {
+  const alreadyUpdated = (session.patternMemoryUpdatedCategories ?? []).includes(decision.memoryUpdate.reasonCategory);
+  if (alreadyUpdated) {
+    return false;
+  }
+  if (decision.decision === "ALLOW" || decision.decision === "BLOCK") {
+    return true;
+  }
+  return decision.decision === "AI_COOLDOWN" && session.assistantTurnCount >= session.maxAssistantTurns;
 }
 
 async function applyDecision(input: {
@@ -280,6 +349,24 @@ async function applyDecision(input: {
   }
 
   if (input.decision.decision === "AI_COOLDOWN") {
+    const now = new Date();
+    const policy = AI_COOLDOWN_POLICIES[input.settings.strictness];
+    const aiCooldownSeconds = input.decision.aiCooldownSeconds ?? policy.defaultSeconds;
+    const aiCooldownUntil = new Date(now.getTime() + aiCooldownSeconds * 1000).toISOString();
+    if (input.decision.aiCooldownNormalization) {
+      await appendBehaviorEvent({
+        type: "ai_cooldown_seconds_normalized",
+        targetId: input.session.targetId,
+        targetKey: input.session.targetKey,
+        targetDisplay: input.session.targetDisplay,
+        payload: {
+          sessionId: input.session.id,
+          decisionId: input.decision.id,
+          strictness: input.settings.strictness,
+          ...input.decision.aiCooldownNormalization
+        }
+      });
+    }
     await appendBehaviorEvent({
       type: "ai_decision_applied",
       targetId: input.session.targetId,
@@ -287,10 +374,28 @@ async function applyDecision(input: {
       targetDisplay: input.session.targetDisplay,
       payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
     });
+    await appendBehaviorEvent({
+      type: "ai_cooldown_started",
+      targetId: input.session.targetId,
+      targetKey: input.session.targetKey,
+      targetDisplay: input.session.targetDisplay,
+      payload: {
+        sessionId: input.session.id,
+        decisionId: input.decision.id,
+        strictness: input.settings.strictness,
+        aiCooldownSeconds,
+        aiCooldownUntil
+      }
+    });
     return {
       ...base,
       status: "ai_cooling_down",
-      finalDecision: "AI_COOLDOWN"
+      finalDecision: "AI_COOLDOWN",
+      aiCooldownStartedAt: now.toISOString(),
+      aiCooldownUntil,
+      aiCooldownSeconds,
+      aiCooldownDecisionId: input.decision.id,
+      aiCooldownCompletedAt: undefined
     };
   }
 
@@ -306,6 +411,37 @@ async function applyDecision(input: {
     status: "active",
     finalDecision: "ASK_MORE"
   };
+}
+
+async function resolveAICooldownIfComplete(session: AICheckSession): Promise<AICheckSession> {
+  if (session.status !== "ai_cooling_down" || !session.aiCooldownUntil) {
+    return session;
+  }
+  if (new Date(session.aiCooldownUntil).getTime() > Date.now()) {
+    return session;
+  }
+  const completedAt = nowIso();
+  const active: AICheckSession = {
+    ...session,
+    status: "active",
+    aiCooldownCompletedAt: completedAt
+  };
+  await putRecord("aiCheckSessions", active);
+  await appendBehaviorEvent({
+    type: "ai_cooldown_completed",
+    targetId: session.targetId,
+    targetKey: session.targetKey,
+    targetDisplay: session.targetDisplay,
+    payload: {
+      sessionId: session.id,
+      decisionId: session.aiCooldownDecisionId,
+      aiCooldownStartedAt: session.aiCooldownStartedAt,
+      aiCooldownUntil: session.aiCooldownUntil,
+      aiCooldownSeconds: session.aiCooldownSeconds
+    },
+    createdAt: completedAt
+  });
+  return active;
 }
 
 function buildDecisionEventPayload(
@@ -355,4 +491,45 @@ export async function listRecentAICheckSessions(): Promise<Array<AICheckSession 
         .filter((message) => message.sessionId === session.id)
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
     }));
+}
+
+export async function getLatestBlockedAICheckSessionForTarget(targetId: string): Promise<{
+  session: AICheckSession | null;
+  messages: AICheckMessage[];
+  decision: CheckpointDecision | null;
+}> {
+  const [sessions, messages, decisions] = await Promise.all([
+    getAllRecords<AICheckSession>("aiCheckSessions"),
+    getAllRecords<AICheckMessage>("aiCheckMessages"),
+    getAllRecords<CheckpointDecision>("checkpointDecisions")
+  ]);
+
+  const session = sessions
+    .filter((item) => item.targetId === targetId && (item.status === "blocked" || item.finalDecision === "BLOCK"))
+    .sort((left, right) => {
+      const leftTime = left.completedAt ?? left.startedAt;
+      const rightTime = right.completedAt ?? right.startedAt;
+      return rightTime.localeCompare(leftTime);
+    })[0] ?? null;
+
+  if (!session) {
+    return { session: null, messages: [], decision: null };
+  }
+
+  const sessionMessages = messages
+    .filter((message) => message.sessionId === session.id)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const sessionDecisions = decisions
+    .filter((decision) => decision.sessionId === session.id)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const decision =
+    [...sessionDecisions].reverse().find((item) => item.decision === "BLOCK") ??
+    sessionDecisions.at(-1) ??
+    null;
+
+  return {
+    session,
+    messages: sessionMessages,
+    decision
+  };
 }

@@ -1,0 +1,69 @@
+[
+  {
+    "id": "repeated_pattern_boredom_nsfw_balanced_001",
+    "title": "Repeated boredom on sensitive target should block",
+    "targetDisplay": "example-nsfw.com",
+    "strictness": "balanced",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open example-nsfw.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I am bored and just want to relax for a bit." }
+    ],
+    "patternMemorySnapshot": [
+      { "id": "memory-1", "targetDisplay": "example-nsfw.com", "reasonCategory": "boredom", "repeatedCount": 4, "lastUserReason": "just relaxing", "guidance": "The user repeatedly uses boredom to bypass this target.", "updatedAt": "2026-05-18T00:00:00.000Z" }
+    ],
+    "expectedDecision": "BLOCK",
+    "disallowedDecisions": ["ALLOW"],
+    "expectedReasoningCategory": "repeated_excuse",
+    "expectedScoreRanges": { "repeatedReason": { "min": 75, "max": 100 } },
+    "tags": ["repeated_pattern", "over_allow", "nsfw", "balanced"]
+  },
+  {
+    "id": "repeated_pattern_escape_social_strict_001",
+    "title": "Repeated escape reason should block in strict mode",
+    "targetDisplay": "instagram.com",
+    "strictness": "strict",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open instagram.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I feel stressed and want to escape for a bit." }
+    ],
+    "patternMemorySnapshot": [
+      { "id": "memory-2", "targetDisplay": "instagram.com", "reasonCategory": "escape", "repeatedCount": 3, "lastUserReason": "escape for a bit", "guidance": "Escaping stress has led to repeated blocked attempts.", "updatedAt": "2026-05-18T00:00:00.000Z" }
+    ],
+    "expectedDecision": "BLOCK",
+    "disallowedDecisions": ["ALLOW"],
+    "tags": ["repeated_pattern", "strict", "social"]
+  },
+  {
+    "id": "repeated_pattern_same_session_not_history_001",
+    "title": "Same-session repetition should ask or cool down, not inflate history",
+    "targetDisplay": "reddit.com",
+    "strictness": "balanced",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open reddit.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I need to check one answer for programming." },
+      { "role": "assistant", "source": "llm", "content": "How long will this take, and when will you leave?" },
+      { "role": "user", "source": "user", "content": "I need to check one answer for programming." }
+    ],
+    "patternMemorySnapshot": [],
+    "expectedDecision": "ASK_MORE",
+    "allowedDecisions": ["ASK_MORE", "AI_COOLDOWN"],
+    "disallowedDecisions": ["BLOCK"],
+    "tags": ["repeated_pattern", "under_ask", "same_session"]
+  },
+  {
+    "id": "repeated_pattern_removed_readded_social_001",
+    "title": "Remove and re-add history should make vague browsing conservative",
+    "targetDisplay": "tiktok.com",
+    "strictness": "balanced",
+    "messages": [
+      { "role": "assistant", "source": "local_opening", "content": "You're trying to open tiktok.com. What are you here to do, and why now?" },
+      { "role": "user", "source": "user", "content": "I just want to scroll for a bit." }
+    ],
+    "patternMemorySnapshot": [
+      { "id": "memory-3", "targetDisplay": "tiktok.com", "reasonCategory": "habit", "repeatedCount": 5, "lastUserReason": "just scrolling", "guidance": "The user has removed and re-added this block after repeated scrolling attempts.", "updatedAt": "2026-05-18T00:00:00.000Z" }
+    ],
+    "expectedDecision": "BLOCK",
+    "disallowedDecisions": ["ALLOW"],
+    "tags": ["repeated_pattern", "over_allow", "social", "balanced"]
+  }
+]

@@ -1,6 +1,6 @@
 import { createId, nowIso } from "../shared/id";
-import { STRICTNESS_UNLOCK_CAP_MINUTES } from "../shared/constants";
-import type { AIDecision, CheckpointDecision, StrictnessLevel } from "../shared/types";
+import { normalizeAICooldownSeconds, STRICTNESS_UNLOCK_CAP_MINUTES } from "../shared/constants";
+import type { AICheckScoreName, AIDecision, CheckpointDecision, StrictnessLevel } from "../shared/types";
 
 const DECISIONS: AIDecision[] = ["ALLOW", "AI_COOLDOWN", "ASK_MORE", "BLOCK"];
 const LEGACY_DECISION_MAP: Record<string, AIDecision> = {
@@ -23,10 +23,6 @@ const MEMORY_REASON_CATEGORIES: CheckpointDecision["memoryUpdate"]["reasonCatego
   "other"
 ];
 
-function asNumber(value: unknown, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
 function asString(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
 }
@@ -47,37 +43,92 @@ export function parseCheckpointDecision(raw: string, sessionId: string): Checkpo
   if (!decision) {
     throw new Error("LLM returned an invalid decision.");
   }
-  if (!REASONING_CATEGORIES.includes(parsed.reasoningCategory as CheckpointDecision["reasoningCategory"])) {
-    throw new Error("LLM returned an invalid reasoningCategory.");
-  }
+  const reasoningCategory = normalizeReasoningCategory(parsed.reasoningCategory, decision);
 
   const scores = (parsed.scores ?? {}) as Record<string, unknown>;
   const memoryUpdate = (parsed.memoryUpdate ?? {}) as Record<string, unknown>;
-  if (!MEMORY_REASON_CATEGORIES.includes(memoryUpdate.reasonCategory as CheckpointDecision["memoryUpdate"]["reasonCategory"])) {
-    throw new Error("LLM returned an invalid memoryUpdate.reasonCategory.");
-  }
+  const memoryReasonCategory = normalizeMemoryReasonCategory(memoryUpdate.reasonCategory);
 
   return {
     id: createId("decision"),
     sessionId,
     decision,
     userFacingMessage: asString(parsed.userFacingMessage, "I need one more clear reason before deciding."),
-    reasoningCategory: parsed.reasoningCategory as CheckpointDecision["reasoningCategory"],
+    reasoningCategory,
     unlockMinutes: typeof parsed.unlockMinutes === "number" ? parsed.unlockMinutes : null,
     aiCooldownSeconds: getAICooldownSeconds(parsed),
     nextQuestion: asNullableString(parsed.nextQuestion),
     scores: {
-      repeatedReason: asNumber(scores.repeatedReason, 0),
-      impulse: asNumber(scores.impulse, 50),
-      deliberateness: asNumber(scores.deliberateness, 50)
+      repeatedReason: readScore(scores.repeatedReason, "repeatedReason"),
+      impulse: readScore(scores.impulse, "impulse"),
+      deliberateness: readScore(scores.deliberateness, "deliberateness")
     },
     memoryUpdate: {
-      reasonCategory: memoryUpdate.reasonCategory as CheckpointDecision["memoryUpdate"]["reasonCategory"],
+      reasonCategory: memoryReasonCategory,
       patternNote: asNullableString(memoryUpdate.patternNote)
     },
     createdAt: nowIso(),
     rawProvider: raw
   };
+}
+
+function readScore(value: unknown, name: AICheckScoreName): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`LLM returned an invalid ${name} score.`);
+  }
+  if (value < 0 || value > 100) {
+    throw new Error(`LLM returned ${name} score outside 0-100.`);
+  }
+  return Math.round(value);
+}
+
+function normalizeReasoningCategory(
+  value: unknown,
+  decision: AIDecision
+): CheckpointDecision["reasoningCategory"] {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (REASONING_CATEGORIES.includes(normalized as CheckpointDecision["reasoningCategory"])) {
+      return normalized as CheckpointDecision["reasoningCategory"];
+    }
+    if (["impulse", "impulsive", "weak_reason", "vague_reason", "not_enough_info"].includes(normalized)) {
+      return "insufficient_reason";
+    }
+    if (["intentional", "deliberate", "clear_intent", "clear_purpose"].includes(normalized)) {
+      return "clear_intention";
+    }
+    if (["repeated", "repeat", "habit", "same_excuse"].includes(normalized)) {
+      return "repeated_excuse";
+    }
+    if (["high_risk", "risk", "unsafe_pattern"].includes(normalized)) {
+      return "high_risk_pattern";
+    }
+  }
+
+  switch (decision) {
+    case "ALLOW":
+      return "clear_intention";
+    case "BLOCK":
+      return "high_risk_pattern";
+    default:
+      return "insufficient_reason";
+  }
+}
+
+function normalizeMemoryReasonCategory(value: unknown): CheckpointDecision["memoryUpdate"]["reasonCategory"] {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    if (MEMORY_REASON_CATEGORIES.includes(normalized as CheckpointDecision["memoryUpdate"]["reasonCategory"])) {
+      return normalized as CheckpointDecision["memoryUpdate"]["reasonCategory"];
+    }
+    if (["relax", "relaxation", "fun", "entertainment", "curiosity"].includes(normalized)) {
+      return "other";
+    }
+    if (["procrastination", "routine", "automatic"].includes(normalized)) {
+      return "habit";
+    }
+  }
+  return "other";
 }
 
 function normalizeDecision(value: unknown): AIDecision | null {
@@ -118,7 +169,11 @@ export function createFallbackDecision(sessionId: string, message: string): Chec
   };
 }
 
-export function validateDecisionConstraints(decision: CheckpointDecision, strictness: StrictnessLevel): void {
+export function validateDecisionConstraints(
+  decision: CheckpointDecision,
+  strictness: StrictnessLevel,
+  options: { isFinalTurn?: boolean } = {}
+): void {
   if (decision.decision === "ALLOW") {
     const cap = STRICTNESS_UNLOCK_CAP_MINUTES[strictness];
     if (typeof decision.unlockMinutes !== "number" || decision.unlockMinutes <= 0 || decision.unlockMinutes > cap) {
@@ -127,12 +182,23 @@ export function validateDecisionConstraints(decision: CheckpointDecision, strict
   }
 
   if (decision.decision === "AI_COOLDOWN") {
-    if (typeof decision.aiCooldownSeconds !== "number" || decision.aiCooldownSeconds <= 0) {
-      throw new Error("AI_COOLDOWN decision requires positive aiCooldownSeconds.");
+    if (typeof decision.aiCooldownSeconds !== "number") {
+      throw new Error("AI_COOLDOWN decision requires aiCooldownSeconds.");
+    }
+    const normalized = normalizeAICooldownSeconds(strictness, decision.aiCooldownSeconds);
+    if (!normalized) {
+      throw new Error("AI_COOLDOWN decision requires aiCooldownSeconds inside a sane strictness-derived range.");
+    }
+    decision.aiCooldownSeconds = normalized.normalizedSeconds;
+    if (normalized.originalSeconds !== normalized.normalizedSeconds) {
+      decision.aiCooldownNormalization = normalized;
     }
   }
 
   if (decision.decision === "ASK_MORE") {
+    if (options.isFinalTurn) {
+      throw new Error("ASK_MORE is not allowed on the final AI Check turn.");
+    }
     if (!decision.nextQuestion?.trim()) {
       throw new Error("ASK_MORE decision requires nextQuestion.");
     }

@@ -19,6 +19,13 @@ The current extension MVP exists and can run an end-to-end local extension path:
 
 Access-state foundation is now implemented and covered by true extension E2E. The remaining work is stronger `BlockHold` UX and AI cooldown continuation polish.
 
+Current priority rule: AI-created `BlockHold` must outrank Basic Cooldown. While a hold is active, Basic Cooldown start/continue controls and background unlock creation should be unavailable.
+
+2026-05-18 update:
+
+- Implemented AI hold priority over Basic Cooldown in both Block page UI and background handlers.
+- Access-state issues doc was updated to close ISSUE-018 after E2E coverage.
+
 ## Verified So Far
 
 Last known E2E command:
@@ -94,7 +101,7 @@ Last known build status:
 - Deleted target recovery is implemented for stale `block.html?targetId=...` pages.
 - Blocked targets now have stable `targetKey` identity for future remove/re-add analysis.
 - Added append-only `BehaviorEvent` history in IndexedDB.
-- Behavior history records add, remove, re-add, blocked attempts, cooldown starts/continues/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, block holds, and strictness changes.
+- Behavior history records add, remove, re-add, blocked attempts, cooldown starts/continues/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, AI cooldown lifecycle, final-turn arrival, block holds, and strictness changes.
 - Settings removal now uses a 10-second confirmation delay plus exact typed confirmation phrase.
 
 ## Not Yet Implemented
@@ -215,11 +222,19 @@ Scope:
 - Design doc updated with durable behavior history and stable `targetKey` semantics.
 - Issues doc updated with ISSUE-016 for removal friction and local behavior history.
 - Added IndexedDB `behaviorEvents` store.
-- Added behavior event logging for blocklist add/remove/re-add, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, block holds, and strictness changes.
+- Added behavior event logging for blocklist add/remove/re-add, blocked URL attempts, Basic Cooldown start/continue/claim expiry, temporary unlock creation/expiry, AI Check session starts, AI decisions, AI cooldown lifecycle, final-turn arrival, block holds, and strictness changes.
 - Settings removal now requires a 10-second delay and typing `I choose to remove this block`.
 - E2E updated to verify removal history and re-add history.
 - Validation status:
   - `npm --workspace apps/extension run typecheck` passed.
+
+2026-05-18:
+
+- Active AI holds now suppress both Basic Cooldown and new AI Check negotiation.
+- Held block pages can show the latest blocked AI session read-only instead of starting a new conversation.
+- Issues doc did not need a new access-state issue because ISSUE-018 already covers hold priority and remains closed.
+- Latest validation:
+  - `npm --workspace apps/extension run test:e2e`
 
 ## Update Checklist
 
