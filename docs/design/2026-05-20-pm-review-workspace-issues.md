@@ -5,6 +5,7 @@ Related docs:
 - Design: [2026-05-20-pm-review-workspace-design.md](2026-05-20-pm-review-workspace-design.md)
 - Progress: [2026-05-20-pm-review-workspace-progress.md](2026-05-20-pm-review-workspace-progress.md)
 - AI Check case schema issues: [2026-05-20-ai-check-case-schema-issues.md](2026-05-20-ai-check-case-schema-issues.md)
+- AI Check provider message contract issues: [2026-05-21-ai-check-provider-message-contract-issues.md](2026-05-21-ai-check-provider-message-contract-issues.md)
 
 Rule: when this document changes, check the design and progress documents for required updates.
 
@@ -110,6 +111,7 @@ Expected behavior:
 - Schema Reference is generated from the shared AI Check contract.
 - The descriptor covers meaning, necessity, product impact, validation, and common mistakes.
 - Schema Reference updates are required whenever the structured output schema changes.
+- Prompt, schema, and rubric version displays are rendered from contract reference fields, not duplicated literals.
 - `AGENTS.md` records the schema-sync rule.
 
 Resolution:
@@ -121,6 +123,60 @@ Resolution:
 - PM Review statuses, source options, bad-case error types, common tags, built-in case sets, and AI Check session policy now derive from the shared contract.
 - Provider metadata derives from `apps/extension/src/shared/provider-config.json`.
 - `AGENTS.md` now requires schema changes to start from `ai-check-contract.json`, then update parser constraints, TypeScript types, eval assertions, tests, and linked docs in the same change.
+
+### ISSUE-008: Schema Reference does not yet explain the full AI Check request contract
+
+Status: closed in AI Check Contract Manual slice
+
+Risk:
+
+- Reviewers can see the model output shape but not how the provider request is assembled.
+- The page can imply that the System Prompt is formed after model input, when it is actually part of the provider request.
+- Reviewers cannot quickly compare what belongs to Input, Output, and Evaluation.
+
+Expected behavior:
+
+- Schema Reference behaves as an AI Check Contract Manual.
+- The manual shows the correct runtime flow: contract and runtime context feed the System Prompt builder, then the provider request includes System Prompt, current target, pattern memory, and user-visible messages.
+- The manual has internal tabs for Input, System Prompt, Output, Evaluation, and Compare.
+- Input, Output, and Evaluation tabs render JSON-shaped trees from `AI_CHECK_CONTRACT.sections`.
+- Compare is generated from contract section field paths and shows which paths appear in Input, Output, and Evaluation.
+
+Resolution:
+
+- Schema Reference now has internal tabs for Input, System Prompt, Output, Evaluation, and Compare.
+- Input, Output, and Evaluation tabs render JSON-shaped trees from `AI_CHECK_CONTRACT.sections`.
+- The top of the manual shows version references and the corrected runtime flow where the System Prompt is one component of the provider request/model input.
+- Compare is generated from contract section field paths.
+
+### ISSUE-009: System Prompt preview needs source-aware dynamic fragments
+
+Status: closed in AI Check Contract Manual slice
+
+Risk:
+
+- A plain prompt preview shows the current prompt but not why dynamic values appeared.
+- If PM Review reconstructs prompt text separately, prompt reference can drift from runtime provider behavior.
+- Reviewers cannot see whether a prompt fragment came from runtime input, session policy, enum values, output schema, example output, or strictness cooldown policy.
+
+Expected behavior:
+
+- Runtime prompt generation exposes structured prompt parts.
+- `buildSystemPrompt(input)` remains the provider-facing function and joins structured parts into text.
+- PM Review renders those same structured prompt parts with highlights for dynamic fragments.
+- Hovering or focusing a highlighted fragment updates a side inspector with source paths, current resolved value, and why the fragment matters.
+- Dynamic sources include preview/runtime `strictness`, assistant turn state, `AI_CHECK_CONTRACT.sessionPolicy`, `AI_COOLDOWN_POLICIES[strictness]`, contract enum values, output example, and output schema summary.
+
+Resolution:
+
+- Runtime prompt generation exposes structured prompt parts.
+- `buildSystemPrompt(input)` joins the same structured parts used by PM Review.
+- PM Review renders dynamic prompt parts with highlights.
+- Hovering, focusing, or clicking a highlighted fragment updates the Source Inspector with source paths, current value, and why the fragment matters.
+
+Follow-up:
+
+- [2026-05-21-ai-check-provider-message-contract-design.md](2026-05-21-ai-check-provider-message-contract-design.md) split the provider message contract so turn-level context is no longer treated as part of the static System Prompt.
 
 ### ISSUE-006: Add/edit form needs guardrails
 

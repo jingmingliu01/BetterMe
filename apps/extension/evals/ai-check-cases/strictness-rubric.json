@@ -4,7 +4,7 @@
     "title": "Gentle mode allows a clear bounded video task",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -45,7 +45,7 @@
     "title": "Balanced mode still allows a clear bounded video task",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -86,7 +86,7 @@
     "title": "Monk mode makes the same video task pause first",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -134,7 +134,7 @@
     "title": "Strict mode pauses vague social browsing",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -180,7 +180,7 @@
     "title": "Monk mode blocks sensitive impulsive browsing",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },

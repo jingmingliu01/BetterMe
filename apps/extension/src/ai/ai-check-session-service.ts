@@ -8,12 +8,13 @@ import { createId, nowIso } from "../shared/id";
 import type {
   AICheckSession,
   AICheckMessage,
+  AICheckRoundSnapshot,
   AICheckSummary,
   BlockedTarget,
   CheckpointDecision,
   UserSettings
 } from "../shared/types";
-import { buildLlmMessages } from "./context-builder";
+import { buildProviderMessages, buildRoundSnapshot } from "./context-builder";
 import { buildOpeningMessage } from "./prompt";
 import { ProviderRequestError, requestCheckpointDecision } from "./provider-client";
 import { listPatternMemory, updatePatternMemory } from "./pattern-memory";
@@ -30,8 +31,21 @@ export async function startAICheckSession(
   settings?: UserSettings
 ): Promise<{ session: AICheckSession; messages: AICheckMessage[] }> {
   const now = new Date();
+  const strictness = settings?.strictness ?? "balanced";
+  const patternMemorySnapshot = await listPatternMemory(target.display);
+  const sessionId = createId("session");
+  const roundSnapshot = buildRoundSnapshot({
+    sessionId,
+    targetId: target.id,
+    targetDisplay: target.display,
+    strictness,
+    maxAssistantTurns: AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
+    patternMemorySnapshot,
+    provider: settings ? { id: settings.provider, model: settings.model } : undefined,
+    createdAt: now.toISOString()
+  });
   const session: AICheckSession = {
-    id: createId("session"),
+    id: sessionId,
     targetId: target.id,
     targetKey: getTargetKey(target),
     targetDisplay: target.display,
@@ -40,10 +54,11 @@ export async function startAICheckSession(
     expiresAt: new Date(now.getTime() + AI_CHECK_SESSION_MAX_SECONDS * 1000).toISOString(),
     assistantTurnCount: 0,
     maxAssistantTurns: AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
-    strictness: settings?.strictness,
+    strictness,
     promptVersion: AI_CHECK_PROMPT_VERSION,
     schemaVersion: AI_CHECK_SCHEMA_VERSION,
-    rubricVersion: AI_CHECK_RUBRIC_VERSION
+    rubricVersion: AI_CHECK_RUBRIC_VERSION,
+    roundSnapshot
   };
   const opening: AICheckMessage = {
     id: createId("msg"),
@@ -62,7 +77,11 @@ export async function startAICheckSession(
     payload: {
       sessionId: session.id,
       expiresAt: session.expiresAt,
-      maxAssistantTurns: session.maxAssistantTurns
+      maxAssistantTurns: session.maxAssistantTurns,
+      strictness: roundSnapshot.strictness,
+      promptVersion: roundSnapshot.versions.promptVersion,
+      schemaVersion: roundSnapshot.versions.schemaVersion,
+      rubricVersion: roundSnapshot.versions.rubricVersion
     }
   });
   return { session, messages: [opening] };
@@ -138,21 +157,36 @@ export async function sendAICheckMessage(input: {
   if (["allowed", "blocked", "expired", "provider_error", "schema_error", "completed"].includes(bundle.session.status)) {
     throw new Error("This AI Check session is no longer active.");
   }
-  if (bundle.session.assistantTurnCount >= bundle.session.maxAssistantTurns) {
+  let activeSession = bundle.session;
+  const roundSnapshot = await ensureRoundSnapshot(activeSession, input.settings);
+  if (!activeSession.roundSnapshot) {
+    activeSession = {
+      ...activeSession,
+      strictness: roundSnapshot.strictness,
+      maxAssistantTurns: roundSnapshot.maxAssistantTurns,
+      promptVersion: roundSnapshot.versions.promptVersion,
+      schemaVersion: roundSnapshot.versions.schemaVersion,
+      rubricVersion: roundSnapshot.versions.rubricVersion,
+      roundSnapshot
+    };
+    await putRecord("aiCheckSessions", activeSession);
+  }
+
+  if (activeSession.assistantTurnCount >= activeSession.maxAssistantTurns) {
     throw new Error("This AI Check session has reached the turn limit.");
   }
-  const nextAssistantTurn = bundle.session.assistantTurnCount + 1;
-  const isFinalTurn = nextAssistantTurn >= bundle.session.maxAssistantTurns;
+  const nextAssistantTurn = activeSession.assistantTurnCount + 1;
+  const isFinalTurn = nextAssistantTurn >= roundSnapshot.maxAssistantTurns;
   if (isFinalTurn) {
     await appendBehaviorEvent({
       type: "ai_final_turn_reached",
-      targetId: bundle.session.targetId,
-      targetKey: bundle.session.targetKey,
-      targetDisplay: bundle.session.targetDisplay,
+      targetId: activeSession.targetId,
+      targetKey: activeSession.targetKey,
+      targetDisplay: activeSession.targetDisplay,
       payload: {
-        sessionId: bundle.session.id,
-        assistantTurnCount: bundle.session.assistantTurnCount,
-        maxAssistantTurns: bundle.session.maxAssistantTurns
+        sessionId: activeSession.id,
+        assistantTurnCount: activeSession.assistantTurnCount,
+        maxAssistantTurns: roundSnapshot.maxAssistantTurns
       }
     });
   }
@@ -167,37 +201,39 @@ export async function sendAICheckMessage(input: {
   };
   await putRecord("aiCheckMessages", userMessage);
 
-  const apiKey = await loadDecryptedApiKey(input.settings.provider);
+  const providerId = roundSnapshot.provider?.id ?? input.settings.provider;
+  const model = roundSnapshot.provider?.model ?? input.settings.model;
+  const apiKey = await loadDecryptedApiKey(providerId);
   if (!apiKey) {
     throw new Error("AI Check is locked until a provider API key is saved.");
   }
 
   const messages = [...bundle.messages, userMessage];
-  const patternMemories = await listPatternMemory(bundle.session.targetDisplay);
-  const llmMessages = buildLlmMessages({
-    strictness: input.settings.strictness,
-    targetDisplay: bundle.session.targetDisplay,
+  const llmMessages = buildProviderMessages({
+    round: roundSnapshot,
     messages,
-    patternMemories,
-    assistantTurnCount: bundle.session.assistantTurnCount,
-    maxAssistantTurns: bundle.session.maxAssistantTurns,
-    isFinalTurn
+    turn: {
+      assistantTurnCount: activeSession.assistantTurnCount,
+      nextAssistantTurn,
+      maxAssistantTurns: roundSnapshot.maxAssistantTurns,
+      isFinalTurn
+    }
   });
 
   let decision: CheckpointDecision;
   try {
     decision = await requestCheckpointDecision({
-      provider: input.settings.provider,
-      model: input.settings.model,
+      provider: providerId,
+      model,
       apiKey,
       messages: llmMessages,
       sessionId: input.sessionId,
-      strictness: input.settings.strictness,
+      strictness: roundSnapshot.strictness,
       isFinalTurn
     });
   } catch (error) {
     const failed = {
-      ...bundle.session,
+      ...activeSession,
       status: error instanceof ProviderRequestError ? ("provider_error" as const) : ("schema_error" as const)
     };
     await putRecord("aiCheckSessions", failed);
@@ -214,9 +250,9 @@ export async function sendAICheckMessage(input: {
   };
 
   const nextSession = await applyDecision({
-    session: bundle.session,
+    session: activeSession,
     decision,
-    settings: input.settings,
+    strictness: roundSnapshot.strictness,
     latestUserReason: userMessage.content
   });
   let sessionToStore = nextSession;
@@ -262,10 +298,28 @@ function shouldUpdatePatternMemory(session: AICheckSession, decision: Checkpoint
   return decision.decision === "AI_COOLDOWN" && session.assistantTurnCount >= session.maxAssistantTurns;
 }
 
+async function ensureRoundSnapshot(session: AICheckSession, settings: UserSettings): Promise<AICheckRoundSnapshot> {
+  if (session.roundSnapshot) {
+    return session.roundSnapshot;
+  }
+  const strictness = session.strictness ?? settings.strictness;
+  const patternMemorySnapshot = await listPatternMemory(session.targetDisplay);
+  return buildRoundSnapshot({
+    sessionId: session.id,
+    targetId: session.targetId,
+    targetDisplay: session.targetDisplay,
+    strictness,
+    maxAssistantTurns: session.maxAssistantTurns,
+    patternMemorySnapshot,
+    provider: { id: settings.provider, model: settings.model },
+    createdAt: session.startedAt
+  });
+}
+
 async function applyDecision(input: {
   session: AICheckSession;
   decision: CheckpointDecision;
-  settings: UserSettings;
+  strictness: UserSettings["strictness"];
   latestUserReason: string;
 }): Promise<AICheckSession> {
   const assistantTurnCount = input.session.assistantTurnCount + 1;
@@ -276,7 +330,7 @@ async function applyDecision(input: {
   };
 
   if (input.decision.decision === "ALLOW") {
-    const cap = STRICTNESS_UNLOCK_CAP_MINUTES[input.settings.strictness];
+    const cap = STRICTNESS_UNLOCK_CAP_MINUTES[input.strictness];
     const minutes = Math.max(1, Math.min(input.decision.unlockMinutes ?? cap, cap));
     const unlock = createTemporaryUnlock({
       targetId: input.session.targetId,
@@ -304,7 +358,7 @@ async function applyDecision(input: {
       targetId: input.session.targetId,
       targetKey: input.session.targetKey,
       targetDisplay: input.session.targetDisplay,
-      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
+      payload: buildDecisionEventPayload(input.decision, input.strictness, input.session.id)
     });
     return {
       ...base,
@@ -338,7 +392,7 @@ async function applyDecision(input: {
       targetId: input.session.targetId,
       targetKey: input.session.targetKey,
       targetDisplay: input.session.targetDisplay,
-      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
+      payload: buildDecisionEventPayload(input.decision, input.strictness, input.session.id)
     });
     return {
       ...base,
@@ -350,7 +404,7 @@ async function applyDecision(input: {
 
   if (input.decision.decision === "AI_COOLDOWN") {
     const now = new Date();
-    const policy = AI_COOLDOWN_POLICIES[input.settings.strictness];
+    const policy = AI_COOLDOWN_POLICIES[input.strictness];
     const aiCooldownSeconds = input.decision.aiCooldownSeconds ?? policy.defaultSeconds;
     const aiCooldownUntil = new Date(now.getTime() + aiCooldownSeconds * 1000).toISOString();
     if (input.decision.aiCooldownNormalization) {
@@ -362,7 +416,7 @@ async function applyDecision(input: {
         payload: {
           sessionId: input.session.id,
           decisionId: input.decision.id,
-          strictness: input.settings.strictness,
+          strictness: input.strictness,
           ...input.decision.aiCooldownNormalization
         }
       });
@@ -372,7 +426,7 @@ async function applyDecision(input: {
       targetId: input.session.targetId,
       targetKey: input.session.targetKey,
       targetDisplay: input.session.targetDisplay,
-      payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
+      payload: buildDecisionEventPayload(input.decision, input.strictness, input.session.id)
     });
     await appendBehaviorEvent({
       type: "ai_cooldown_started",
@@ -382,7 +436,7 @@ async function applyDecision(input: {
       payload: {
         sessionId: input.session.id,
         decisionId: input.decision.id,
-        strictness: input.settings.strictness,
+        strictness: input.strictness,
         aiCooldownSeconds,
         aiCooldownUntil
       }
@@ -404,7 +458,7 @@ async function applyDecision(input: {
     targetId: input.session.targetId,
     targetKey: input.session.targetKey,
     targetDisplay: input.session.targetDisplay,
-    payload: buildDecisionEventPayload(input.decision, input.settings.strictness, input.session.id)
+    payload: buildDecisionEventPayload(input.decision, input.strictness, input.session.id)
   });
   return {
     ...base,

@@ -35,6 +35,8 @@
 - Provider metadata, including base URLs, default models, model allowlists, and eval env-key names, should come from `apps/extension/src/shared/provider-config.json`.
 - Do not manually duplicate AI Check output schema strings in `prompt.ts`, `eval-ai-check.mjs`, or PM Review UI.
 - Provider-mode evals must reuse the runtime AI Check prompt/message builder instead of maintaining a separate eval-only prompt.
+- Provider messages should keep the cache-friendly order: static System Prompt, trusted Round Context, append-only Conversation, then trusted Turn Context.
+- Round Context values, including strictness and policy snapshots, should stay fixed for the active AI Check round; Settings changes apply to the next round.
 - Evaluation cases should carry the current `promptVersion`, `schemaVersion`, and `rubricVersion`; default eval runs should only use current-version active cases unless a legacy run is explicitly requested.
 - When changing AI Check Input, Output, or Evaluation schema, update `ai-check-contract.json` first, then update parser constraints, TypeScript types, eval assertions, tests, and linked design/progress/issues docs in the same change.
 - When changing Prompt Version or Rubric Version, update the contract version field, eval fixtures or archive status, and linked design/progress/issues docs in the same change.

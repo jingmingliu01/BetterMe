@@ -311,8 +311,15 @@ try {
   }
   const providerRequests = await getProviderRequestLog(serviceWorker);
   const finalProviderRequest = providerRequests.at(-1);
-  const finalSystemPrompt = finalProviderRequest?.messages?.[0]?.content ?? "";
-  assertIncludes(finalSystemPrompt, "This is the final assistant turn.", "Final turn context was not sent to the provider.");
+  const finalProviderMessages = finalProviderRequest?.messages ?? [];
+  const finalSystemPrompt = finalProviderMessages[0]?.content ?? "";
+  const finalRoundContext = finalProviderMessages[1]?.content ?? "";
+  const finalTurnContext = finalProviderMessages.at(-1)?.content ?? "";
+  assertIncludes(finalSystemPrompt, "You are BetterMe", "Static system prompt was not sent to the provider.");
+  assertIncludes(finalRoundContext, "<trusted_round_context>", "Trusted round context was not sent after the system prompt.");
+  assertIncludes(finalTurnContext, "<trusted_turn_context>", "Trusted turn context was not sent as the final provider message.");
+  assertIncludes(finalTurnContext, "This is the final turn.", "Final turn context was not sent to the provider.");
+  assertIncludes(finalTurnContext, "Do not return ASK_MORE.", "Final turn ASK_MORE guard was not sent to the provider.");
   const finalTurnEvents = await getBehaviorEvents(page);
   if (!finalTurnEvents.some((event) => event.type === "ai_final_turn_reached" && event.targetDisplay === "example.net")) {
     throw new Error("Final turn event was not recorded in behavior history.");

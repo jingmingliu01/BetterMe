@@ -149,6 +149,7 @@ export interface AICheckSession {
   promptVersion?: string;
   schemaVersion?: string;
   rubricVersion?: string;
+  roundSnapshot?: AICheckRoundSnapshot;
   finalDecision?: AIDecision;
   finalDecisionId?: string;
   aiCooldownStartedAt?: string;
@@ -157,6 +158,32 @@ export interface AICheckSession {
   aiCooldownDecisionId?: string;
   aiCooldownCompletedAt?: string;
   patternMemoryUpdatedCategories?: BehaviorReasonCategory[];
+}
+
+export interface AICheckRoundSnapshot {
+  sessionId: string;
+  targetId: string;
+  targetDisplay: string;
+  strictness: StrictnessLevel;
+  maxAssistantTurns: number;
+  maxSessionSeconds: number;
+  aiCooldownPolicy: {
+    minSeconds: number;
+    defaultSeconds: number;
+    maxSeconds: number;
+  };
+  unlockCapMinutes: number;
+  patternMemorySnapshot: PatternMemory[];
+  versions: {
+    promptVersion: string;
+    schemaVersion: string;
+    rubricVersion: string;
+  };
+  provider?: {
+    id: ProviderId;
+    model: string;
+  };
+  createdAt: string;
 }
 
 export interface AICheckMessage {

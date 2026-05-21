@@ -4,7 +4,7 @@
     "title": "Programming reason without time boundary should ask more",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -50,7 +50,7 @@
     "title": "Work need is too vague without task detail",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -96,7 +96,7 @@
     "title": "Research reason needs an exit plan",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -142,7 +142,7 @@
     "title": "Chinese work task without time should ask more",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -188,7 +188,7 @@
     "title": "Homework task needs duration and exit",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -234,7 +234,7 @@
     "title": "Low-risk task still needs a time box",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -280,7 +280,7 @@
     "title": "Clear tutorial plan should not be questioned again",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -325,7 +325,7 @@
     "title": "Clear answer lookup should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -370,7 +370,7 @@
     "title": "Clear Chinese task should not be over-questioned",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -415,7 +415,7 @@
     "title": "Clear important appointment task should not be questioned",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },

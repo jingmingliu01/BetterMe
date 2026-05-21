@@ -4,7 +4,7 @@
     "title": "Bounded work tutorial should be allowed in gentle mode",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -50,7 +50,7 @@
     "title": "Specific programming answer should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -96,7 +96,7 @@
     "title": "Bounded Reddit debugging search should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -141,7 +141,7 @@
     "title": "Low-risk recipe video with time box should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -186,7 +186,7 @@
     "title": "Chinese bounded work reason should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -233,7 +233,7 @@
     "title": "Important bounded appointment task should be allowed even in strict mode",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },

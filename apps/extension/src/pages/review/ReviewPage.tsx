@@ -15,16 +15,30 @@ import {
   Search
 } from "lucide-react";
 import {
+  AI_CHECK_CONTRACT,
   AI_CHECK_BAD_CASE_ERROR_TYPES,
   AI_CHECK_CASE_SETS,
   AI_CHECK_CASE_SOURCES,
   AI_CHECK_CASE_STATUSES,
   AI_CHECK_COMMON_TAGS,
   AI_CHECK_DECISIONS,
-  AI_CHECK_OUTPUT_EXAMPLE as AI_CHECK_SCHEMA_EXAMPLE_OUTPUT,
-  AI_CHECK_OUTPUT_FIELD_REFERENCE as AI_CHECK_SCHEMA_FIELD_REFERENCE,
+  AI_CHECK_EVALUATION_EXAMPLE,
+  AI_CHECK_EVALUATION_FIELD_REFERENCE,
+  AI_CHECK_INPUT_FIELD_REFERENCE,
+  AI_CHECK_OUTPUT_EXAMPLE,
+  AI_CHECK_OUTPUT_FIELD_REFERENCE,
+  AI_CHECK_OUTPUT_PROMPT_SCHEMA,
+  AI_CHECK_OUTPUT_SCHEMA_SUMMARY,
   AI_CHECK_STRICTNESS_LEVELS
 } from "../../shared/ai-check-contract";
+import {
+  buildProviderMessages,
+  buildRoundSnapshot,
+  buildTrustedRoundContextParts,
+  buildTrustedTurnContextParts
+} from "../../ai/context-builder";
+import { buildStaticContractPromptParts } from "../../ai/prompt";
+import type { PromptPart } from "../../ai/prompt";
 import { AppShell } from "../shared/AppShell";
 import { sendMessage } from "../shared/api";
 import { useAsyncState } from "../shared/useAsyncState";
@@ -43,6 +57,7 @@ import type {
 import "../shared/styles.css";
 
 type ReviewArea = "history" | "eval" | "schema";
+type SchemaManualTab = "system" | "round" | "conversation" | "turn" | "messages" | "output" | "evaluation" | "compare";
 
 interface EvalFormState {
   title: string;
@@ -67,6 +82,23 @@ interface SchemaTreeNode {
   nullable?: boolean;
   field?: AICheckSchemaFieldReference;
   children: SchemaTreeNode[];
+}
+
+interface SchemaManualSection {
+  title: string;
+  summary: string;
+  fields: AICheckSchemaFieldReference[];
+  example: unknown;
+  schemaSummary?: string;
+  promptSchema?: unknown;
+}
+
+interface CompareRow {
+  path: string;
+  input: string;
+  output: string;
+  evaluation: string;
+  relation: string;
 }
 
 const ERROR_TYPES: Array<{ value: BadCaseErrorType; label: string }> = [
@@ -813,49 +845,638 @@ function EvalCaseDetail({
 }
 
 function SchemaReference() {
-  const schemaTree = useMemo(() => buildSchemaTree(AI_CHECK_SCHEMA_FIELD_REFERENCE), []);
+  const [activeTab, setActiveTab] = useState<SchemaManualTab>("system");
 
   return (
     <section className="schema-reference stack">
       <div className="panel stack">
         <div className="section-heading">
-          <span className="section-label">Structured output contract</span>
-          <h2>Current AI Check schema shape</h2>
+          <span className="section-label">AI Check Contract Manual</span>
+          <h2>Provider messages, output, and evaluation reference</h2>
         </div>
         <p className="muted">
-          This reference is generated from a shared descriptor so PM Review can stay aligned with parser validation, prompt
-          contract, and eval expectations.
+          This manual is generated from shared contract references so PM Review stays aligned with runtime prompt building,
+          parser validation, and eval expectations.
         </p>
+        <div className="contract-version-grid">
+          <VersionChip label="Prompt" value={AI_CHECK_CONTRACT.promptVersion} source="AI_CHECK_CONTRACT.promptVersion" />
+          <VersionChip label="Schema" value={AI_CHECK_CONTRACT.schemaVersion} source="AI_CHECK_CONTRACT.schemaVersion" />
+          <VersionChip label="Rubric" value={AI_CHECK_CONTRACT.rubricVersion} source="AI_CHECK_CONTRACT.rubricVersion" />
+          <VersionChip
+            label="Session"
+            value={`${AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns} turns / ${AI_CHECK_CONTRACT.sessionPolicy.maxSessionSeconds}s`}
+            source="AI_CHECK_CONTRACT.sessionPolicy"
+          />
+        </div>
+        <RuntimeFlow />
       </div>
-      <div className="schema-workspace">
-        <section className="panel schema-tree-panel stack">
-          <div className="section-heading">
-            <span className="section-label">Schema Shape</span>
-            <h2>JSON output</h2>
-          </div>
-          <div className="schema-root-row">
-            <span className="schema-brace">{"{"}</span>
-            <span className="muted">root object</span>
-            <span className="schema-brace">{"}"}</span>
-          </div>
-          <div className="schema-tree">
-            {schemaTree.map((node) => (
-              <SchemaTreeItem key={node.path} node={node} depth={0} />
-            ))}
-          </div>
-        </section>
 
-        <section className="panel schema-example-panel stack">
-          <div className="section-heading">
-            <span className="section-label">Example Output</span>
-            <h2>ASK_MORE case</h2>
+      <div className="schema-manual-tabs" role="tablist" aria-label="Schema reference views">
+        {(["system", "round", "conversation", "turn", "messages", "output", "evaluation", "compare"] as SchemaManualTab[]).map((tab) => (
+          <button
+            key={tab}
+            className={activeTab === tab ? "schema-manual-tab schema-manual-tab-active" : "schema-manual-tab"}
+            onClick={() => setActiveTab(tab)}
+            role="tab"
+            aria-selected={activeTab === tab}
+          >
+            {formatSchemaManualTab(tab)}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "system" && <SystemPromptReference />}
+      {activeTab === "round" && <RoundContextReference />}
+      {activeTab === "conversation" && <ConversationReference />}
+      {activeTab === "turn" && <TurnContextReference />}
+      {activeTab === "messages" && <ProviderMessagesReference />}
+      {activeTab === "output" && (
+        <SchemaSectionReference
+          kind="output"
+          section={{
+            title: AI_CHECK_CONTRACT.sections.output.title,
+            summary: AI_CHECK_CONTRACT.sections.output.summary,
+            fields: AI_CHECK_OUTPUT_FIELD_REFERENCE,
+            example: AI_CHECK_OUTPUT_EXAMPLE,
+            promptSchema: AI_CHECK_OUTPUT_PROMPT_SCHEMA,
+            schemaSummary: AI_CHECK_OUTPUT_SCHEMA_SUMMARY
+          }}
+        />
+      )}
+      {activeTab === "evaluation" && (
+        <SchemaSectionReference
+          kind="evaluation"
+          section={{
+            title: AI_CHECK_CONTRACT.sections.evaluation.title,
+            summary: AI_CHECK_CONTRACT.sections.evaluation.summary,
+            fields: AI_CHECK_EVALUATION_FIELD_REFERENCE,
+            example: AI_CHECK_EVALUATION_EXAMPLE
+          }}
+        />
+      )}
+      {activeTab === "compare" && <SchemaCompareReference />}
+    </section>
+  );
+}
+
+function VersionChip({ label, source, value }: { label: string; source: string; value: string }) {
+  return (
+    <div className="contract-version-chip">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <code>{source}</code>
+    </div>
+  );
+}
+
+function RuntimeFlow() {
+  const steps = [
+    {
+      title: "AI Check contract",
+      body: "Versions, enums, session policy, schema fields, and examples."
+    },
+    {
+      title: "Runtime local context",
+      body: "Target, strictness, turn count, messages, and pattern memory."
+    },
+    {
+      title: "System Prompt builder",
+      body: "Builds the current prompt from contract references and runtime input."
+    },
+    {
+      title: "Provider request / model input",
+      body: "System Prompt, current target, pattern memory, and user-visible messages."
+    },
+    {
+      title: "Output and evaluation",
+      body: "Parsed output is validated, then Evaluation Cases assert expected behavior."
+    }
+  ];
+
+  return (
+    <div className="contract-flow" aria-label="AI Check contract flow">
+      {steps.map((step, index) => (
+        <div className="contract-flow-step" key={step.title}>
+          <strong>{step.title}</strong>
+          <span>{step.body}</span>
+          {index < steps.length - 1 && <ChevronRight size={16} aria-hidden="true" />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SchemaSectionReference({ kind, section }: { kind: "input" | "output" | "evaluation"; section: SchemaManualSection }) {
+  const schemaTree = useMemo(() => buildSchemaTree(section.fields), [section.fields]);
+
+  return (
+    <div className="schema-workspace">
+      <section className="panel schema-tree-panel stack">
+        <div className="section-heading">
+          <span className="section-label">Schema Shape</span>
+          <h2>{section.title}</h2>
+        </div>
+        <p className="muted">{section.summary}</p>
+        {kind === "input" && <InputComposition />}
+        {kind === "evaluation" && <EvaluationDefinition />}
+        <div className="schema-root-row">
+          <span className="schema-brace">{"{"}</span>
+          <span className="muted">root object</span>
+          <span className="schema-brace">{"}"}</span>
+        </div>
+        <div className="schema-tree">
+          {schemaTree.map((node) => (
+            <SchemaTreeItem key={node.path} node={node} depth={0} />
+          ))}
+        </div>
+      </section>
+
+      <section className="panel schema-example-panel stack">
+        <div className="section-heading">
+          <span className="section-label">Example</span>
+          <h2>{section.title}</h2>
+        </div>
+        <pre className="code schema-example-code">{JSON.stringify(section.example, null, 2)}</pre>
+        {kind === "output" && (
+          <div className="schema-guidance stack">
+            <StatusItem label="Schema summary" value={section.schemaSummary ?? ""} />
+            <details>
+              <summary>Prompt-facing schema</summary>
+              <pre className="code schema-example-code">{JSON.stringify(section.promptSchema, null, 2)}</pre>
+            </details>
           </div>
-          <p className="muted">A complete model response for a vague YouTube request that needs a time limit and exit plan.</p>
-          <pre className="code schema-example-code">{JSON.stringify(AI_CHECK_SCHEMA_EXAMPLE_OUTPUT, null, 2)}</pre>
-        </section>
+        )}
+        {kind === "evaluation" && (
+          <div className="schema-guidance stack">
+            <StatusItem label="Evaluation Case" value="input + optional captured output + eval assertions" />
+            <StatusItem label="Regression Case" value="status = regression and archivedAt is empty" />
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function InputComposition() {
+  const items = [
+    "generated System Prompt",
+    "current target",
+    "relevant pattern memory",
+    "user-visible conversation messages"
+  ];
+
+  return (
+    <div className="input-composition">
+      <strong>Provider request composition</strong>
+      <p className="muted">The System Prompt is one component of the provider request/model input.</p>
+      <div>
+        {items.map((item) => (
+          <span key={item}>{item}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function EvaluationDefinition() {
+  return (
+    <div className="input-composition">
+      <strong>Evaluation relationship</strong>
+      <p className="muted">
+        Evaluation Case = input + optional captured output + eval assertions. Regression Case = Evaluation Case with
+        status regression and no archivedAt.
+      </p>
+    </div>
+  );
+}
+
+function SystemPromptReference() {
+  const promptParts = useMemo(() => buildStaticContractPromptParts(), []);
+
+  return (
+    <PromptPartsReference
+      label="Static System Prompt"
+      title="Stable contract prompt"
+      description="This is the cache-friendly system prefix. It is stable across rounds until the prompt, schema, or rubric contract changes."
+      parts={promptParts}
+    />
+  );
+}
+
+function RoundContextReference() {
+  const round = useMemo(() => buildSampleRoundSnapshot(), []);
+  return (
+    <PromptPartsReference
+      label="Trusted Round Context"
+      title="Stable inside one round"
+      description="This app-supplied block freezes target, strictness, policy, pattern memory, and versions for the current AI Check round."
+      parts={buildTrustedRoundContextParts(round)}
+    />
+  );
+}
+
+function TurnContextReference() {
+  const [assistantTurnCount, setAssistantTurnCount] = useState(1);
+  const maxAssistantTurns = AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns;
+  const nextAssistantTurn = Math.min(assistantTurnCount + 1, maxAssistantTurns);
+  const [isFinalTurn, setIsFinalTurn] = useState(false);
+  const turnParts = useMemo(
+    () =>
+      buildTrustedTurnContextParts({
+        assistantTurnCount,
+        nextAssistantTurn,
+        maxAssistantTurns,
+        isFinalTurn
+      }),
+    [assistantTurnCount, isFinalTurn, maxAssistantTurns, nextAssistantTurn]
+  );
+  const firstDynamicIndex = Math.max(0, turnParts.findIndex((part) => part.dynamic));
+  const [selectedPartIndex, setSelectedPartIndex] = useState(firstDynamicIndex);
+  const selectedPart = turnParts[selectedPartIndex]?.dynamic ? turnParts[selectedPartIndex] : turnParts[firstDynamicIndex] ?? turnParts[0];
+
+  function updateAssistantTurnCount(value: string) {
+    const nextValue = Number(value);
+    if (!Number.isFinite(nextValue)) return;
+    setAssistantTurnCount(Math.min(Math.max(Math.round(nextValue), 0), maxAssistantTurns - 1));
+  }
+
+  return (
+    <div className="schema-workspace prompt-workspace">
+      <section className="panel schema-tree-panel stack">
+        <div className="section-heading">
+          <span className="section-label">Trusted Turn Context</span>
+          <h2>Per-turn control block</h2>
+        </div>
+        <p className="muted">
+          This block changes every provider call, so it is placed last to preserve the stable System Prompt, Round Context,
+          and append-only Conversation prefix.
+        </p>
+        <div className="prompt-controls">
+          <label>
+            <span>Assistant turns</span>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={maxAssistantTurns}
+              value={assistantTurnCount}
+              onChange={(event) => updateAssistantTurnCount(event.target.value)}
+            />
+          </label>
+          <label className="prompt-checkbox">
+            <input type="checkbox" checked={isFinalTurn} onChange={(event) => setIsFinalTurn(event.target.checked)} />
+            <span>Final turn</span>
+          </label>
+        </div>
+        <PromptPartsBlock onSelect={setSelectedPartIndex} parts={turnParts} selectedPart={selectedPart} />
+      </section>
+
+      <section className="panel schema-example-panel stack">
+        <div className="section-heading">
+          <span className="section-label">Source Inspector</span>
+          <h2>Selected prompt fragment</h2>
+        </div>
+        <PromptSourceInspector part={selectedPart} />
+      </section>
+    </div>
+  );
+}
+
+function ConversationReference() {
+  const sampleMessages = getSampleConversationMessages();
+  return (
+    <section className="panel stack">
+      <div className="section-heading">
+        <span className="section-label">Append-only Conversation</span>
+        <h2>User-visible chat messages</h2>
+      </div>
+      <p className="muted">
+        Conversation messages keep their original user/assistant roles and are appended after Round Context. Prior messages
+        remain an unchanged prefix.
+      </p>
+      <pre className="code schema-example-code">{JSON.stringify(sampleMessages, null, 2)}</pre>
+    </section>
+  );
+}
+
+function ProviderMessagesReference() {
+  const round = useMemo(() => buildSampleRoundSnapshot(), []);
+  const messages = useMemo(
+    () =>
+      buildProviderMessages({
+        round,
+        messages: getSampleConversationMessages(),
+        turn: {
+          assistantTurnCount: 1,
+          nextAssistantTurn: 2,
+          maxAssistantTurns: round.maxAssistantTurns,
+          isFinalTurn: false
+        }
+      }),
+    [round]
+  );
+  return (
+    <section className="panel stack">
+      <div className="section-heading">
+        <span className="section-label">Provider Messages</span>
+        <h2>Final OpenAI-compatible array shape</h2>
+      </div>
+      <p className="muted">
+        The static System Prompt and trusted Round Context appear first. Turn Context appears last because it changes every
+        turn.
+      </p>
+      <pre className="code schema-example-code">{JSON.stringify(messages, null, 2)}</pre>
+    </section>
+  );
+}
+
+function PromptPartsReference({
+  description,
+  label,
+  parts,
+  title
+}: {
+  description: string;
+  label: string;
+  parts: PromptPart[];
+  title: string;
+}) {
+  const firstDynamicIndex = Math.max(0, parts.findIndex((part) => part.dynamic));
+  const [selectedPartIndex, setSelectedPartIndex] = useState(firstDynamicIndex);
+  const selectedPart = parts[selectedPartIndex]?.dynamic ? parts[selectedPartIndex] : parts[firstDynamicIndex] ?? parts[0];
+
+  return (
+    <div className="schema-workspace prompt-workspace">
+      <section className="panel schema-tree-panel stack">
+        <div className="section-heading">
+          <span className="section-label">{label}</span>
+          <h2>{title}</h2>
+        </div>
+        <p className="muted">{description}</p>
+        <PromptPartsBlock onSelect={setSelectedPartIndex} parts={parts} selectedPart={selectedPart} />
+      </section>
+
+      <section className="panel schema-example-panel stack">
+        <div className="section-heading">
+          <span className="section-label">Source Inspector</span>
+          <h2>Selected fragment</h2>
+        </div>
+        <PromptSourceInspector part={selectedPart} />
+      </section>
+    </div>
+  );
+}
+
+function PromptPartsBlock({
+  onSelect,
+  parts,
+  selectedPart
+}: {
+  onSelect: (index: number) => void;
+  parts: PromptPart[];
+  selectedPart: PromptPart;
+}) {
+  return (
+    <pre className="code prompt-preview">
+      {parts.map((part, index) => (
+        <PromptPartLine
+          active={selectedPart === part}
+          index={index}
+          key={`${part.text}-${index}`}
+          onSelect={() => onSelect(index)}
+          part={part}
+        />
+      ))}
+    </pre>
+  );
+}
+
+function PromptPartLine({
+  active,
+  index,
+  onSelect,
+  part
+}: {
+  active: boolean;
+  index: number;
+  onSelect: () => void;
+  part: PromptPart;
+}) {
+  const line = (
+    <>
+      {part.text}
+      {"\n"}
+    </>
+  );
+
+  if (!part.dynamic) {
+    return <span>{line}</span>;
+  }
+
+  return (
+    <button
+      aria-label={`Inspect prompt fragment ${index + 1}`}
+      className={active ? "prompt-dynamic-part prompt-dynamic-part-active" : "prompt-dynamic-part"}
+      onClick={onSelect}
+      onFocus={onSelect}
+      onMouseEnter={onSelect}
+      type="button"
+    >
+      {line}
+    </button>
+  );
+}
+
+function PromptSourceInspector({ part }: { part: PromptPart }) {
+  return (
+    <div className="prompt-source-inspector stack">
+      <div>
+        <span className="section-label">Prompt text</span>
+        <p>{part.text}</p>
+      </div>
+      <div>
+        <span className="section-label">Built from</span>
+        <ul>
+          {(part.sourcePaths ?? ["static prompt text"]).map((source) => (
+            <li key={source}>
+              <code>{source}</code>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {part.value !== undefined && (
+        <div>
+          <span className="section-label">Current value</span>
+          <pre className="code schema-example-code">{JSON.stringify(part.value, null, 2)}</pre>
+        </div>
+      )}
+      {part.meaning && (
+        <div>
+          <span className="section-label">Why it matters</span>
+          <p>{part.meaning}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SchemaCompareReference() {
+  const rows = useMemo(() => buildCompareRows(), []);
+
+  return (
+    <section className="panel stack">
+      <div className="section-heading">
+        <span className="section-label">Contract Diff</span>
+        <h2>Input vs Output vs Evaluation</h2>
+      </div>
+      <p className="muted">
+        This table is generated from contract section field paths so reviewers can see which fields belong to each part of the
+        AI Check loop.
+      </p>
+      <div className="compare-table-wrap">
+        <table className="table compare-table">
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>Input</th>
+              <th>Output</th>
+              <th>Evaluation</th>
+              <th>Relation</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.path}>
+                <td>
+                  <code>{row.path}</code>
+                </td>
+                <td>{row.input}</td>
+                <td>{row.output}</td>
+                <td>{row.evaluation}</td>
+                <td>{row.relation}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </section>
   );
+}
+
+function formatSchemaManualTab(tab: SchemaManualTab): string {
+  switch (tab) {
+    case "system":
+      return "System Prompt";
+    case "round":
+      return "Round Context";
+    case "conversation":
+      return "Conversation";
+    case "turn":
+      return "Turn Context";
+    case "messages":
+      return "Provider Messages";
+    case "output":
+      return "Output";
+    case "evaluation":
+      return "Evaluation";
+    case "compare":
+      return "Compare";
+  }
+}
+
+function buildSampleRoundSnapshot() {
+  return buildRoundSnapshot({
+    sessionId: "session_example",
+    targetId: "target_youtube",
+    targetDisplay: "youtube.com",
+    strictness: "balanced",
+    maxAssistantTurns: AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns,
+    patternMemorySnapshot: [],
+    provider: { id: "openai", model: "gpt-5.4-mini" },
+    createdAt: "2026-05-21T00:00:00.000Z"
+  });
+}
+
+function getSampleConversationMessages(): Array<{ role: "assistant" | "user"; content: string }> {
+  return [
+    {
+      role: "assistant",
+      content: "You're trying to open youtube.com. What are you here to do, and why now?"
+    },
+    {
+      role: "user",
+      content: "I just want one quick video."
+    },
+    {
+      role: "assistant",
+      content: "What specific task do you need YouTube for, and when will you stop?"
+    },
+    {
+      role: "user",
+      content: "I need a tutorial for homework and I will close it after 10 minutes."
+    }
+  ];
+}
+
+function buildCompareRows(): CompareRow[] {
+  const inputPaths = new Set(AI_CHECK_INPUT_FIELD_REFERENCE.map((field) => field.path));
+  const outputPaths = new Set(AI_CHECK_OUTPUT_FIELD_REFERENCE.map((field) => field.path));
+  const evaluationPaths = new Set(AI_CHECK_EVALUATION_FIELD_REFERENCE.map((field) => field.path));
+  const orderedPaths = [
+    ...AI_CHECK_INPUT_FIELD_REFERENCE.map((field) => field.path),
+    ...AI_CHECK_OUTPUT_FIELD_REFERENCE.map((field) => field.path),
+    ...AI_CHECK_EVALUATION_FIELD_REFERENCE.map((field) => field.path)
+  ];
+  const paths = [...new Set(orderedPaths)];
+
+  return paths.map((path) => ({
+    path,
+    input: compareLabel(path, inputPaths, "input"),
+    output: compareLabel(path, outputPaths, "output"),
+    evaluation: compareLabel(path, evaluationPaths, "evaluation"),
+    relation: compareRelation(path, inputPaths, outputPaths, evaluationPaths)
+  }));
+}
+
+function compareLabel(path: string, paths: Set<string>, section: "input" | "output" | "evaluation"): string {
+  if (paths.has(path)) return "Yes";
+  if (section === "evaluation" && path === "decision" && paths.has("eval.expectedOutput.decision")) {
+    return "Asserted";
+  }
+  if (section === "evaluation" && path.startsWith("input.") && paths.has("input")) {
+    return "Nested";
+  }
+  if (section === "output" && path === "output.parsed") {
+    return "Captured";
+  }
+  return "No";
+}
+
+function compareRelation(
+  path: string,
+  inputPaths: Set<string>,
+  outputPaths: Set<string>,
+  evaluationPaths: Set<string>
+): string {
+  if (path === "decision" && outputPaths.has(path) && evaluationPaths.has("eval.expectedOutput.decision")) {
+    return "Output decision is the primary expected decision assertion.";
+  }
+  if (path === "input" && evaluationPaths.has(path)) {
+    return "Evaluation embeds the model input fixture.";
+  }
+  if (path === "output.parsed") {
+    return "Optional captured provider output for inspection, not the expected answer.";
+  }
+  if (path.startsWith("eval.")) {
+    return "PM-authored evaluation assertion or reporting metadata.";
+  }
+  if (inputPaths.has(path)) {
+    return "Runtime context used to build the provider request.";
+  }
+  if (outputPaths.has(path)) {
+    return "Provider response field parsed into product behavior.";
+  }
+  return "";
 }
 
 function SchemaTreeItem({ depth, node }: { depth: number; node: SchemaTreeNode }) {

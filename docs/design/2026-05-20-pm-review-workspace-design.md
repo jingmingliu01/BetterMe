@@ -6,6 +6,7 @@ Related docs:
 - Issues: [2026-05-20-pm-review-workspace-issues.md](2026-05-20-pm-review-workspace-issues.md)
 - AI review/eval loop: [2026-05-18-ai-review-eval-loop-design.md](2026-05-18-ai-review-eval-loop-design.md)
 - AI Check case schema: [2026-05-20-ai-check-case-schema-design.md](2026-05-20-ai-check-case-schema-design.md)
+- AI Check provider message contract: [2026-05-21-ai-check-provider-message-contract-design.md](2026-05-21-ai-check-provider-message-contract-design.md)
 
 Rule: when this document changes, check the progress and issues documents for required updates.
 
@@ -39,7 +40,7 @@ History Cases are real AI Check sessions created by user behavior.
 
 Evaluation Cases are curated `AICheckCase` records used for evaluation and regression.
 
-Schema Reference explains the current structured model output contract and how each field affects product behavior.
+Schema Reference explains the current AI Check contract manual: how the runtime provider request is assembled, what the current generated System Prompt is, what structured output the model must return, and how Evaluation Cases assert expected behavior.
 
 ## History Cases
 
@@ -198,50 +199,221 @@ Default case sets:
 
 ## Schema Reference
 
-Schema Reference should be the third top-level PM Review area.
+Schema Reference should be the third top-level PM Review area. The navigation label can remain `Schema Reference`, but the surface should behave like an AI Check Contract Manual rather than only a model-output field list.
 
-It should explain the current structured output contract:
+The manual should help a reviewer understand four questions without reading source code:
 
-- JSON-shaped field hierarchy.
-- field name.
-- type.
-- required/optional.
-- nullable behavior.
-- one-line meaning.
-- expandable details for why it is necessary.
-- expandable details for product impact.
-- expandable details for validation behavior.
-- expandable details for common review mistakes.
-- a complete example output.
+- What are the current AI Check contract versions?
+- What is the provider request, and what pieces compose the model input?
+- What is the current generated System Prompt, and which parts are built from contract/runtime references?
+- What are the Output and Evaluation schemas, and how do they differ?
 
-This reference must stay synchronized with the runtime model output schema, parser validation, prompt contract, eval runner, and design docs.
+### Contract Sources
 
-The canonical source is `apps/extension/src/shared/ai-check-contract.json`. Prompt schema text, parser enum values, eval runner provider schema text, PM Review field reference, and schema examples should be derived from that contract instead of retyped in each module.
+The canonical AI Check source is `apps/extension/src/shared/ai-check-contract.json`.
 
-The same contract also owns PM Review case statuses, case sources, bad-case error types, common tags, built-in case sets, and AI Check session policy. Provider base URLs, default models, model allowlists, and eval env-key names live in `apps/extension/src/shared/provider-config.json`.
+The contract owns:
 
-The UI should not render these fields as a flat card wall. It should render them as an expandable JSON tree:
+- prompt, schema, and rubric version identifiers.
+- AI Check session policy.
+- enum values used by prompt, parser, UI controls, and evals.
+- Input, Output, and Evaluation field references.
+- Input, Output, and Evaluation examples.
+- PM Review case statuses, case sources, bad-case error types, common tags, and built-in case sets.
 
-```text
-{ root object }
-- decision
-- userFacingMessage
-- decisionReasonCategory
-- unlockMinutes
-- aiCooldownSeconds
-- nextQuestion
-- scores
-  - repeatedReason
-  - impulse
-  - deliberateness
-- memoryUpdate
-  - behaviorReasonCategory
-  - patternNote
+Provider base URLs, default models, model allowlists, and eval env-key names live in `apps/extension/src/shared/provider-config.json`.
+
+The UI must not hardcode version values. Version chips, version filters, case metadata defaults, and contract manual display must read from the typed contract wrapper:
+
+```ts
+AI_CHECK_CONTRACT.promptVersion
+AI_CHECK_CONTRACT.schemaVersion
+AI_CHECK_CONTRACT.rubricVersion
+AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns
+AI_CHECK_CONTRACT.sessionPolicy.maxSessionSeconds
 ```
 
-Each tree row should show the key, type, required badge, nullable badge when relevant, and a short meaning. Expanding the row should reveal the longer PM review guidance.
+The design docs may name these reference paths, but should avoid duplicating the current literal version values. Otherwise the docs become another drift source.
 
-The reference should also include a complete example output, starting with an `ASK_MORE` example because that case exercises nullable enforcement fields and `nextQuestion`.
+### Correct Runtime Flow
+
+The runtime flow is not `Model Input -> System Prompt`. The System Prompt is one part of the provider request/model input.
+
+The manual should show this flow:
+
+```text
+AI Check contract
+  -> versions, enums, output schema, examples, session policy
+
+Runtime local context
+  -> targetDisplay, strictness, assistantTurnCount, messages, pattern memory
+
+System Prompt builder
+  -> reads contract references
+  -> reads runtime prompt input
+  -> generates the current System Prompt
+
+Provider request / model input
+  -> system prompt
+  -> current target
+  -> relevant pattern memory
+  -> user-visible conversation messages
+
+Model output
+  -> parsed and validated against the output contract
+
+Evaluation Case
+  -> stores input
+  -> may store captured output
+  -> stores PM-authored assertions
+```
+
+The first visible area in Schema Reference should include a compact version/reference strip and this flow diagram so a new reviewer can orient before reading fields.
+
+### Manual Tabs
+
+Schema Reference should contain internal tabs:
+
+- `Input`
+- `System Prompt`
+- `Output`
+- `Evaluation`
+- `Compare`
+
+The original top-level PM Review area remains unchanged. These are tabs inside Schema Reference.
+
+Each schema tab should use the same layout:
+
+```text
+JSON-shaped tree | Example and guidance panel
+```
+
+The tree should show indentation like formatted JSON. Each row should show field key, type, required/optional badge, nullable badge when relevant, and short meaning. Expanding a row should reveal why it is necessary, product impact, validation behavior, common review mistakes, and a field-level example when available.
+
+### Input Tab
+
+The Input tab should explain the provider request/model input at two levels.
+
+First, it should show input composition:
+
+- generated System Prompt.
+- current target.
+- relevant pattern memory.
+- user-visible conversation messages.
+
+Second, it should show the structured runtime fields from `AI_CHECK_CONTRACT.sections.input.fields` as an expandable JSON-shaped tree, with `AI_CHECK_CONTRACT.sections.input.example` in the example panel.
+
+The input composition panel should make clear that the System Prompt is a component of the provider request, not something formed after the model input.
+
+### System Prompt Tab
+
+The System Prompt tab should display the current generated System Prompt for a representative preview input. It should also display the prompt version from `AI_CHECK_CONTRACT.promptVersion`.
+
+The preview must come from the runtime prompt builder, not from a PM Review-only duplicated prompt string.
+
+The provider message contract refactor is tracked in [2026-05-21-ai-check-provider-message-contract-design.md](2026-05-21-ai-check-provider-message-contract-design.md). Schema Reference should not treat turn-level values as part of the System Prompt. It should explain the provider message sections as:
+
+- static System Prompt.
+- trusted Round Context.
+- append-only Conversation.
+- trusted Turn Context.
+- full Provider Messages array.
+
+To support source-aware rendering, the prompt builder should be split into structured parts:
+
+```ts
+interface PromptPart {
+  text: string;
+  dynamic?: boolean;
+  sourcePaths?: string[];
+  value?: unknown;
+  meaning?: string;
+}
+
+function buildSystemPromptParts(input: BuildSystemPromptInput): PromptPart[];
+
+function buildSystemPrompt(input: BuildSystemPromptInput): string {
+  return buildSystemPromptParts(input)
+    .map((part) => part.text)
+    .join("\n");
+}
+```
+
+Runtime provider calls continue to use `buildSystemPrompt(input)`. PM Review uses `buildSystemPromptParts(input)` to render the same text with provenance highlights.
+
+Dynamic prompt parts should be lightly highlighted in the prompt preview. Hovering or focusing a highlighted part should update a side inspector that shows:
+
+- selected prompt text.
+- source reference path.
+- current resolved value.
+- why the part matters.
+
+Expected highlighted dynamic sources include:
+
+- `strictness` from the preview/runtime input.
+- `assistantTurnCount` from the preview/runtime input.
+- `AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns`.
+- `AI_COOLDOWN_POLICIES[strictness]`.
+- `AI_CHECK_CONTRACT.enums.decisions`.
+- `AI_CHECK_CONTRACT.enums.decisionReasonCategories`.
+- `AI_CHECK_CONTRACT.enums.behaviorReasonCategories`.
+- `AI_CHECK_CONTRACT.sections.output.example`.
+- `AI_CHECK_CONTRACT.sections.output.schemaSummary`.
+
+The full prompt should remain readable as text. The source inspector is explanatory, not a replacement for the prompt.
+
+### Output Tab
+
+The Output tab should render `AI_CHECK_CONTRACT.sections.output.fields` as the expandable JSON-shaped tree and `AI_CHECK_CONTRACT.sections.output.example` as the example.
+
+It should also show the prompt-facing output schema from `AI_CHECK_CONTRACT.sections.output.promptSchema` and the concise schema summary from `AI_CHECK_CONTRACT.sections.output.schemaSummary`.
+
+This tab explains the model response contract and how parser validation turns that response into product behavior.
+
+### Evaluation Tab
+
+The Evaluation tab should render `AI_CHECK_CONTRACT.sections.evaluation.fields` and `AI_CHECK_CONTRACT.sections.evaluation.example`.
+
+It should explicitly explain:
+
+```text
+Evaluation Case = input + optional captured output + eval assertions
+Regression Case = Evaluation Case where status = regression and archivedAt is empty
+```
+
+The page should distinguish:
+
+- `input`: what the model saw.
+- `output.parsed`: optional captured provider behavior for inspection.
+- `eval`: PM-authored assertions and tags.
+
+### Compare Tab
+
+Compare should make the difference between Input, Output, and Evaluation obvious.
+
+The first version should use path-level comparison rather than a complex semantic diff:
+
+```text
+Path                         Input   Output   Evaluation
+targetDisplay                yes     no       inside input
+decision                     no      yes      expectedOutput.decision
+scores.impulse               no      yes      no
+eval.mustAskAbout            no      no       yes
+```
+
+The comparison should be derived from the contract section field paths, not from a manually maintained table.
+
+Lightweight visual highlights can help orientation:
+
+- newly visible paths get a short add highlight.
+- removed paths get a muted state in Compare, not in the normal schema tabs.
+- paths with related but not identical meanings can get a changed marker.
+
+The Compare table is the primary explanation. Animation should only reinforce the difference, not carry the meaning.
+
+### Drift Prevention
+
+This manual must stay synchronized with runtime schema, parser validation, prompt contract, eval runner, and design docs.
 
 The preferred implementation is a contract-first descriptor used by the UI, prompt builder, parser, eval runner, and tests:
 
@@ -260,21 +432,7 @@ interface AICheckSchemaFieldReference {
 }
 ```
 
-Required schema reference fields:
-
-- `decision`
-- `userFacingMessage`
-- `decisionReasonCategory`
-- `unlockMinutes`
-- `aiCooldownSeconds`
-- `nextQuestion`
-- `scores.repeatedReason`
-- `scores.impulse`
-- `scores.deliberateness`
-- `memoryUpdate.behaviorReasonCategory`
-- `memoryUpdate.patternNote`
-
-When any of these fields changes, update `ai-check-contract.json` first, then update parser constraints, TypeScript types, eval assertions, tests, and linked docs in the same change.
+When any Input, Output, Evaluation, enum, policy, or version field changes, update `ai-check-contract.json` first, then update parser constraints, TypeScript types, eval assertions, tests, and linked docs in the same change.
 
 ## AGENTS.md Policy
 
@@ -334,6 +492,14 @@ Phase 3: Schema Reference
 - Use the same descriptor in prompt, parser, eval runner, and tests.
 - Add tests or checks that prevent schema reference drift.
 - Update project instructions.
+
+Phase 3b: AI Check Contract Manual
+
+- Add Schema Reference internal tabs for Input, System Prompt, Output, Evaluation, and Compare.
+- Render version chips from `AI_CHECK_CONTRACT` reference fields rather than hardcoded labels.
+- Render Input and Evaluation trees from their contract sections.
+- Add a source-aware System Prompt viewer backed by structured prompt parts from the runtime prompt builder.
+- Add path-level Compare generated from contract section field paths.
 
 Phase 4: regression workflow
 

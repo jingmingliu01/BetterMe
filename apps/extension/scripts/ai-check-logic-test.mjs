@@ -15,7 +15,13 @@ try {
     AI_CHECK_OUTPUT_EXAMPLE,
     AI_CHECK_OUTPUT_SCHEMA_SUMMARY
   } = await server.ssrLoadModule("/src/shared/ai-check-contract.ts");
-  const { buildSystemPrompt } = await server.ssrLoadModule("/src/ai/prompt.ts");
+  const { buildStaticContractPrompt, buildStaticContractPromptParts } = await server.ssrLoadModule("/src/ai/prompt.ts");
+  const {
+    buildProviderMessages,
+    buildRoundSnapshot,
+    buildTrustedRoundContext,
+    buildTrustedTurnContext
+  } = await server.ssrLoadModule("/src/ai/context-builder.ts");
   const { parseCheckpointDecision, validateDecisionConstraints } = await server.ssrLoadModule("/src/ai/checkpoint-schema.ts");
   const { getDecisionMeter } = await server.ssrLoadModule("/src/ai/decision-meter.ts");
   const { requestCheckpointDecision } = await server.ssrLoadModule("/src/ai/provider-client.ts");
@@ -48,15 +54,68 @@ try {
     ]
   );
 
-  const prompt = buildSystemPrompt({
-    strictness: "balanced",
-    assistantTurnCount: 0,
-    maxAssistantTurns: 3,
-    isFinalTurn: false
-  });
+  const prompt = buildStaticContractPrompt();
+  const promptParts = buildStaticContractPromptParts();
+  assert.equal(
+    prompt,
+    promptParts
+      .map((part) => part.text)
+      .join("\n")
+  );
+  assert.ok(promptParts.some((part) => part.sourcePaths?.includes("AI_CHECK_CONTRACT.enums.decisions")));
+  assert.ok(promptParts.some((part) => part.sourcePaths?.includes("AI_CHECK_CONTRACT.sections.output.example")));
   assert.ok(prompt.includes(`Example json: ${JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE)}`));
   assert.ok(prompt.includes(`JSON schema: ${AI_CHECK_OUTPUT_SCHEMA_SUMMARY}`));
   assert.ok(prompt.includes(`Valid decision values: ${AI_CHECK_DECISIONS.join(", ")}.`));
+  assert.ok(!prompt.includes("Assistant turn count before this response"));
+
+  const roundSnapshot = buildRoundSnapshot({
+    sessionId: "session_test",
+    targetId: "target_test",
+    targetDisplay: "youtube.com",
+    strictness: "balanced",
+    maxAssistantTurns: AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns,
+    patternMemorySnapshot: []
+  });
+  const turnOneMessages = buildProviderMessages({
+    round: roundSnapshot,
+    messages: [{ role: "user", content: "I just want one quick video." }],
+    turn: {
+      assistantTurnCount: 0,
+      nextAssistantTurn: 1,
+      maxAssistantTurns: roundSnapshot.maxAssistantTurns,
+      isFinalTurn: false
+    }
+  });
+  const turnTwoMessages = buildProviderMessages({
+    round: roundSnapshot,
+    messages: [
+      { role: "user", content: "I just want one quick video." },
+      { role: "assistant", content: "What do you need it for?" },
+      { role: "user", content: "Homework." }
+    ],
+    turn: {
+      assistantTurnCount: 1,
+      nextAssistantTurn: 2,
+      maxAssistantTurns: roundSnapshot.maxAssistantTurns,
+      isFinalTurn: false
+    }
+  });
+  assert.equal(turnOneMessages[0].role, "system");
+  assert.equal(turnOneMessages[1].role, "user");
+  assert.equal(turnOneMessages.at(-1).role, "user");
+  assert.equal(turnOneMessages[0].content, turnTwoMessages[0].content);
+  assert.equal(turnOneMessages[1].content, turnTwoMessages[1].content);
+  assert.notEqual(turnOneMessages.at(-1).content, turnTwoMessages.at(-1).content);
+  assert.ok(buildTrustedRoundContext(roundSnapshot).includes("Strictness snapshot: balanced"));
+  assert.ok(
+    buildTrustedTurnContext({
+      assistantTurnCount: 4,
+      nextAssistantTurn: 5,
+      maxAssistantTurns: 5,
+      isFinalTurn: true
+    }).includes("Do not return ASK_MORE")
+  );
 
   const contractExampleDecision = parseCheckpointDecision(JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE), "session_contract");
   validateDecisionConstraints(contractExampleDecision, "balanced");

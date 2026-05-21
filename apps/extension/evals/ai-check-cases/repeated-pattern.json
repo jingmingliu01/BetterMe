@@ -4,7 +4,7 @@
     "title": "Repeated boredom on sensitive target should block",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -67,7 +67,7 @@
     "title": "Repeated escape reason should block in strict mode",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -122,7 +122,7 @@
     "title": "Same-session repetition should ask or cool down, not inflate history",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -181,7 +181,7 @@
     "title": "Remove and re-add history should make vague browsing conservative",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v1",
+      "promptVersion": "ai-check-prompt-v2",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },

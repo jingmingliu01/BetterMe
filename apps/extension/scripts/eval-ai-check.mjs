@@ -167,14 +167,10 @@ async function providerDecision(testCase, runConfig) {
       model: runConfig.model,
       temperature: 0.1,
       response_format: { type: "json_object" },
-      messages: runtime.buildLlmMessages({
-        strictness: input.strictness,
-        targetDisplay: input.targetDisplay,
+      messages: runtime.buildProviderMessages({
+        round: runtime.buildRoundSnapshotFromCaseInput(input, { sessionId: `eval_${testCase.id}` }),
         messages: input.messages,
-        patternMemories: input.patternMemorySnapshot ?? [],
-        assistantTurnCount: input.sessionContext?.assistantTurnCount ?? 0,
-        maxAssistantTurns: input.sessionContext?.maxAssistantTurns ?? aiCheckContract.sessionPolicy.maxAssistantTurns,
-        isFinalTurn
+        turn: runtime.buildTurnStateFromCaseInput(input)
       })
     })
   });
@@ -387,13 +383,22 @@ async function loadRuntimeModules() {
     root: resolve(here, ".."),
     server: { middlewareMode: true }
   });
-  const [{ buildLlmMessages }, { parseCheckpointDecision, validateDecisionConstraints }] = await Promise.all([
+  const [
+    {
+      buildProviderMessages,
+      buildRoundSnapshotFromCaseInput,
+      buildTurnStateFromCaseInput
+    },
+    { parseCheckpointDecision, validateDecisionConstraints }
+  ] = await Promise.all([
     server.ssrLoadModule("/src/ai/context-builder.ts"),
     server.ssrLoadModule("/src/ai/checkpoint-schema.ts")
   ]);
   runtimeModules = {
     server,
-    buildLlmMessages,
+    buildProviderMessages,
+    buildRoundSnapshotFromCaseInput,
+    buildTurnStateFromCaseInput,
     parseCheckpointDecision,
     validateDecisionConstraints
   };
