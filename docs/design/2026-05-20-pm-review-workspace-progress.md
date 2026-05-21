@@ -87,6 +87,7 @@ Schema Reference now acts as an AI Check Contract Manual centered on the provide
 - Done: align Contract Manual with the provider message contract refactor so System Prompt, Round Context, Conversation, and Turn Context are shown inside the Provider Messages tree.
 - Done: simplify Contract Manual readability by making the provider `messages[]` tree the default view, removing the extra provider-section tabs, removing the multi-card flow diagram, and replacing the heavy source inspector with a lightweight preview panel.
 - Done: render selected prompt/context content as XML-like section blocks in the right preview, preserving original line breaks while reducing ambiguity from viewport wrapping.
+- Done: unify Provider Messages preview tags to `Cross-Round Context`, `Cross-Turn Context`, `Round-Level Context`, `Conversation`, and `Turn-Level Context`.
 - Done: update Output and Evaluation tabs to match the Provider Messages interaction pattern: selectable contract example on the left, selected-field explanation with contract metadata on the right.
 
 ### Phase 4: Regression Workflow

@@ -325,10 +325,10 @@ Provider Messages should be the default view. It shows the provider `messages[]`
 
 The Provider Messages tree should explain:
 
-- System Prompt: stable cross-round contract.
-- Round Context: trusted app context stable inside a round.
-- Conversation: append-only user-visible chat.
-- Turn Context: per-turn final-turn and turn-count control.
+- System Prompt tags: `Cross-Round Context` and `Cross-Turn Context`.
+- Round Context tag: `Round-Level Context`.
+- Conversation tag: `Conversation`.
+- Turn Context tag: `Turn-Level Context`.
 
 The right preview should render generated prompt/context text as XML-like section blocks from the same structured prompt parts used by runtime builders. This keeps provenance highlights while making original line breaks and section boundaries easier to read.
 
@@ -414,7 +414,7 @@ Phase 4: update PM Review Contract Manual
 - make Provider Messages the default Contract Manual view.
 - show System Prompt, Round Context, Conversation, and Turn Context inside the provider `messages[]` tree.
 - keep provenance highlights for all generated non-user blocks.
-- show which sections are stable across rounds, stable inside one round, append-only, or per-turn.
+- show unified context tags for each section: `Cross-Round Context`, `Cross-Turn Context`, `Round-Level Context`, `Conversation`, and `Turn-Level Context`.
 
 Phase 5: cleanup and guardrails
 

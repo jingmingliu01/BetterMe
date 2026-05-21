@@ -108,8 +108,7 @@ interface ProviderMessagePreviewSection {
   token: string;
   role: string;
   path: string;
-  stability: string;
-  source: string;
+  tags: string[];
   parts?: PromptPart[];
   previewText?: string;
 }
@@ -1387,8 +1386,9 @@ function ProviderMessagePreview({ section }: { section: ProviderMessagePreviewSe
       <div className="provider-preview-meta" aria-label="Selected provider message metadata">
         <span>{section.path}</span>
         <span>role: {section.role}</span>
-        <span>{section.stability}</span>
-        <span>{section.source}</span>
+        {section.tags.map((tag) => (
+          <span key={tag}>{tag}</span>
+        ))}
       </div>
       {section.parts ? (
         <PromptPartsPreview parts={section.parts} />
@@ -1515,8 +1515,7 @@ function buildProviderMessagePreviewSections(): ProviderMessagePreviewSection[] 
       token: "$ systemLevelPrompt",
       role: "system",
       path: "messages[0].content",
-      stability: "cross-round stable",
-      source: "prompt builder",
+      tags: ["Cross-Round Context", "Cross-Turn Context"],
       parts: buildStaticContractPromptParts()
     },
     {
@@ -1525,8 +1524,7 @@ function buildProviderMessagePreviewSections(): ProviderMessagePreviewSection[] 
       token: "$ trustedRoundContext",
       role: "user",
       path: "messages[1].content",
-      stability: "stable inside one round",
-      source: "round snapshot",
+      tags: ["Round-Level Context"],
       parts: buildTrustedRoundContextParts(round)
     },
     {
@@ -1535,8 +1533,7 @@ function buildProviderMessagePreviewSections(): ProviderMessagePreviewSection[] 
       token: "...conversationMessages",
       role: "assistant/user",
       path: "messages[2...n-1]",
-      stability: "append-only",
-      source: "visible conversation",
+      tags: ["Conversation"],
       previewText: JSON.stringify(conversationMessages, null, 2)
     },
     {
@@ -1545,8 +1542,7 @@ function buildProviderMessagePreviewSections(): ProviderMessagePreviewSection[] 
       token: "$ trustedTurnContext",
       role: "user",
       path: "messages[n].content",
-      stability: "changes every turn",
-      source: "turn state",
+      tags: ["Turn-Level Context"],
       parts: buildTrustedTurnContextParts({
         assistantTurnCount: 1,
         nextAssistantTurn: 2,

@@ -76,6 +76,7 @@ The latest prompt contract also uses XML-like sections for the static System Pro
 - Done: update linked docs and `AGENTS.md` with provider message ordering and round snapshot rules.
 - Done: remove repeated trusted-context authority lines from Round/Turn Context; the authority rule now lives once in the static System Prompt.
 - Done: keep prompt/schema/rubric versions in metadata/UI rather than sending them as decision context.
+- Done: standardize PM Review Provider Messages tags to `Cross-Round Context`, `Cross-Turn Context`, `Round-Level Context`, `Conversation`, and `Turn-Level Context`.
 
 ## Validation Status
 

@@ -284,7 +284,7 @@ The left side shows the full `messages[]` array shape. Clicking `$ systemLevelPr
 
 The right side should be a lightweight preview panel, not a heavy inspector. It should show:
 
-- a compact metadata row, such as `messages[0].content`, `role: system`, `cross-round stable`, and `prompt builder`.
+- a compact metadata row, such as `messages[0].content`, `role: system`, `Cross-Round Context`, and `Cross-Turn Context`.
 - the selected XML-like prompt/context text as readable section blocks that preserve original line breaks.
 - sample conversation message JSON in a code preview.
 - light highlights for generated/dynamic sections.
@@ -302,10 +302,10 @@ The real provider-visible prompt and trusted context should use XML-like section
 
 The provider message contract refactor is tracked in [2026-05-21-ai-check-provider-message-contract-design.md](2026-05-21-ai-check-provider-message-contract-design.md). Schema Reference should not treat turn-level values as part of the System Prompt. It should explain the provider message sections as:
 
-- static System Prompt.
-- trusted Round Context.
-- append-only Conversation.
-- trusted Turn Context.
+- System Prompt tags: `Cross-Round Context` and `Cross-Turn Context`.
+- Round Context tag: `Round-Level Context`.
+- Conversation tag: `Conversation`.
+- Turn Context tag: `Turn-Level Context`.
 - full Provider Messages array.
 
 To support source-aware rendering, the prompt builder uses structured parts:
