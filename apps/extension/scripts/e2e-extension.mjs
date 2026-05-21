@@ -117,7 +117,7 @@ try {
     cooldowns[0] = {
       ...cooldowns[0],
       endsAt: new Date(Date.now() - 1000).toISOString(),
-      unlockMinutes: 0.03
+      unlockMinutes: 0.12
     };
     await chrome.storage.local.set({ [key]: cooldowns });
   });
@@ -130,13 +130,100 @@ try {
     throw new Error(`Completed cooldown did not navigate to attempted site: ${page.url()}`);
   }
   console.log("COOLDOWN_UNLOCK_OK true");
+  const leavePage = await context.newPage();
+  await leavePage.goto("https://example.com/?bettermeLeaveProbe=1");
+  await leavePage.waitForLoadState("load");
+  await leavePage.getByText("BetterMe reminder").waitFor({ timeout: 3_000 });
+  await leavePage.getByRole("button", { name: /Leave Site/ }).click();
+  await leavePage.waitForURL((url) => !url.href.startsWith("https://example.com/"), { timeout: 3_000 });
+  if (leavePage.url().startsWith("https://example.com/")) {
+    throw new Error(`Leave action did not leave the unlocked site: ${leavePage.url()}`);
+  }
+  await leavePage.close();
+  console.log("IN_PAGE_WARNING_LEAVE_OK true");
+  await page.evaluate(() => {
+    window.__bettermeWarningProbe = { clicks: 0, keys: 0, wheels: 0 };
+    document.body.style.minHeight = "3000px";
+    window.scrollTo(0, 0);
+    const button = document.createElement("button");
+    button.id = "betterme-underlay-target";
+    button.textContent = "Underlay target";
+    button.style.position = "fixed";
+    button.style.top = "24px";
+    button.style.left = "24px";
+    button.style.zIndex = "2147483647";
+    button.style.width = "180px";
+    button.style.height = "80px";
+    button.addEventListener("click", () => {
+      window.__bettermeWarningProbe.clicks += 1;
+    });
+    document.body.append(button);
+    document.addEventListener(
+      "keydown",
+      () => {
+        window.__bettermeWarningProbe.keys += 1;
+      },
+      { capture: true }
+    );
+    document.addEventListener(
+      "wheel",
+      () => {
+        window.__bettermeWarningProbe.wheels += 1;
+      },
+      { capture: true }
+    );
+  });
   await page.getByText("BetterMe reminder").waitFor({ timeout: 3_000 });
-  await page.getByRole("button", { name: /OK, continue deliberately/ }).click();
-  console.log("IN_PAGE_WARNING_OK true");
+  await page
+    .getByText("You can leave now and keep control, or finish the time you already unlocked. The timer keeps running either way.")
+    .waitFor({ timeout: 1_000 });
+  await page.getByRole("button", { name: /Leave Site/ }).waitFor({ timeout: 1_000 });
+  await page.getByRole("button", { name: /Finish My Time/ }).waitFor({ timeout: 1_000 });
+  const staleWarningCopyCount = await page
+    .getByText("Confirm that you still want to spend this final minute here.")
+    .count();
+  if (staleWarningCopyCount !== 0) {
+    throw new Error("Warning copy still implies the final minute starts after confirmation.");
+  }
+  const staleWarningButtonCount = await page.getByRole("button", { name: /OK, keep browsing deliberately/ }).count();
+  if (staleWarningButtonCount !== 0) {
+    throw new Error("Warning still uses the old single acknowledgement button.");
+  }
+  const warningTopElement = await page.evaluate(() => {
+    const element = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+    return element?.tagName ?? null;
+  });
+  if (warningTopElement !== "BETTERME-UNLOCK-WARNING") {
+    throw new Error(`Warning overlay should be the top page element, got ${warningTopElement}`);
+  }
+  const underlayBox = await page.locator("#betterme-underlay-target").boundingBox();
+  if (!underlayBox) {
+    throw new Error("Warning interaction probe button was not rendered.");
+  }
+  await page.mouse.click(underlayBox.x + underlayBox.width / 2, underlayBox.y + underlayBox.height / 2);
+  await page.mouse.wheel(0, 600);
+  await page.keyboard.press("ArrowDown");
+  const warningProbe = await page.evaluate(() => ({
+    ...window.__bettermeWarningProbe,
+    scrollY: window.scrollY
+  }));
+  if (warningProbe.clicks !== 0 || warningProbe.keys !== 0 || warningProbe.wheels !== 0 || warningProbe.scrollY !== 0) {
+    throw new Error(`Warning overlay did not block page interaction: ${JSON.stringify(warningProbe)}`);
+  }
+  await page.getByRole("button", { name: /Finish My Time/ }).click();
+  await page.locator("betterme-unlock-warning").waitFor({ state: "detached", timeout: 1_000 });
+  const postFinishInteraction = await page.evaluate(() => {
+    document.querySelector("#betterme-underlay-target")?.click();
+    return window.__bettermeWarningProbe.clicks;
+  });
+  if (postFinishInteraction !== 1) {
+    throw new Error(`Finish My Time did not restore page interaction: ${postFinishInteraction}`);
+  }
+  console.log("IN_PAGE_WARNING_FINISH_OK true");
   await page.waitForFunction(
     (prefix) => window.location.href.startsWith(prefix),
     `chrome-extension://${extensionId}/block.html`,
-    { timeout: 6_000 }
+    { timeout: 12_000 }
   );
   if (!page.url().startsWith(`chrome-extension://${extensionId}/block.html`)) {
     throw new Error(`Unlock expiry did not redirect active tab back to block page: ${page.url()}`);

@@ -333,18 +333,23 @@ temporary unlock page
   -> content script asks background for PageAccessInfo
   -> background returns target id, target display, unlock id, expiresAt, warning threshold
   -> content script schedules warning at expiresAt - warningThreshold
-  -> warning overlay blocks page interaction
-  -> user clicks OK to continue deliberately
-  -> final expiry redirect still runs even if the user does not click OK
+  -> warning modal enters the page top layer and blocks page interaction
+  -> user chooses Leave Site or Finish My Time
+  -> final expiry redirect still runs even if the user does not choose either action
 ```
 
 Implementation rules:
 
 - Use a content script.
 - Use Shadow DOM for the overlay so page CSS does not break it.
+- Use a native modal `dialog.showModal()` so the reminder is in the page top layer, not only a normal high-`z-index` element.
+- Lock page scrolling and intercept pointer, wheel, touch, keyboard, and context-menu events in capture phase while the reminder is visible.
 - Do not read page content.
 - Send only current URL to background for matching.
 - Keep the final expiry redirect independent from the warning acknowledgement.
+- The copy must present the warning as a reminder; it must not imply the final minute starts only after the user confirms.
+- Present `Leave Site` as the primary action so the user can actively leave and regain control.
+- Present `Finish My Time` as the secondary action; it dismisses only the reminder and lets the already-running temporary unlock continue until normal expiry.
 - Avoid runtime imports in the content script bundle because manifest content scripts are loaded as classic scripts.
 
 This replaces the earlier system-notification idea for the core product experience.

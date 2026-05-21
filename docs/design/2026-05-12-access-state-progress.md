@@ -97,7 +97,7 @@ Last known build status:
 - Popup no longer shows AI readiness badge or AI PM Review entry.
 - Alarm expiry redirects open matching tabs back to BetterMe block page without requiring refresh.
 - A content-script expiry guard also schedules redirect inside temporarily unlocked pages without reading page content.
-- In-page unlock warning overlay appears at the configured warning threshold and requires user confirmation before continuing.
+- In-page unlock warning appears at the configured warning threshold as a Shadow DOM modal `dialog`, blocks page interaction through scroll lock and capture-phase event guards, and offers primary `Leave Site` plus secondary `Finish My Time` actions while the final minute continues counting down.
 - Deleted target recovery is implemented for stale `block.html?targetId=...` pages.
 - Blocked targets now have stable `targetKey` identity for future remove/re-add analysis.
 - Added append-only `BehaviorEvent` history in IndexedDB.

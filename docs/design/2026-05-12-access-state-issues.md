@@ -13,6 +13,50 @@ No open access-state issues at this checkpoint.
 
 ## Closed Issues
 
+### ISSUE-020: Last-minute reminder should offer Leave Site and Finish My Time
+
+Status: closed
+
+Current behavior:
+
+- The last-minute reminder had one acknowledgement button, so the strongest visible action was to continue browsing.
+
+Expected behavior:
+
+- The reminder should encourage the user to actively leave by making `Leave Site` the primary action.
+- The reminder should still allow the user to dismiss the prompt and finish the already-unlocked time with a secondary, non-highlighted action.
+- Neither action should pause, extend, or restart the temporary unlock timer.
+
+Resolution:
+
+- Replaced the single acknowledgement button with `Leave Site` and `Finish My Time`.
+- `Leave Site` follows the redirected checkpoint page behavior: go back when possible, otherwise navigate to `about:blank`.
+- `Finish My Time` only dismisses the modal and restores page interaction; normal expiry redirect remains unchanged.
+- Extended extension E2E coverage for both actions.
+
+### ISSUE-019: Last-minute reminder must be page-top modal and block page operations
+
+Status: closed
+
+Current behavior:
+
+- The reminder host reset its own positioning with inline `all: initial`, so the Shadow DOM `:host` `position` and `z-index` rules were not reliable.
+- The reminder relied on a visual backdrop but did not intercept page pointer, wheel, touch, keyboard, or scroll operations.
+- The reminder copy could be read as saying the last minute starts only after confirmation.
+
+Expected behavior:
+
+- The reminder should enter the page top layer and stay above page content.
+- A backdrop should cover the page while pointer, wheel, touch, keyboard, context-menu, and scroll operations outside the reminder are blocked.
+- The acknowledgement should only dismiss the reminder; it should not start or change the final-minute timer.
+
+Resolution:
+
+- Replaced the normal overlay with a Shadow DOM native modal `dialog`.
+- Added scroll lock and capture-phase interaction blocking while the reminder is visible.
+- Updated reminder copy to say the final minute is already counting down.
+- Extended extension E2E coverage to verify topmost placement, blocked page click/wheel/keyboard/scroll behavior, and the corrected copy.
+
 ### ISSUE-018: AI hold must suppress Basic Cooldown
 
 Status: closed
