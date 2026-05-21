@@ -16,7 +16,7 @@ First implementation slice is in progress and locally implemented.
 
 PM Review now has a local AI quality workspace shape with History Cases, Evaluation Cases, and Schema Reference areas. Evaluation Cases can be created, edited, promoted to `regression`, filtered through built-in case sets/tags/search, and archived instead of hard-deleted.
 
-Schema Reference now acts as an AI Check Contract Manual that explains Input, System Prompt, Output, Evaluation, and their differences from shared contract references.
+Schema Reference now acts as an AI Check Contract Manual centered on the provider `messages[]` request, plus Output, Evaluation, and Compare views from shared contract references.
 
 ## Already Exists
 
@@ -77,13 +77,17 @@ Schema Reference now acts as an AI Check Contract Manual that explains Input, Sy
 
 ### Phase 3b: AI Check Contract Manual
 
-- Done: add internal Contract Manual tabs for System Prompt, Round Context, Conversation, Turn Context, Provider Messages, Output, Evaluation, and Compare.
+- Done: add internal Contract Manual tabs for Provider Messages, Output, Evaluation, and Compare.
 - Done: render version chips from `AI_CHECK_CONTRACT.promptVersion`, `AI_CHECK_CONTRACT.schemaVersion`, `AI_CHECK_CONTRACT.rubricVersion`, and `AI_CHECK_CONTRACT.sessionPolicy`.
-- Done: render Input, Output, and Evaluation JSON trees from `AI_CHECK_CONTRACT.sections`.
-- Done: add a source-aware System Prompt viewer that displays the current generated prompt and highlights dynamic parts with source references.
+- Done: render Output and Evaluation examples from `AI_CHECK_CONTRACT.sections`.
+- Done: add a Provider Messages viewer that displays the provider request tree and highlights generated parts with source references.
+- Done: render the actual XML-like provider-visible prompt/context sections in the Provider Messages preview while keeping output schema/example JSON.
 - Done: add path-level Compare generated from contract section field paths.
 - Done: keep runtime prompt text and PM Review prompt preview aligned through structured prompt parts.
-- Done: align Contract Manual with the provider message contract refactor so System Prompt, Round Context, Conversation, Turn Context, and Provider Messages are shown as separate sections.
+- Done: align Contract Manual with the provider message contract refactor so System Prompt, Round Context, Conversation, and Turn Context are shown inside the Provider Messages tree.
+- Done: simplify Contract Manual readability by making the provider `messages[]` tree the default view, removing the extra provider-section tabs, removing the multi-card flow diagram, and replacing the heavy source inspector with a lightweight preview panel.
+- Done: render selected prompt/context content as XML-like section blocks in the right preview, preserving original line breaks while reducing ambiguity from viewport wrapping.
+- Done: update Output and Evaluation tabs to match the Provider Messages interaction pattern: selectable contract example on the left, selected-field explanation with contract metadata on the right.
 
 ### Phase 4: Regression Workflow
 
@@ -108,6 +112,7 @@ Validation performed:
 - Run `npm --workspace apps/extension run test:e2e`.
 - Run `git diff --check`.
 - Opened the packaged extension Review page with Playwright and captured `/tmp/betterme-schema-reference.png` to verify the Schema Reference tree/example renders.
+- Ran `npm --workspace apps/extension run typecheck` after simplifying the Contract Manual provider-message view.
 
 Pending validation:
 
@@ -124,10 +129,11 @@ Pending validation:
 - Reworked Schema Reference from a flat field-card grid into a collapsible JSON tree plus example output.
 - Refactored AI Check schema facts into contract-first source `ai-check-contract.json`.
 - Moved PM Review and session-policy facts into `ai-check-contract.json`, moved provider facts into `provider-config.json`, and updated provider evals to use the runtime prompt path.
-- Updated the next Schema Reference design to an AI Check Contract Manual covering Input, System Prompt provenance, Output, Evaluation, version references, and contract-section comparison.
-- Implemented the AI Check Contract Manual tabs, version reference strip, System Prompt source inspector, and contract path comparison table.
+- Updated the next Schema Reference design to an AI Check Contract Manual covering Provider Messages, Output, Evaluation, version references, and contract-section comparison.
+- Implemented the AI Check Contract Manual tabs, version reference strip, provider message preview, and contract path comparison table.
 - Added a follow-up provider message contract design because the next architecture step separates static System Prompt, round-stable context, append-only conversation, and turn-level context for clearer caching behavior.
 - Implemented the provider message contract split and updated PM Review Contract Manual tabs to match the new message sections.
+- Simplified the Contract Manual presentation so Provider Messages is the default model and System/Round/Conversation/Turn are clicked inside the same `messages[]` tree instead of separate tabs.
 - Updated `AGENTS.md` with PM Review schema-sync, archive, and regression rules.
 - Updated this progress doc and the issues doc because scope/status changed from design-only to implementation checkpoint.
 

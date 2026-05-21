@@ -138,15 +138,17 @@ Expected behavior:
 
 - Schema Reference behaves as an AI Check Contract Manual.
 - The manual shows the correct runtime flow: contract and runtime context feed the System Prompt builder, then the provider request includes System Prompt, current target, pattern memory, and user-visible messages.
-- The manual has internal tabs for Input, System Prompt, Output, Evaluation, and Compare.
-- Input, Output, and Evaluation tabs render JSON-shaped trees from `AI_CHECK_CONTRACT.sections`.
+- The manual has internal tabs for Provider Messages, Output, Evaluation, and Compare.
+- Provider Messages renders the `messages[]` tree; Output and Evaluation tabs render selectable examples from `AI_CHECK_CONTRACT.sections` with selected-field explanation panels.
 - Compare is generated from contract section field paths and shows which paths appear in Input, Output, and Evaluation.
 
 Resolution:
 
-- Schema Reference now has internal tabs for Input, System Prompt, Output, Evaluation, and Compare.
-- Input, Output, and Evaluation tabs render JSON-shaped trees from `AI_CHECK_CONTRACT.sections`.
-- The top of the manual shows version references and the corrected runtime flow where the System Prompt is one component of the provider request/model input.
+- Schema Reference now has internal tabs for Provider Messages, Output, Evaluation, and Compare.
+- Provider Messages renders the same `messages[]` tree with a focused preview panel for the selected section.
+- The preview panel renders generated prompt/context content as section blocks, preserving original line breaks and keeping visual wrapping from looking like missing structure.
+- Output and Evaluation tabs render contract examples in the same dark code style as Provider Messages; clicking or focusing a mapped example field updates a focused preview panel with field metadata, meaning, validation, product impact, common mistakes, and examples.
+- The top of the manual shows version references. The old multi-card runtime flow was removed because the provider message tree now carries the main orientation job.
 - Compare is generated from contract section field paths.
 
 ### ISSUE-009: System Prompt preview needs source-aware dynamic fragments
@@ -164,7 +166,7 @@ Expected behavior:
 - Runtime prompt generation exposes structured prompt parts.
 - `buildSystemPrompt(input)` remains the provider-facing function and joins structured parts into text.
 - PM Review renders those same structured prompt parts with highlights for dynamic fragments.
-- Hovering or focusing a highlighted fragment updates a side inspector with source paths, current resolved value, and why the fragment matters.
+- Hovering or focusing a highlighted fragment exposes source paths without requiring a heavy side inspector.
 - Dynamic sources include preview/runtime `strictness`, assistant turn state, `AI_CHECK_CONTRACT.sessionPolicy`, `AI_COOLDOWN_POLICIES[strictness]`, contract enum values, output example, and output schema summary.
 
 Resolution:
@@ -172,7 +174,7 @@ Resolution:
 - Runtime prompt generation exposes structured prompt parts.
 - `buildSystemPrompt(input)` joins the same structured parts used by PM Review.
 - PM Review renders dynamic prompt parts with highlights.
-- Hovering, focusing, or clicking a highlighted fragment updates the Source Inspector with source paths, current value, and why the fragment matters.
+- PM Review now uses a lighter preview panel. Dynamic fragments stay highlighted and expose source paths through lightweight hints; detailed source/value/product-impact explanation is not shown by default.
 
 Follow-up:
 

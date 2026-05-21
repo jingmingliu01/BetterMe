@@ -32,7 +32,6 @@ import {
   AI_CHECK_STRICTNESS_LEVELS
 } from "../../shared/ai-check-contract";
 import {
-  buildProviderMessages,
   buildRoundSnapshot,
   buildTrustedRoundContextParts,
   buildTrustedTurnContextParts
@@ -57,7 +56,7 @@ import type {
 import "../shared/styles.css";
 
 type ReviewArea = "history" | "eval" | "schema";
-type SchemaManualTab = "system" | "round" | "conversation" | "turn" | "messages" | "output" | "evaluation" | "compare";
+type SchemaManualTab = "messages" | "output" | "evaluation" | "compare";
 
 interface EvalFormState {
   title: string;
@@ -99,6 +98,33 @@ interface CompareRow {
   output: string;
   evaluation: string;
   relation: string;
+}
+
+type ProviderMessageFocus = "system" | "round" | "conversation" | "turn";
+
+interface ProviderMessagePreviewSection {
+  id: ProviderMessageFocus;
+  label: string;
+  token: string;
+  role: string;
+  path: string;
+  stability: string;
+  source: string;
+  parts?: PromptPart[];
+  previewText?: string;
+}
+
+interface PromptPreviewBlock {
+  tagName?: string;
+  boundaryText?: string;
+  body: string;
+  dynamic: boolean;
+  sourceTitle?: string;
+}
+
+interface SchemaSelection {
+  node: SchemaTreeNode;
+  field?: AICheckSchemaFieldReference;
 }
 
 const ERROR_TYPES: Array<{ value: BadCaseErrorType; label: string }> = [
@@ -845,14 +871,13 @@ function EvalCaseDetail({
 }
 
 function SchemaReference() {
-  const [activeTab, setActiveTab] = useState<SchemaManualTab>("system");
+  const [activeTab, setActiveTab] = useState<SchemaManualTab>("messages");
 
   return (
     <section className="schema-reference stack">
       <div className="panel stack">
         <div className="section-heading">
           <span className="section-label">AI Check Contract Manual</span>
-          <h2>Provider messages, output, and evaluation reference</h2>
         </div>
         <p className="muted">
           This manual is generated from shared contract references so PM Review stays aligned with runtime prompt building,
@@ -868,11 +893,10 @@ function SchemaReference() {
             source="AI_CHECK_CONTRACT.sessionPolicy"
           />
         </div>
-        <RuntimeFlow />
       </div>
 
       <div className="schema-manual-tabs" role="tablist" aria-label="Schema reference views">
-        {(["system", "round", "conversation", "turn", "messages", "output", "evaluation", "compare"] as SchemaManualTab[]).map((tab) => (
+        {(["messages", "output", "evaluation", "compare"] as SchemaManualTab[]).map((tab) => (
           <button
             key={tab}
             className={activeTab === tab ? "schema-manual-tab schema-manual-tab-active" : "schema-manual-tab"}
@@ -885,11 +909,7 @@ function SchemaReference() {
         ))}
       </div>
 
-      {activeTab === "system" && <SystemPromptReference />}
-      {activeTab === "round" && <RoundContextReference />}
-      {activeTab === "conversation" && <ConversationReference />}
-      {activeTab === "turn" && <TurnContextReference />}
-      {activeTab === "messages" && <ProviderMessagesReference />}
+      {activeTab === "messages" && <ProviderMessagesReference focus="system" />}
       {activeTab === "output" && (
         <SchemaSectionReference
           kind="output"
@@ -929,89 +949,32 @@ function VersionChip({ label, source, value }: { label: string; source: string; 
   );
 }
 
-function RuntimeFlow() {
-  const steps = [
-    {
-      title: "AI Check contract",
-      body: "Versions, enums, session policy, schema fields, and examples."
-    },
-    {
-      title: "Runtime local context",
-      body: "Target, strictness, turn count, messages, and pattern memory."
-    },
-    {
-      title: "System Prompt builder",
-      body: "Builds the current prompt from contract references and runtime input."
-    },
-    {
-      title: "Provider request / model input",
-      body: "System Prompt, current target, pattern memory, and user-visible messages."
-    },
-    {
-      title: "Output and evaluation",
-      body: "Parsed output is validated, then Evaluation Cases assert expected behavior."
-    }
-  ];
-
-  return (
-    <div className="contract-flow" aria-label="AI Check contract flow">
-      {steps.map((step, index) => (
-        <div className="contract-flow-step" key={step.title}>
-          <strong>{step.title}</strong>
-          <span>{step.body}</span>
-          {index < steps.length - 1 && <ChevronRight size={16} aria-hidden="true" />}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function SchemaSectionReference({ kind, section }: { kind: "input" | "output" | "evaluation"; section: SchemaManualSection }) {
-  const schemaTree = useMemo(() => buildSchemaTree(section.fields), [section.fields]);
+  const firstPath = useMemo(() => findFirstExampleFieldPath(section.example, section.fields) ?? section.fields[0]?.path ?? "", [section]);
+  const [selectedPath, setSelectedPath] = useState(firstPath);
+  const selectedField = useMemo(
+    () => section.fields.find((field) => field.path === selectedPath) ?? section.fields[0],
+    [section.fields, selectedPath]
+  );
+
+  useEffect(() => {
+    setSelectedPath(firstPath);
+  }, [firstPath]);
 
   return (
-    <div className="schema-workspace">
-      <section className="panel schema-tree-panel stack">
-        <div className="section-heading">
-          <span className="section-label">Schema Shape</span>
-          <h2>{section.title}</h2>
-        </div>
-        <p className="muted">{section.summary}</p>
-        {kind === "input" && <InputComposition />}
-        {kind === "evaluation" && <EvaluationDefinition />}
-        <div className="schema-root-row">
-          <span className="schema-brace">{"{"}</span>
-          <span className="muted">root object</span>
-          <span className="schema-brace">{"}"}</span>
-        </div>
-        <div className="schema-tree">
-          {schemaTree.map((node) => (
-            <SchemaTreeItem key={node.path} node={node} depth={0} />
-          ))}
-        </div>
+    <div className="provider-message-workspace">
+      <section className="panel provider-message-tree-panel">
+        <SchemaExampleViewer
+          example={section.example}
+          fields={section.fields}
+          label={section.title}
+          selectedPath={selectedField?.path ?? selectedPath}
+          onSelect={setSelectedPath}
+        />
       </section>
 
-      <section className="panel schema-example-panel stack">
-        <div className="section-heading">
-          <span className="section-label">Example</span>
-          <h2>{section.title}</h2>
-        </div>
-        <pre className="code schema-example-code">{JSON.stringify(section.example, null, 2)}</pre>
-        {kind === "output" && (
-          <div className="schema-guidance stack">
-            <StatusItem label="Schema summary" value={section.schemaSummary ?? ""} />
-            <details>
-              <summary>Prompt-facing schema</summary>
-              <pre className="code schema-example-code">{JSON.stringify(section.promptSchema, null, 2)}</pre>
-            </details>
-          </div>
-        )}
-        {kind === "evaluation" && (
-          <div className="schema-guidance stack">
-            <StatusItem label="Evaluation Case" value="input + optional captured output + eval assertions" />
-            <StatusItem label="Regression Case" value="status = regression and archivedAt is empty" />
-          </div>
-        )}
+      <section className="panel provider-preview-panel schema-selection-panel stack">
+        {selectedField && <SchemaSelectionPreview kind={kind} section={section} field={selectedField} />}
       </section>
     </div>
   );
@@ -1050,274 +1013,438 @@ function EvaluationDefinition() {
   );
 }
 
-function SystemPromptReference() {
-  const promptParts = useMemo(() => buildStaticContractPromptParts(), []);
+function SchemaExampleViewer({
+  example,
+  fields,
+  label,
+  onSelect,
+  selectedPath
+}: {
+  example: unknown;
+  fields: AICheckSchemaFieldReference[];
+  label: string;
+  onSelect: (path: string) => void;
+  selectedPath: string;
+}) {
+  const fieldMap = useMemo(() => new Map(fields.map((field) => [field.path, field])), [fields]);
 
   return (
-    <PromptPartsReference
-      label="Static System Prompt"
-      title="Stable contract prompt"
-      description="This is the cache-friendly system prefix. It is stable across rounds until the prompt, schema, or rubric contract changes."
-      parts={promptParts}
-    />
+    <div className="provider-message-tree schema-example-viewer" aria-label={`${label} example`}>
+      <div className="provider-code-line">
+        <span className="provider-syntax-key">{label}</span>
+        <span> example</span>
+      </div>
+      <SchemaExampleValue
+        fieldMap={fieldMap}
+        indent={0}
+        onSelect={onSelect}
+        path=""
+        selectedPath={selectedPath}
+        value={example}
+        wrapped
+      />
+    </div>
   );
 }
 
-function RoundContextReference() {
-  const round = useMemo(() => buildSampleRoundSnapshot(), []);
-  return (
-    <PromptPartsReference
-      label="Trusted Round Context"
-      title="Stable inside one round"
-      description="This app-supplied block freezes target, strictness, policy, pattern memory, and versions for the current AI Check round."
-      parts={buildTrustedRoundContextParts(round)}
-    />
-  );
-}
-
-function TurnContextReference() {
-  const [assistantTurnCount, setAssistantTurnCount] = useState(1);
-  const maxAssistantTurns = AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns;
-  const nextAssistantTurn = Math.min(assistantTurnCount + 1, maxAssistantTurns);
-  const [isFinalTurn, setIsFinalTurn] = useState(false);
-  const turnParts = useMemo(
-    () =>
-      buildTrustedTurnContextParts({
-        assistantTurnCount,
-        nextAssistantTurn,
-        maxAssistantTurns,
-        isFinalTurn
-      }),
-    [assistantTurnCount, isFinalTurn, maxAssistantTurns, nextAssistantTurn]
-  );
-  const firstDynamicIndex = Math.max(0, turnParts.findIndex((part) => part.dynamic));
-  const [selectedPartIndex, setSelectedPartIndex] = useState(firstDynamicIndex);
-  const selectedPart = turnParts[selectedPartIndex]?.dynamic ? turnParts[selectedPartIndex] : turnParts[firstDynamicIndex] ?? turnParts[0];
-
-  function updateAssistantTurnCount(value: string) {
-    const nextValue = Number(value);
-    if (!Number.isFinite(nextValue)) return;
-    setAssistantTurnCount(Math.min(Math.max(Math.round(nextValue), 0), maxAssistantTurns - 1));
+function SchemaExampleValue({
+  fieldMap,
+  indent,
+  onSelect,
+  path,
+  selectedPath,
+  value,
+  wrapped = true
+}: {
+  fieldMap: Map<string, AICheckSchemaFieldReference>;
+  indent: number;
+  onSelect: (path: string) => void;
+  path: string;
+  selectedPath: string;
+  value: unknown;
+  wrapped?: boolean;
+}) {
+  if (Array.isArray(value)) {
+    return (
+      <>
+        {wrapped && <SchemaExampleLine indent={indent} text="[" />}
+        {value.map((item, index) => (
+          <SchemaExampleValue
+            fieldMap={fieldMap}
+            indent={wrapped ? indent + 1 : indent}
+            key={`${path}-${index}`}
+            onSelect={onSelect}
+            path={`${path}.${index}`}
+            selectedPath={selectedPath}
+            value={item}
+          />
+        ))}
+        {wrapped && <SchemaExampleLine indent={indent} text="]" />}
+      </>
+    );
   }
 
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
   return (
-    <div className="schema-workspace prompt-workspace">
-      <section className="panel schema-tree-panel stack">
-        <div className="section-heading">
-          <span className="section-label">Trusted Turn Context</span>
-          <h2>Per-turn control block</h2>
-        </div>
-        <p className="muted">
-          This block changes every provider call, so it is placed last to preserve the stable System Prompt, Round Context,
-          and append-only Conversation prefix.
-        </p>
-        <div className="prompt-controls">
-          <label>
-            <span>Assistant turns</span>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={maxAssistantTurns}
-              value={assistantTurnCount}
-              onChange={(event) => updateAssistantTurnCount(event.target.value)}
-            />
-          </label>
-          <label className="prompt-checkbox">
-            <input type="checkbox" checked={isFinalTurn} onChange={(event) => setIsFinalTurn(event.target.checked)} />
-            <span>Final turn</span>
-          </label>
-        </div>
-        <PromptPartsBlock onSelect={setSelectedPartIndex} parts={turnParts} selectedPart={selectedPart} />
-      </section>
+      <>
+        {wrapped && <SchemaExampleLine indent={indent} text="{" />}
+        {entries.map(([key, childValue], index) => {
+          const childPath = path ? `${path}.${key}` : key;
+          const field = fieldMap.get(childPath);
+          const isComplex = childValue !== null && typeof childValue === "object";
+          const suffix = index < entries.length - 1 ? "," : "";
 
-      <section className="panel schema-example-panel stack">
-        <div className="section-heading">
-          <span className="section-label">Source Inspector</span>
-          <h2>Selected prompt fragment</h2>
-        </div>
-        <PromptSourceInspector part={selectedPart} />
-      </section>
-    </div>
-  );
+          return (
+            <div key={childPath}>
+              {isComplex ? (
+                <>
+                  <SchemaExampleLine
+                    field={field}
+                    indent={indent + 1}
+                    onSelect={onSelect}
+                    path={childPath}
+                    selected={selectedPath === childPath}
+                    text={`"${key}": ${Array.isArray(childValue) ? "[" : "{"}`}
+                  />
+                  <SchemaExampleValue
+                    fieldMap={fieldMap}
+                    indent={indent + 2}
+                    onSelect={onSelect}
+                    path={childPath}
+                    selectedPath={selectedPath}
+                    value={childValue}
+                    wrapped={false}
+                  />
+                  <SchemaExampleLine indent={indent + 1} text={`${Array.isArray(childValue) ? "]" : "}"}${suffix}`} />
+                </>
+              ) : (
+                <SchemaExampleLine
+                  field={field}
+                  indent={indent + 1}
+                  onSelect={onSelect}
+                  path={childPath}
+                  selected={selectedPath === childPath}
+                  text={`"${key}": ${formatExampleScalar(childValue)}${suffix}`}
+                />
+              )}
+            </div>
+          );
+        })}
+        {wrapped && <SchemaExampleLine indent={indent} text="}" />}
+      </>
+    );
+  }
+
+  return <SchemaExampleLine indent={indent} text={formatExampleScalar(value)} />;
 }
 
-function ConversationReference() {
-  const sampleMessages = getSampleConversationMessages();
-  return (
-    <section className="panel stack">
-      <div className="section-heading">
-        <span className="section-label">Append-only Conversation</span>
-        <h2>User-visible chat messages</h2>
-      </div>
-      <p className="muted">
-        Conversation messages keep their original user/assistant roles and are appended after Round Context. Prior messages
-        remain an unchanged prefix.
-      </p>
-      <pre className="code schema-example-code">{JSON.stringify(sampleMessages, null, 2)}</pre>
-    </section>
-  );
-}
-
-function ProviderMessagesReference() {
-  const round = useMemo(() => buildSampleRoundSnapshot(), []);
-  const messages = useMemo(
-    () =>
-      buildProviderMessages({
-        round,
-        messages: getSampleConversationMessages(),
-        turn: {
-          assistantTurnCount: 1,
-          nextAssistantTurn: 2,
-          maxAssistantTurns: round.maxAssistantTurns,
-          isFinalTurn: false
-        }
-      }),
-    [round]
-  );
-  return (
-    <section className="panel stack">
-      <div className="section-heading">
-        <span className="section-label">Provider Messages</span>
-        <h2>Final OpenAI-compatible array shape</h2>
-      </div>
-      <p className="muted">
-        The static System Prompt and trusted Round Context appear first. Turn Context appears last because it changes every
-        turn.
-      </p>
-      <pre className="code schema-example-code">{JSON.stringify(messages, null, 2)}</pre>
-    </section>
-  );
-}
-
-function PromptPartsReference({
-  description,
-  label,
-  parts,
-  title
-}: {
-  description: string;
-  label: string;
-  parts: PromptPart[];
-  title: string;
-}) {
-  const firstDynamicIndex = Math.max(0, parts.findIndex((part) => part.dynamic));
-  const [selectedPartIndex, setSelectedPartIndex] = useState(firstDynamicIndex);
-  const selectedPart = parts[selectedPartIndex]?.dynamic ? parts[selectedPartIndex] : parts[firstDynamicIndex] ?? parts[0];
-
-  return (
-    <div className="schema-workspace prompt-workspace">
-      <section className="panel schema-tree-panel stack">
-        <div className="section-heading">
-          <span className="section-label">{label}</span>
-          <h2>{title}</h2>
-        </div>
-        <p className="muted">{description}</p>
-        <PromptPartsBlock onSelect={setSelectedPartIndex} parts={parts} selectedPart={selectedPart} />
-      </section>
-
-      <section className="panel schema-example-panel stack">
-        <div className="section-heading">
-          <span className="section-label">Source Inspector</span>
-          <h2>Selected fragment</h2>
-        </div>
-        <PromptSourceInspector part={selectedPart} />
-      </section>
-    </div>
-  );
-}
-
-function PromptPartsBlock({
+function SchemaExampleLine({
+  field,
+  indent,
   onSelect,
-  parts,
-  selectedPart
+  path,
+  selected,
+  text
 }: {
-  onSelect: (index: number) => void;
-  parts: PromptPart[];
-  selectedPart: PromptPart;
+  field?: AICheckSchemaFieldReference;
+  indent: number;
+  onSelect?: (path: string) => void;
+  path?: string;
+  selected?: boolean;
+  text: string;
 }) {
-  return (
-    <pre className="code prompt-preview">
-      {parts.map((part, index) => (
-        <PromptPartLine
-          active={selectedPart === part}
-          index={index}
-          key={`${part.text}-${index}`}
-          onSelect={() => onSelect(index)}
-          part={part}
-        />
-      ))}
-    </pre>
-  );
-}
-
-function PromptPartLine({
-  active,
-  index,
-  onSelect,
-  part
-}: {
-  active: boolean;
-  index: number;
-  onSelect: () => void;
-  part: PromptPart;
-}) {
-  const line = (
+  const content = (
     <>
-      {part.text}
-      {"\n"}
+      <span className="schema-example-indent" style={{ "--schema-example-depth": indent } as CSSProperties} />
+      <span>{text}</span>
     </>
   );
 
-  if (!part.dynamic) {
-    return <span>{line}</span>;
+  if (!field || !path || !onSelect) {
+    return <span className="provider-code-line schema-example-code-line">{content}</span>;
   }
 
   return (
     <button
-      aria-label={`Inspect prompt fragment ${index + 1}`}
-      className={active ? "prompt-dynamic-part prompt-dynamic-part-active" : "prompt-dynamic-part"}
-      onClick={onSelect}
-      onFocus={onSelect}
-      onMouseEnter={onSelect}
+      aria-pressed={selected}
+      className={selected ? "schema-example-line-action provider-message-block-active" : "schema-example-line-action"}
+      onClick={() => onSelect(path)}
+      onMouseDown={(event) => event.preventDefault()}
+      title={field.meaning}
       type="button"
     >
-      {line}
+      {content}
     </button>
   );
 }
 
-function PromptSourceInspector({ part }: { part: PromptPart }) {
+function SchemaSelectionPreview({
+  field,
+  kind,
+  section
+}: {
+  field: AICheckSchemaFieldReference;
+  kind: "input" | "output" | "evaluation";
+  section: SchemaManualSection;
+}) {
   return (
-    <div className="prompt-source-inspector stack">
-      <div>
-        <span className="section-label">Prompt text</span>
-        <p>{part.text}</p>
+    <div className="provider-preview-content">
+      <div className="section-heading">
+        <span className="section-label">Selected Field</span>
+        <h2>{field.path.split(".").at(-1) ?? field.path}</h2>
       </div>
-      <div>
-        <span className="section-label">Built from</span>
-        <ul>
-          {(part.sourcePaths ?? ["static prompt text"]).map((source) => (
-            <li key={source}>
-              <code>{source}</code>
-            </li>
-          ))}
-        </ul>
+      <div className="provider-preview-meta" aria-label="Selected schema field metadata">
+        <span>{field.path}</span>
+        <span>{field.type}</span>
+        <span>{field.required ? "required" : "optional"}</span>
+        {field.nullable && <span>nullable</span>}
       </div>
-      {part.value !== undefined && (
-        <div>
-          <span className="section-label">Current value</span>
-          <pre className="code schema-example-code">{JSON.stringify(part.value, null, 2)}</pre>
+
+      <div className="provider-preview-sections schema-field-preview-sections">
+        <PromptPreviewBlockView block={{ body: field.meaning, dynamic: false, tagName: "meaning" }} />
+        <PromptPreviewBlockView block={{ body: field.whyNecessary, dynamic: false, tagName: "why_necessary" }} />
+        <PromptPreviewBlockView block={{ body: field.productImpact, dynamic: false, tagName: "product_impact" }} />
+        <PromptPreviewBlockView block={{ body: field.validation, dynamic: false, tagName: "validation" }} />
+        <PromptPreviewBlockView block={{ body: field.commonMistakes, dynamic: false, tagName: "common_mistakes" }} />
+        {field.example !== undefined && (
+          <PromptPreviewBlockView
+            block={{ body: JSON.stringify(field.example, null, 2), dynamic: true, tagName: "example_value" }}
+          />
+        )}
+      </div>
+
+      {kind === "output" && (
+        <div className="schema-guidance stack">
+          <StatusItem label="Schema summary" value={section.schemaSummary ?? ""} />
+          <details>
+            <summary>Prompt-facing schema</summary>
+            <pre className="code schema-example-code">{JSON.stringify(section.promptSchema, null, 2)}</pre>
+          </details>
         </div>
       )}
-      {part.meaning && (
-        <div>
-          <span className="section-label">Why it matters</span>
-          <p>{part.meaning}</p>
+
+      {kind === "evaluation" && (
+        <div className="schema-guidance stack">
+          <StatusItem label="Evaluation Case" value="input + optional captured output + eval assertions" />
+          <StatusItem label="Regression Case" value="status = regression and archivedAt is empty" />
         </div>
       )}
     </div>
   );
+}
+
+function ProviderMessagesReference({ focus }: { focus: ProviderMessageFocus }) {
+  const sections = useMemo(() => buildProviderMessagePreviewSections(), []);
+  const [selectedSectionId, setSelectedSectionId] = useState<ProviderMessageFocus>(focus);
+  const selectedSection = sections.find((section) => section.id === selectedSectionId) ?? sections[0];
+  const selectSection = useCallback((sectionId: ProviderMessageFocus) => {
+    const scrollY = window.scrollY;
+    setSelectedSectionId(sectionId);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: scrollY });
+      window.requestAnimationFrame(() => window.scrollTo({ top: scrollY }));
+    });
+  }, []);
+
+  useEffect(() => {
+    setSelectedSectionId(focus);
+  }, [focus]);
+
+  return (
+    <div className="provider-message-workspace">
+      <section className="panel provider-message-tree-panel">
+        <ProviderMessagesTree
+          sections={sections}
+          selectedSectionId={selectedSection.id}
+          onSelect={selectSection}
+        />
+      </section>
+
+      <section className="panel provider-preview-panel">
+        <ProviderMessagePreview section={selectedSection} />
+      </section>
+    </div>
+  );
+}
+
+function ProviderMessagesTree({
+  onSelect,
+  sections,
+  selectedSectionId
+}: {
+  onSelect: (section: ProviderMessageFocus) => void;
+  sections: ProviderMessagePreviewSection[];
+  selectedSectionId: ProviderMessageFocus;
+}) {
+  return (
+    <div className="provider-message-tree" aria-label="Provider message array">
+      <div className="provider-code-line">
+        <span className="provider-syntax-key">messages</span>
+        <span>: [</span>
+      </div>
+      <ProviderMessageObject
+        index={0}
+        role="system"
+        section={sections.find((item) => item.id === "system") ?? sections[0]}
+        selected={selectedSectionId === "system"}
+        onSelect={onSelect}
+      />
+      <ProviderMessageObject
+        index={1}
+        role="user"
+        section={sections.find((item) => item.id === "round") ?? sections[1]}
+        selected={selectedSectionId === "round"}
+        onSelect={onSelect}
+      />
+      <ProviderConversationSpread
+        section={sections.find((item) => item.id === "conversation") ?? sections[2]}
+        selected={selectedSectionId === "conversation"}
+        onSelect={onSelect}
+      />
+      <ProviderMessageObject
+        index={3}
+        role="user"
+        section={sections.find((item) => item.id === "turn") ?? sections[3]}
+        selected={selectedSectionId === "turn"}
+        onSelect={onSelect}
+      />
+      <div className="provider-code-line">]</div>
+    </div>
+  );
+}
+
+function ProviderMessageObject({
+  index,
+  onSelect,
+  role,
+  section,
+  selected
+}: {
+  index: number;
+  onSelect: (section: ProviderMessageFocus) => void;
+  role: "system" | "user";
+  section: ProviderMessagePreviewSection;
+  selected: boolean;
+}) {
+  return (
+    <button
+      aria-pressed={selected}
+      className={selected ? "provider-message-block provider-message-block-active" : "provider-message-block"}
+      onClick={() => onSelect(section.id)}
+      onMouseDown={(event) => event.preventDefault()}
+      type="button"
+    >
+      <span className="provider-code-line provider-code-muted">{"  "}{`// messages[${index}]`}</span>
+      <span className="provider-code-line">{"  {"}</span>
+      <span className="provider-code-line">
+        {"    "}
+        <span className="provider-syntax-key">role</span>
+        <span>: </span>
+        <span className="provider-syntax-string">"{role}"</span>
+        <span>,</span>
+      </span>
+      <span className="provider-code-line">
+        {"    "}
+        <span className="provider-syntax-key">content</span>
+        <span>: </span>
+        <span className="provider-reference-token">{section.token}</span>
+      </span>
+      <span className="provider-code-line">{"  },"}</span>
+    </button>
+  );
+}
+
+function ProviderConversationSpread({
+  onSelect,
+  section,
+  selected
+}: {
+  onSelect: (section: ProviderMessageFocus) => void;
+  section: ProviderMessagePreviewSection;
+  selected: boolean;
+}) {
+  return (
+    <button
+      aria-pressed={selected}
+      className={selected ? "provider-message-spread provider-message-block-active" : "provider-message-spread"}
+      onClick={() => onSelect(section.id)}
+      onMouseDown={(event) => event.preventDefault()}
+      type="button"
+    >
+      <span className="provider-code-line">
+        {"  "}
+        <span className="provider-reference-token">{section.token}</span>
+        <span>,</span>
+      </span>
+    </button>
+  );
+}
+
+function ProviderMessagePreview({ section }: { section: ProviderMessagePreviewSection }) {
+  return (
+    <div className="provider-preview-content">
+      <div className="provider-preview-meta" aria-label="Selected provider message metadata">
+        <span>{section.path}</span>
+        <span>role: {section.role}</span>
+        <span>{section.stability}</span>
+        <span>{section.source}</span>
+      </div>
+      {section.parts ? (
+        <PromptPartsPreview parts={section.parts} />
+      ) : (
+        <pre className="code provider-preview-code">{section.previewText}</pre>
+      )}
+    </div>
+  );
+}
+
+function PromptPartsPreview({ parts }: { parts: PromptPart[] }) {
+  const blocks = parts.map((part, index) => buildPromptPreviewBlock(part, index));
+
+  return (
+    <div className="provider-preview-sections">
+      {blocks.map((block, index) => (
+        <PromptPreviewBlockView block={block} key={`${block.tagName ?? block.body}-${index}`} />
+      ))}
+    </div>
+  );
+}
+
+function PromptPreviewBlockView({ block }: { block: PromptPreviewBlock }) {
+  const className = block.dynamic
+    ? "provider-preview-section provider-preview-section-dynamic"
+    : "provider-preview-section";
+
+  return (
+    <section className={className} title={block.sourceTitle}>
+      {block.tagName ? (
+        <div className="provider-preview-section-tag">
+          <span>{block.boundaryText ?? `<${block.tagName}>`}</span>
+        </div>
+      ) : null}
+      {block.body ? <pre className="provider-preview-section-body">{block.body}</pre> : null}
+      {block.tagName && block.body ? (
+        <div className="provider-preview-section-tag provider-preview-section-close">
+          <span>{`</${block.tagName}>`}</span>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function buildPromptPreviewBlock(part: PromptPart, index: number): PromptPreviewBlock {
+  const text = part.text.trim();
+  const wrapperMatch = text.match(/^<([a-zA-Z0-9_:-]+)>\n([\s\S]*)\n<\/\1>$/);
+  const boundaryMatch = text.match(/^<\/?([a-zA-Z0-9_:-]+)>$/);
+
+  return {
+    tagName: wrapperMatch?.[1] ?? boundaryMatch?.[1],
+    boundaryText: boundaryMatch ? text : undefined,
+    body: wrapperMatch?.[2] ?? (boundaryMatch ? "" : part.text),
+    dynamic: Boolean(part.dynamic),
+    sourceTitle: (part.sourcePaths ?? [`prompt part ${index + 1}`]).join("\n")
+  };
 }
 
 function SchemaCompareReference() {
@@ -1365,14 +1492,6 @@ function SchemaCompareReference() {
 
 function formatSchemaManualTab(tab: SchemaManualTab): string {
   switch (tab) {
-    case "system":
-      return "System Prompt";
-    case "round":
-      return "Round Context";
-    case "conversation":
-      return "Conversation";
-    case "turn":
-      return "Turn Context";
     case "messages":
       return "Provider Messages";
     case "output":
@@ -1382,6 +1501,60 @@ function formatSchemaManualTab(tab: SchemaManualTab): string {
     case "compare":
       return "Compare";
   }
+}
+
+function buildProviderMessagePreviewSections(): ProviderMessagePreviewSection[] {
+  const round = buildSampleRoundSnapshot();
+  const conversationMessages = getSampleConversationMessages();
+  const maxAssistantTurns = AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns;
+
+  return [
+    {
+      id: "system",
+      label: "System Prompt",
+      token: "$ systemLevelPrompt",
+      role: "system",
+      path: "messages[0].content",
+      stability: "cross-round stable",
+      source: "prompt builder",
+      parts: buildStaticContractPromptParts()
+    },
+    {
+      id: "round",
+      label: "Round Context",
+      token: "$ trustedRoundContext",
+      role: "user",
+      path: "messages[1].content",
+      stability: "stable inside one round",
+      source: "round snapshot",
+      parts: buildTrustedRoundContextParts(round)
+    },
+    {
+      id: "conversation",
+      label: "Conversation",
+      token: "...conversationMessages",
+      role: "assistant/user",
+      path: "messages[2...n-1]",
+      stability: "append-only",
+      source: "visible conversation",
+      previewText: JSON.stringify(conversationMessages, null, 2)
+    },
+    {
+      id: "turn",
+      label: "Turn Context",
+      token: "$ trustedTurnContext",
+      role: "user",
+      path: "messages[n].content",
+      stability: "changes every turn",
+      source: "turn state",
+      parts: buildTrustedTurnContextParts({
+        assistantTurnCount: 1,
+        nextAssistantTurn: 2,
+        maxAssistantTurns,
+        isFinalTurn: false
+      })
+    }
+  ];
 }
 
 function buildSampleRoundSnapshot() {
@@ -1479,14 +1652,87 @@ function compareRelation(
   return "";
 }
 
-function SchemaTreeItem({ depth, node }: { depth: number; node: SchemaTreeNode }) {
+function findFirstExampleFieldPath(example: unknown, fields: AICheckSchemaFieldReference[]): string | null {
+  const fieldPaths = new Set(fields.map((field) => field.path));
+
+  function visit(value: unknown, path: string): string | null {
+    if (path && fieldPaths.has(path)) return path;
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index += 1) {
+        const match = visit(value[index], path ? `${path}.${index}` : String(index));
+        if (match) return match;
+      }
+    }
+    if (value && typeof value === "object") {
+      for (const [key, childValue] of Object.entries(value as Record<string, unknown>)) {
+        const match = visit(childValue, path ? `${path}.${key}` : key);
+        if (match) return match;
+      }
+    }
+    return null;
+  }
+
+  return visit(example, "");
+}
+
+function formatExampleScalar(value: unknown): string {
+  if (value === undefined) return "undefined";
+  return JSON.stringify(value) ?? "undefined";
+}
+
+function findSchemaSelection(nodes: SchemaTreeNode[], path: string): SchemaSelection | null {
+  for (const node of nodes) {
+    if (node.path === path) return { node, field: node.field };
+    const childSelection = findSchemaSelection(node.children, path);
+    if (childSelection) return childSelection;
+  }
+  return null;
+}
+
+function findFirstSchemaSelection(nodes: SchemaTreeNode[]): SchemaSelection | null {
+  for (const node of nodes) {
+    if (node.field) return { node, field: node.field };
+    const childSelection = findFirstSchemaSelection(node.children);
+    if (childSelection) return childSelection;
+    return { node };
+  }
+  return null;
+}
+
+function getExampleAtPath(example: unknown, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, part) => {
+    if (current && typeof current === "object" && part in current) {
+      return (current as Record<string, unknown>)[part];
+    }
+    return undefined;
+  }, example);
+}
+
+function SchemaTreeItem({
+  depth,
+  node,
+  onSelect,
+  selectedPath
+}: {
+  depth: number;
+  node: SchemaTreeNode;
+  onSelect: (path: string) => void;
+  selectedPath: string;
+}) {
   const defaultOpen = node.children.length > 0;
   const field = node.field;
   const detailsId = `schema-field-${node.path.replaceAll(".", "-")}`;
+  const selected = selectedPath === node.path;
 
   return (
-    <details className="schema-tree-item" open={defaultOpen}>
-      <summary className="schema-tree-summary" aria-controls={detailsId}>
+    <details className={selected ? "schema-tree-item schema-tree-item-selected" : "schema-tree-item"} open={defaultOpen}>
+      <summary
+        className="schema-tree-summary"
+        aria-controls={detailsId}
+        aria-selected={selected}
+        onClick={() => onSelect(node.path)}
+        onFocus={() => onSelect(node.path)}
+      >
         <span className="schema-tree-indent" style={{ "--schema-depth": depth } as CSSProperties} />
         <span className="schema-disclosure" aria-hidden="true">
           <ChevronRight className="schema-chevron-closed" size={14} />
@@ -1533,7 +1779,13 @@ function SchemaTreeItem({ depth, node }: { depth: number; node: SchemaTreeNode }
         {node.children.length > 0 && (
           <div className="schema-tree-children">
             {node.children.map((child) => (
-              <SchemaTreeItem depth={depth + 1} key={child.path} node={child} />
+              <SchemaTreeItem
+                depth={depth + 1}
+                key={child.path}
+                node={child}
+                selectedPath={selectedPath}
+                onSelect={onSelect}
+              />
             ))}
           </div>
         )}

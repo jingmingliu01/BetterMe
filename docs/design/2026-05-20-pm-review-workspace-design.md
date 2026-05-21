@@ -235,81 +235,70 @@ AI_CHECK_CONTRACT.sessionPolicy.maxSessionSeconds
 
 The design docs may name these reference paths, but should avoid duplicating the current literal version values. Otherwise the docs become another drift source.
 
-### Correct Runtime Flow
+### Provider Message Manual
 
 The runtime flow is not `Model Input -> System Prompt`. The System Prompt is one part of the provider request/model input.
 
-The manual should show this flow:
+The manual should make the provider request itself the primary reading model:
 
-```text
-AI Check contract
-  -> versions, enums, output schema, examples, session policy
-
-Runtime local context
-  -> targetDisplay, strictness, assistantTurnCount, messages, pattern memory
-
-System Prompt builder
-  -> reads contract references
-  -> reads runtime prompt input
-  -> generates the current System Prompt
-
-Provider request / model input
-  -> system prompt
-  -> current target
-  -> relevant pattern memory
-  -> user-visible conversation messages
-
-Model output
-  -> parsed and validated against the output contract
-
-Evaluation Case
-  -> stores input
-  -> may store captured output
-  -> stores PM-authored assertions
+```ts
+messages: [
+  {
+    role: "system",
+    content: $ systemLevelPrompt
+  },
+  {
+    role: "user",
+    content: $ trustedRoundContext
+  },
+  ...conversationMessages,
+  {
+    role: "user",
+    content: $ trustedTurnContext
+  }
+]
 ```
 
-The first visible area in Schema Reference should include a compact version/reference strip and this flow diagram so a new reviewer can orient before reading fields.
+The first visible area in Schema Reference should include a compact version/reference strip only. The older multi-card flow diagram is too verbose for the reference surface and should not compete with the `messages[]` tree.
 
 ### Manual Tabs
 
 Schema Reference should contain internal tabs:
 
-- `Input`
-- `System Prompt`
+- `Provider Messages`
 - `Output`
 - `Evaluation`
 - `Compare`
 
 The original top-level PM Review area remains unchanged. These are tabs inside Schema Reference.
 
-Each schema tab should use the same layout:
+The default tab should be `Provider Messages`.
+
+The Provider Messages tab should use this layout:
 
 ```text
-JSON-shaped tree | Example and guidance panel
+Provider message tree | Selected section preview
 ```
 
-The tree should show indentation like formatted JSON. Each row should show field key, type, required/optional badge, nullable badge when relevant, and short meaning. Expanding a row should reveal why it is necessary, product impact, validation behavior, common review mistakes, and a field-level example when available.
+The left side shows the full `messages[]` array shape. Clicking `$ systemLevelPrompt`, `$ trustedRoundContext`, `...conversationMessages`, or `$ trustedTurnContext` changes the right-side preview. This keeps the reader oriented around what the provider actually receives without adding separate tabs for every message section.
 
-### Input Tab
+The right side should be a lightweight preview panel, not a heavy inspector. It should show:
 
-The Input tab should explain the provider request/model input at two levels.
+- a compact metadata row, such as `messages[0].content`, `role: system`, `cross-round stable`, and `prompt builder`.
+- the selected XML-like prompt/context text as readable section blocks that preserve original line breaks.
+- sample conversation message JSON in a code preview.
+- light highlights for generated/dynamic sections.
+- hover/focus tooltips for source paths when helpful.
 
-First, it should show input composition:
+It should not show the older detailed source inspector by default. Detailed meaning, resolved value, and product-impact explanation can return later behind a deliberate details disclosure if reviewers need it.
 
-- generated System Prompt.
-- current target.
-- relevant pattern memory.
-- user-visible conversation messages.
+### Provider Messages Tab
 
-Second, it should show the structured runtime fields from `AI_CHECK_CONTRACT.sections.input.fields` as an expandable JSON-shaped tree, with `AI_CHECK_CONTRACT.sections.input.example` in the example panel.
-
-The input composition panel should make clear that the System Prompt is a component of the provider request, not something formed after the model input.
-
-### System Prompt Tab
-
-The System Prompt tab should display the current generated System Prompt for a representative preview input. It should also display the prompt version from `AI_CHECK_CONTRACT.promptVersion`.
+The Provider Messages tab should display the current generated static System Prompt for a representative preview input, plus round context, sample conversation messages, and turn context inside one provider request tree. It should also display the prompt version from `AI_CHECK_CONTRACT.promptVersion` in the top version strip.
 
 The preview must come from the runtime prompt builder, not from a PM Review-only duplicated prompt string.
+
+The real provider-visible prompt and trusted context should use XML-like sections for readability and boundary clarity. The PM Review preview should render those sections as separate visual blocks so reviewers can distinguish real line breaks from viewport wrapping. Output schema and examples remain JSON because the model is required to return raw JSON.
 
 The provider message contract refactor is tracked in [2026-05-21-ai-check-provider-message-contract-design.md](2026-05-21-ai-check-provider-message-contract-design.md). Schema Reference should not treat turn-level values as part of the System Prompt. It should explain the provider message sections as:
 
@@ -319,7 +308,7 @@ The provider message contract refactor is tracked in [2026-05-21-ai-check-provid
 - trusted Turn Context.
 - full Provider Messages array.
 
-To support source-aware rendering, the prompt builder should be split into structured parts:
+To support source-aware rendering, the prompt builder uses structured parts:
 
 ```ts
 interface PromptPart {
@@ -341,12 +330,7 @@ function buildSystemPrompt(input: BuildSystemPromptInput): string {
 
 Runtime provider calls continue to use `buildSystemPrompt(input)`. PM Review uses `buildSystemPromptParts(input)` to render the same text with provenance highlights.
 
-Dynamic prompt parts should be lightly highlighted in the prompt preview. Hovering or focusing a highlighted part should update a side inspector that shows:
-
-- selected prompt text.
-- source reference path.
-- current resolved value.
-- why the part matters.
+Dynamic prompt parts should be lightly highlighted in the prompt preview. Hovering or focusing a highlighted part can expose the source reference path.
 
 Expected highlighted dynamic sources include:
 
@@ -360,11 +344,29 @@ Expected highlighted dynamic sources include:
 - `AI_CHECK_CONTRACT.sections.output.example`.
 - `AI_CHECK_CONTRACT.sections.output.schemaSummary`.
 
-The full prompt should remain readable as text. The source inspector is explanatory, not a replacement for the prompt.
+The full prompt should remain readable as text. Source path hints are explanatory, not a replacement for the prompt.
+
+### Provider Message Sections
+
+Round Context should focus `messages[1].content`. It explains target, strictness, policy, pattern memory, and version snapshots fixed for the active AI Check round.
+
+Conversation should focus `...conversationMessages`. It explains that visible user/assistant messages are append-only and remain in their original roles.
+
+Turn Context should focus the final user-role trusted block. It explains the current turn count and final-turn `ASK_MORE` guard. This section changes every provider call and stays at the end of the message array.
+
+### Output and Evaluation Tabs
+
+Output and Evaluation use the same left-selects-right-preview interaction pattern as Provider Messages:
+
+```text
+Example JSON viewer | Selected field explanation
+```
+
+The left side should render the current contract example in the same dark, code-oriented style as Provider Messages. Fields that map to `AI_CHECK_CONTRACT.sections.output.fields` or `AI_CHECK_CONTRACT.sections.evaluation.fields` are selectable. Clicking or focusing a selectable example line updates the right-side preview. The preview shows the selected path, type, required/nullable metadata, meaning, why it is necessary, product impact, validation behavior, common review mistakes, and example value when available.
 
 ### Output Tab
 
-The Output tab should render `AI_CHECK_CONTRACT.sections.output.fields` as the expandable JSON-shaped tree and `AI_CHECK_CONTRACT.sections.output.example` as the example.
+The Output tab should render `AI_CHECK_CONTRACT.sections.output.example` as the selectable left-side example and use `AI_CHECK_CONTRACT.sections.output.fields` as the source of selected-field explanations.
 
 It should also show the prompt-facing output schema from `AI_CHECK_CONTRACT.sections.output.promptSchema` and the concise schema summary from `AI_CHECK_CONTRACT.sections.output.schemaSummary`.
 
@@ -372,7 +374,7 @@ This tab explains the model response contract and how parser validation turns th
 
 ### Evaluation Tab
 
-The Evaluation tab should render `AI_CHECK_CONTRACT.sections.evaluation.fields` and `AI_CHECK_CONTRACT.sections.evaluation.example`.
+The Evaluation tab should render `AI_CHECK_CONTRACT.sections.evaluation.example` as the selectable left-side example and use `AI_CHECK_CONTRACT.sections.evaluation.fields` as the source of selected-field explanations.
 
 It should explicitly explain:
 
@@ -495,10 +497,10 @@ Phase 3: Schema Reference
 
 Phase 3b: AI Check Contract Manual
 
-- Add Schema Reference internal tabs for Input, System Prompt, Output, Evaluation, and Compare.
+- Add Schema Reference internal tabs for Provider Messages, Output, Evaluation, and Compare.
 - Render version chips from `AI_CHECK_CONTRACT` reference fields rather than hardcoded labels.
-- Render Input and Evaluation trees from their contract sections.
-- Add a source-aware System Prompt viewer backed by structured prompt parts from the runtime prompt builder.
+- Render Output and Evaluation examples from their contract sections.
+- Add a Provider Messages viewer backed by structured prompt/context parts from the runtime builders.
 - Add path-level Compare generated from contract section field paths.
 
 Phase 4: regression workflow
