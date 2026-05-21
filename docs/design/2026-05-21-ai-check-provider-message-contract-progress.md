@@ -23,6 +23,8 @@ user: trusted turn context
 
 The prompt version has been bumped to the current contract prompt version because the provider-visible message arrangement changed materially.
 
+The latest prompt contract also uses XML-like sections for the static System Prompt, Trusted Round Context, and Trusted Turn Context. JSON remains reserved for output schema/example content and the model's required response.
+
 ## Already Exists
 
 - Contract-first source at `apps/extension/src/shared/ai-check-contract.json`.
@@ -58,17 +60,22 @@ The prompt version has been bumped to the current contract prompt version becaus
 - Done: keep provider repair messages after stable prefix sections.
 - Done: update provider-mode evals and fixtures.
 - Done: bump prompt version after the provider-visible message arrangement changed.
+- Done: bump prompt version again after restructuring provider-visible prompt/context text into XML-like sections.
 
 ### Phase 4: PM Review Contract Manual
 
-- Done: update Contract Manual tabs to show System Prompt, Round Context, Conversation, Turn Context, Provider Messages, Output, Evaluation, and Compare.
+- Done: update Contract Manual tabs to show Provider Messages, Output, Evaluation, and Compare.
 - Done: show provider message array shape in PM Review.
-- Done: preserve source/provenance inspector behavior for generated non-user blocks.
+- Done: preserve source/provenance highlights for generated non-user blocks.
+- Done: simplify the PM Review Contract Manual so Provider Messages is the default tab, provider sections are selected inside the same `messages[]` tree, and generated blocks use a lighter preview panel instead of the detailed inspector.
+- Done: render generated prompt/context previews as sectionized XML-like blocks so original line breaks remain visible and dynamic sections stay source-highlighted.
 
 ### Phase 5: Cleanup
 
 - Done: remove mixed System Prompt assumptions from runtime provider message assembly.
 - Done: update linked docs and `AGENTS.md` with provider message ordering and round snapshot rules.
+- Done: remove repeated trusted-context authority lines from Round/Turn Context; the authority rule now lives once in the static System Prompt.
+- Done: keep prompt/schema/rubric versions in metadata/UI rather than sending them as decision context.
 
 ## Validation Status
 
@@ -81,7 +88,7 @@ Validation performed:
 - `npm --workspace apps/extension run eval:ai-check`
 - `npm --workspace apps/extension run test:e2e`
 - `git diff --check`
-- Packaged `review.html` Playwright tab check for System Prompt, Round Context, Conversation, Turn Context, Provider Messages, Output, Evaluation, and Compare.
+- Packaged `review.html` Playwright tab check for Provider Messages, Output, Evaluation, and Compare.
 
 Pending validation:
 

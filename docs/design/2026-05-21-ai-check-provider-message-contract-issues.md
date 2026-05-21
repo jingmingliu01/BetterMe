@@ -114,5 +114,6 @@ Expected behavior:
 
 Resolution:
 
-- Contract Manual now separates System Prompt, Round Context, Conversation, Turn Context, Provider Messages, Output, Evaluation, and Compare.
-- Generated non-user blocks keep provenance highlighting and a source inspector.
+- Contract Manual now shows Provider Messages, Output, Evaluation, and Compare.
+- Provider Messages contains the full `messages[]` tree. Generated non-user blocks keep provenance highlighting and lightweight source hints.
+- Prompt/context preview now renders sectionized XML-like blocks from structured prompt parts so section boundaries and original line breaks are easier to inspect.

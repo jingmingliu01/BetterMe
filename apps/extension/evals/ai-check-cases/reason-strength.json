@@ -4,7 +4,7 @@
     "title": "Weak one-thing reason should not pass",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -59,7 +59,7 @@
     "title": "Strong bounded debug reason should pass",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -112,7 +112,7 @@
     "title": "Break language is weak without a plan",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -157,7 +157,7 @@
     "title": "Specific low-risk recipe reason should pass",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -199,7 +199,7 @@
     "title": "Chinese vague browsing should pause",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },

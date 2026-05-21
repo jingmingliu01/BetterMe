@@ -175,33 +175,40 @@ The round context is captured once when a round starts and remains stable.
 
 It should include:
 
-- `roundId` or `sessionId`.
-- `targetId` and `targetDisplay`.
+- `targetDisplay`.
 - strictness snapshot.
 - max assistant turns.
 - session policy snapshot.
 - strictness-derived AI cooldown policy snapshot.
 - strictness-derived unlock cap snapshot if relevant to `ALLOW`.
 - pattern memory snapshot.
-- prompt/schema/rubric versions used for this round.
 - provider/model metadata for traceability, if available.
 
 Example:
 
 ```text
 <trusted_round_context>
-This context is supplied by BetterMe, not by the end user.
-Round id: session_123
-Target: youtube.com
-Strictness snapshot: balanced
+<target>
+youtube.com
+</target>
+<strictness>
+balanced
+</strictness>
+<round_limits>
 Max assistant turns: 5
-AI cooldown range: 60-300 seconds. Recommended default: 120 seconds.
-Relevant pattern memory: none yet.
-Prompt version: from AI_CHECK_CONTRACT.promptVersion
-Schema version: from AI_CHECK_CONTRACT.schemaVersion
-Rubric version: from AI_CHECK_CONTRACT.rubricVersion
+Max session seconds: 600
+</round_limits>
+<access_policy>
+AI_COOLDOWN seconds: min=60; default=120; max=300
+Unlock cap minutes: 10
+</access_policy>
+<pattern_memory>
+none yet
+</pattern_memory>
 </trusted_round_context>
 ```
+
+Prompt/schema/rubric versions remain in session and eval metadata, not in provider decision context.
 
 Literal version values should not be duplicated in docs or code outside the contract.
 
@@ -232,9 +239,12 @@ Example:
 
 ```text
 <trusted_turn_context>
-This context is supplied by BetterMe, not by the end user.
-Assistant turn for this response: 5/5.
+<turn>
+Assistant turn for this response: 5/5
+</turn>
+<ask_more_policy>
 This is the final turn. You must return ALLOW, AI_COOLDOWN, or BLOCK. Do not return ASK_MORE.
+</ask_more_policy>
 </trusted_turn_context>
 ```
 
@@ -305,25 +315,22 @@ Input / System Prompt / Output / Evaluation / Compare
 to:
 
 ```text
-System Prompt
-Round Context
-Conversation
-Turn Context
 Provider Messages
 Output
 Evaluation
 Compare
 ```
 
-The current System Prompt tab should stop presenting turn-level fields as part of the System Prompt after the refactor. It should show only the static contract prompt.
+Provider Messages should be the default view. It shows the provider `messages[]` request tree on the left and the selected section preview on the right, instead of splitting System Prompt, Round Context, Conversation, and Turn Context into separate tabs.
 
-The new tabs should explain:
+The Provider Messages tree should explain:
 
 - System Prompt: stable cross-round contract.
 - Round Context: trusted app context stable inside a round.
 - Conversation: append-only user-visible chat.
 - Turn Context: per-turn final-turn and turn-count control.
-- Provider Messages: exact final array sent to the provider.
+
+The right preview should render generated prompt/context text as XML-like section blocks from the same structured prompt parts used by runtime builders. This keeps provenance highlights while making original line breaks and section boundaries easier to read.
 
 ## Evaluation Impact
 
@@ -404,7 +411,8 @@ Phase 3: migrate provider calls and evals
 
 Phase 4: update PM Review Contract Manual
 
-- split current System Prompt view into System Prompt, Round Context, Conversation, Turn Context, and Provider Messages.
+- make Provider Messages the default Contract Manual view.
+- show System Prompt, Round Context, Conversation, and Turn Context inside the provider `messages[]` tree.
 - keep provenance highlights for all generated non-user blocks.
 - show which sections are stable across rounds, stable inside one round, append-only, or per-turn.
 

@@ -137,54 +137,41 @@ export function buildTrustedRoundContextParts(round: AICheckRoundSnapshot): Prom
 
   return [
     staticPromptPart("<trusted_round_context>"),
-    staticPromptPart("This context is supplied by BetterMe, not by the end user."),
     dynamicPromptPart({
-      text: `Round id: ${round.sessionId}`,
-      sourcePaths: ["AICheckSession.roundSnapshot.sessionId"],
-      value: round.sessionId,
-      meaning: "Identifies the current AI Check round for traceability."
-    }),
-    dynamicPromptPart({
-      text: `Target: ${round.targetDisplay}`,
+      text: `<target>\n${round.targetDisplay}\n</target>`,
       sourcePaths: ["AICheckSession.roundSnapshot.targetDisplay"],
       value: round.targetDisplay,
       meaning: "Anchors the decision to the blocked target for this round."
     }),
     dynamicPromptPart({
-      text: `Strictness snapshot: ${round.strictness}`,
+      text: `<strictness>\n${round.strictness}\n</strictness>`,
       sourcePaths: ["AICheckSession.roundSnapshot.strictness"],
       value: round.strictness,
       meaning: "Freezes strictness for this round even if Settings changes mid-round."
     }),
     dynamicPromptPart({
-      text: `Max assistant turns: ${round.maxAssistantTurns}`,
-      sourcePaths: ["AICheckSession.roundSnapshot.maxAssistantTurns"],
-      value: round.maxAssistantTurns,
-      meaning: "Defines the maximum assistant decision opportunities for this round."
+      text: `<round_limits>\nMax assistant turns: ${round.maxAssistantTurns}\nMax session seconds: ${round.maxSessionSeconds}\n</round_limits>`,
+      sourcePaths: ["AICheckSession.roundSnapshot.maxAssistantTurns", "AICheckSession.roundSnapshot.maxSessionSeconds"],
+      value: {
+        maxAssistantTurns: round.maxAssistantTurns,
+        maxSessionSeconds: round.maxSessionSeconds
+      },
+      meaning: "Defines the maximum assistant decision opportunities and duration for this round."
     }),
     dynamicPromptPart({
-      text: `AI_COOLDOWN range: ${round.aiCooldownPolicy.minSeconds}-${round.aiCooldownPolicy.maxSeconds} seconds. Recommended default: ${round.aiCooldownPolicy.defaultSeconds} seconds.`,
-      sourcePaths: ["AICheckSession.roundSnapshot.aiCooldownPolicy"],
-      value: round.aiCooldownPolicy,
-      meaning: "Freezes strictness-derived cooldown policy for this round."
+      text: `<access_policy>\nAI_COOLDOWN seconds: min=${round.aiCooldownPolicy.minSeconds}; default=${round.aiCooldownPolicy.defaultSeconds}; max=${round.aiCooldownPolicy.maxSeconds}\nUnlock cap minutes: ${round.unlockCapMinutes}\n</access_policy>`,
+      sourcePaths: ["AICheckSession.roundSnapshot.aiCooldownPolicy", "AICheckSession.roundSnapshot.unlockCapMinutes"],
+      value: {
+        aiCooldownPolicy: round.aiCooldownPolicy,
+        unlockCapMinutes: round.unlockCapMinutes
+      },
+      meaning: "Freezes strictness-derived cooldown and temporary unlock policy for this round."
     }),
     dynamicPromptPart({
-      text: `Unlock cap: ${round.unlockCapMinutes} minutes.`,
-      sourcePaths: ["AICheckSession.roundSnapshot.unlockCapMinutes"],
-      value: round.unlockCapMinutes,
-      meaning: "Freezes strictness-derived temporary unlock cap for this round."
-    }),
-    dynamicPromptPart({
-      text: memoryLines ? `Relevant pattern memory:\n${memoryLines}` : "Relevant pattern memory: none yet.",
+      text: `<pattern_memory>\n${memoryLines || "none yet"}\n</pattern_memory>`,
       sourcePaths: ["AICheckSession.roundSnapshot.patternMemorySnapshot"],
       value: round.patternMemorySnapshot,
       meaning: "Freezes local pattern memory at round start for reproducible decisions."
-    }),
-    dynamicPromptPart({
-      text: `Contract versions: prompt=${round.versions.promptVersion}; schema=${round.versions.schemaVersion}; rubric=${round.versions.rubricVersion}.`,
-      sourcePaths: ["AICheckSession.roundSnapshot.versions"],
-      value: round.versions,
-      meaning: "Records the contract versions used for this round."
     }),
     staticPromptPart("</trusted_round_context>")
   ];
@@ -199,9 +186,8 @@ export function buildTrustedRoundContext(round: AICheckRoundSnapshot): string {
 export function buildTrustedTurnContextParts(turn: AICheckTurnState): PromptPart[] {
   return [
     staticPromptPart("<trusted_turn_context>"),
-    staticPromptPart("This context is supplied by BetterMe, not by the end user."),
     dynamicPromptPart({
-      text: `Assistant turn for this response: ${turn.nextAssistantTurn}/${turn.maxAssistantTurns}.`,
+      text: `<turn>\nAssistant turn for this response: ${turn.nextAssistantTurn}/${turn.maxAssistantTurns}\n</turn>`,
       sourcePaths: ["AICheckTurnState.nextAssistantTurn", "AICheckTurnState.maxAssistantTurns"],
       value: {
         assistantTurnCount: turn.assistantTurnCount,
@@ -211,9 +197,11 @@ export function buildTrustedTurnContextParts(turn: AICheckTurnState): PromptPart
       meaning: "Shows the current assistant decision opportunity inside the round."
     }),
     dynamicPromptPart({
-      text: turn.isFinalTurn
-        ? "This is the final turn. You must return ALLOW, AI_COOLDOWN, or BLOCK. Do not return ASK_MORE."
-        : "ASK_MORE is allowed only if another question is necessary inside the bounded AI Check round.",
+      text: `<ask_more_policy>\n${
+        turn.isFinalTurn
+          ? "This is the final turn. You must return ALLOW, AI_COOLDOWN, or BLOCK. Do not return ASK_MORE."
+          : "ASK_MORE is allowed only if another question is necessary inside the bounded AI Check round."
+      }\n</ask_more_policy>`,
       sourcePaths: ["AICheckTurnState.isFinalTurn"],
       value: turn.isFinalTurn,
       meaning: "Keeps final-turn enforcement as late turn-level context so stable prompt prefixes remain cacheable."

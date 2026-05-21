@@ -4,7 +4,7 @@
     "title": "Boredom-driven NSFW visit should not be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -58,7 +58,7 @@
     "title": "Reward framing on sensitive target should pause",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -108,7 +108,7 @@
     "title": "Escape framing should not get direct access",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -154,7 +154,7 @@
     "title": "Quick scroll without purpose should pause",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -200,7 +200,7 @@
     "title": "Chinese relax reason should not be treated as bounded",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -250,7 +250,7 @@
     "title": "Loneliness on sensitive target should block in monk mode",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -301,7 +301,7 @@
     "title": "Tired browsing without exit plan should pause",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -347,7 +347,7 @@
     "title": "One vague thing is not a plan",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },

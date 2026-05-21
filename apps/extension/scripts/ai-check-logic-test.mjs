@@ -64,9 +64,10 @@ try {
   );
   assert.ok(promptParts.some((part) => part.sourcePaths?.includes("AI_CHECK_CONTRACT.enums.decisions")));
   assert.ok(promptParts.some((part) => part.sourcePaths?.includes("AI_CHECK_CONTRACT.sections.output.example")));
-  assert.ok(prompt.includes(`Example json: ${JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE)}`));
-  assert.ok(prompt.includes(`JSON schema: ${AI_CHECK_OUTPUT_SCHEMA_SUMMARY}`));
-  assert.ok(prompt.includes(`Valid decision values: ${AI_CHECK_DECISIONS.join(", ")}.`));
+  assert.ok(prompt.includes("<betterme_system_contract>"));
+  assert.ok(prompt.includes(`<output_example>\n${JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE, null, 2)}\n</output_example>`));
+  assert.ok(prompt.includes(`<output_schema_summary>\n${AI_CHECK_OUTPUT_SCHEMA_SUMMARY}\n</output_schema_summary>`));
+  assert.ok(prompt.includes(`<decision_values>\n${AI_CHECK_DECISIONS.join(", ")}\n</decision_values>`));
   assert.ok(!prompt.includes("Assistant turn count before this response"));
 
   const roundSnapshot = buildRoundSnapshot({
@@ -107,7 +108,7 @@ try {
   assert.equal(turnOneMessages[0].content, turnTwoMessages[0].content);
   assert.equal(turnOneMessages[1].content, turnTwoMessages[1].content);
   assert.notEqual(turnOneMessages.at(-1).content, turnTwoMessages.at(-1).content);
-  assert.ok(buildTrustedRoundContext(roundSnapshot).includes("Strictness snapshot: balanced"));
+  assert.ok(buildTrustedRoundContext(roundSnapshot).includes("<strictness>\nbalanced\n</strictness>"));
   assert.ok(
     buildTrustedTurnContext({
       assistantTurnCount: 4,

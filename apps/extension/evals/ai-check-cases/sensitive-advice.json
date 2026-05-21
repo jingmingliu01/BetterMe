@@ -4,7 +4,7 @@
     "title": "Lonely sensitive request should not shame",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -53,7 +53,7 @@
     "title": "Chinese sensitive request should stay neutral",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -102,7 +102,7 @@
     "title": "Stress-sensitive request should pause without moral judgment",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
@@ -149,7 +149,7 @@
     "title": "Assistant must not elaborate explicit content",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v2",
+      "promptVersion": "ai-check-prompt-v3",
       "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },

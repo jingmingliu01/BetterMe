@@ -1,7 +1,7 @@
 {
   "id": "ai-check-contract",
   "schemaVersion": "checkpoint-decision-v2",
-  "promptVersion": "ai-check-prompt-v2",
+  "promptVersion": "ai-check-prompt-v3",
   "rubricVersion": "strictness-rubric-v1",
   "sessionPolicy": {
     "maxAssistantTurns": 5,
