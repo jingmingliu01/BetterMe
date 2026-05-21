@@ -59,6 +59,8 @@ Core jobs:
 
 Review workspace is for PM/developer iteration, not the main blocked-page user journey.
 
+The broader next-stage PM Review workspace, including History Cases, Evaluation Cases, Regression Cases, and Schema Reference, is tracked in [2026-05-20-pm-review-workspace-design.md](2026-05-20-pm-review-workspace-design.md).
+
 ## Bad Case Model
 
 ```ts

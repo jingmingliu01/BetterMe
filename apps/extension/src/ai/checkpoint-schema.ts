@@ -1,31 +1,35 @@
 import { createId, nowIso } from "../shared/id";
 import { normalizeAICooldownSeconds, STRICTNESS_UNLOCK_CAP_MINUTES } from "../shared/constants";
+import {
+  AI_CHECK_BEHAVIOR_REASON_CATEGORIES,
+  AI_CHECK_DECISION_REASON_CATEGORIES,
+  AI_CHECK_DECISIONS
+} from "../shared/ai-check-contract";
 import type { AICheckScoreName, AIDecision, CheckpointDecision, StrictnessLevel } from "../shared/types";
-
-const DECISIONS: AIDecision[] = ["ALLOW", "AI_COOLDOWN", "ASK_MORE", "BLOCK"];
-const DECISION_REASON_CATEGORIES: CheckpointDecision["decisionReasonCategory"][] = [
-  "repeated_excuse",
-  "clear_intention",
-  "high_risk_pattern",
-  "low_risk",
-  "insufficient_reason"
-];
-const BEHAVIOR_REASON_CATEGORIES: CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"][] = [
-  "stress",
-  "boredom",
-  "loneliness",
-  "escape",
-  "habit",
-  "intentional",
-  "other"
-];
-
-function asString(value: unknown, fallback: string): string {
-  return typeof value === "string" ? value : fallback;
-}
 
 function asNullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+function requireKey(record: Record<string, unknown>, key: string): unknown {
+  if (!(key in record)) {
+    throw new Error(`LLM response missing required field ${key}.`);
+  }
+  return record[key];
+}
+
+function requireObject(value: unknown, key: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`LLM response field ${key} must be an object.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function requireString(value: unknown, key: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`LLM response field ${key} must be a non-empty string.`);
+  }
+  return value;
 }
 
 export function parseCheckpointDecision(raw: string, sessionId: string): CheckpointDecision {
@@ -40,21 +44,31 @@ export function parseCheckpointDecision(raw: string, sessionId: string): Checkpo
   if (!decision) {
     throw new Error("LLM returned an invalid decision.");
   }
-  const decisionReasonCategory = normalizeDecisionReasonCategory(parsed.decisionReasonCategory, decision);
+  const userFacingMessage = requireString(requireKey(parsed, "userFacingMessage"), "userFacingMessage");
+  const decisionReasonCategory = normalizeDecisionReasonCategory(
+    requireKey(parsed, "decisionReasonCategory"),
+    decision
+  );
+  const unlockMinutes = requireKey(parsed, "unlockMinutes");
+  const aiCooldownSeconds = requireKey(parsed, "aiCooldownSeconds");
+  const nextQuestion = requireKey(parsed, "nextQuestion");
 
-  const scores = (parsed.scores ?? {}) as Record<string, unknown>;
-  const memoryUpdate = (parsed.memoryUpdate ?? {}) as Record<string, unknown>;
-  const behaviorReasonCategory = normalizeBehaviorReasonCategory(memoryUpdate.behaviorReasonCategory);
+  const scores = requireObject(requireKey(parsed, "scores"), "scores");
+  const memoryUpdate = requireObject(requireKey(parsed, "memoryUpdate"), "memoryUpdate");
+  const behaviorReasonCategory = normalizeBehaviorReasonCategory(
+    requireKey(memoryUpdate, "behaviorReasonCategory")
+  );
+  requireKey(memoryUpdate, "patternNote");
 
   return {
     id: createId("decision"),
     sessionId,
     decision,
-    userFacingMessage: asString(parsed.userFacingMessage, "I need one more clear reason before deciding."),
+    userFacingMessage,
     decisionReasonCategory,
-    unlockMinutes: typeof parsed.unlockMinutes === "number" ? parsed.unlockMinutes : null,
-    aiCooldownSeconds: getAICooldownSeconds(parsed),
-    nextQuestion: asNullableString(parsed.nextQuestion),
+    unlockMinutes: typeof unlockMinutes === "number" ? unlockMinutes : null,
+    aiCooldownSeconds: typeof aiCooldownSeconds === "number" ? aiCooldownSeconds : null,
+    nextQuestion: asNullableString(nextQuestion),
     scores: {
       repeatedReason: readScore(scores.repeatedReason, "repeatedReason"),
       impulse: readScore(scores.impulse, "impulse"),
@@ -85,7 +99,7 @@ function normalizeDecisionReasonCategory(
 ): CheckpointDecision["decisionReasonCategory"] {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-    if (DECISION_REASON_CATEGORIES.includes(normalized as CheckpointDecision["decisionReasonCategory"])) {
+    if (AI_CHECK_DECISION_REASON_CATEGORIES.includes(normalized as CheckpointDecision["decisionReasonCategory"])) {
       return normalized as CheckpointDecision["decisionReasonCategory"];
     }
     if (["impulse", "impulsive", "weak_reason", "vague_reason", "not_enough_info"].includes(normalized)) {
@@ -115,7 +129,7 @@ function normalizeDecisionReasonCategory(
 function normalizeBehaviorReasonCategory(value: unknown): CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"] {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
-    if (BEHAVIOR_REASON_CATEGORIES.includes(normalized as CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"])) {
+    if (AI_CHECK_BEHAVIOR_REASON_CATEGORIES.includes(normalized as CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"])) {
       return normalized as CheckpointDecision["memoryUpdate"]["behaviorReasonCategory"];
     }
     if (["relax", "relaxation", "fun", "entertainment", "curiosity"].includes(normalized)) {
@@ -132,14 +146,7 @@ function normalizeDecision(value: unknown): AIDecision | null {
   if (typeof value !== "string") {
     return null;
   }
-  return DECISIONS.includes(value as AIDecision) ? (value as AIDecision) : null;
-}
-
-function getAICooldownSeconds(parsed: Record<string, unknown>): number | null {
-  if (typeof parsed.aiCooldownSeconds === "number") {
-    return parsed.aiCooldownSeconds;
-  }
-  return null;
+  return AI_CHECK_DECISIONS.includes(value as AIDecision) ? (value as AIDecision) : null;
 }
 
 export function createFallbackDecision(sessionId: string, message: string): CheckpointDecision {

@@ -122,6 +122,7 @@ export interface UserSettings {
 export interface ProviderConfig {
   id: ProviderId;
   label: string;
+  envKey?: string;
   baseUrl: string;
   defaultModel: string;
   models: string[];
@@ -284,6 +285,8 @@ export interface AICheckCaseEval {
   reviewerNote?: string;
 }
 
+export type AICheckCaseStatus = "draft" | "ready" | "regression" | "archived";
+
 export interface AICheckCase {
   id: string;
   title: string;
@@ -296,8 +299,42 @@ export interface AICheckCase {
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
   eval?: AICheckCaseEval;
+  status: AICheckCaseStatus;
+  archivedAt?: string;
+  archivedReason?: string;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface AICheckCaseSet {
+  id: string;
+  name: string;
+  description: string;
+  filters: {
+    statuses?: AICheckCaseStatus[];
+    tags?: string[];
+    strictness?: StrictnessLevel[];
+    expectedDecisions?: AIDecision[];
+    promptVersions?: string[];
+    schemaVersions?: string[];
+    rubricVersions?: string[];
+    includeArchived?: boolean;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AICheckSchemaFieldReference {
+  path: string;
+  type: string;
+  required: boolean;
+  nullable?: boolean;
+  example?: unknown;
+  meaning: string;
+  whyNecessary: string;
+  productImpact: string;
+  validation: string;
+  commonMistakes: string;
 }
 
 export interface AICheckEvalRun {
@@ -411,15 +448,46 @@ export type ExtensionMessage =
         errorTypes?: BadCaseErrorType[];
         reviewerNote?: string;
       };
-    }
+  }
   | { type: "review/convertBadCaseToEval"; payload: { badCaseId: string; title?: string } }
   | { type: "review/listEvalCases" }
+  | { type: "review/createEvalCase"; payload: CreateEvalCaseInput }
+  | { type: "review/updateEvalCase"; payload: UpdateEvalCaseInput }
+  | { type: "review/archiveEvalCase"; payload: { id: string; archivedReason?: string } }
   | { type: "settings/update"; payload: Partial<UserSettings> }
   | { type: "provider/saveApiKey"; payload: { provider: ProviderId; apiKey: string } }
   | { type: "provider/deleteApiKey"; payload: { provider: ProviderId } }
   | { type: "provider/status" }
   | { type: "data/export" }
   | { type: "data/deleteAll" };
+
+export interface CreateEvalCaseInput {
+  title: string;
+  source?: AICheckCase["source"];
+  status?: AICheckCaseStatus;
+  targetDisplay: string;
+  strictness: StrictnessLevel;
+  userMessage: string;
+  expectedDecision: AIDecision;
+  tags: string[];
+  reviewerNote?: string;
+  mustAskAbout?: string[];
+  mustNotSay?: string[];
+}
+
+export interface UpdateEvalCaseInput {
+  id: string;
+  title?: string;
+  status?: AICheckCaseStatus;
+  targetDisplay?: string;
+  strictness?: StrictnessLevel;
+  userMessage?: string;
+  expectedDecision?: AIDecision;
+  tags?: string[];
+  reviewerNote?: string;
+  mustAskAbout?: string[];
+  mustNotSay?: string[];
+}
 
 export interface ExtensionResult<T> {
   ok: boolean;

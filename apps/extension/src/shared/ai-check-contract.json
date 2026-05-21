@@ -1,0 +1,481 @@
+{
+  "id": "ai-check-contract",
+  "schemaVersion": "checkpoint-decision-v2",
+  "promptVersion": "ai-check-prompt-v1",
+  "rubricVersion": "strictness-rubric-v1",
+  "sessionPolicy": {
+    "maxAssistantTurns": 5,
+    "maxSessionSeconds": 600
+  },
+  "enums": {
+    "decisions": ["ALLOW", "AI_COOLDOWN", "ASK_MORE", "BLOCK"],
+    "decisionReasonCategories": [
+      "repeated_excuse",
+      "clear_intention",
+      "high_risk_pattern",
+      "low_risk",
+      "insufficient_reason"
+    ],
+    "behaviorReasonCategories": ["stress", "boredom", "loneliness", "escape", "habit", "intentional", "other"],
+    "strictnessLevels": ["gentle", "balanced", "strict", "monk"],
+    "caseStatuses": ["draft", "ready", "regression", "archived"],
+    "caseSources": ["authored_eval", "real_session", "bad_case_review"],
+    "badCaseErrorTypes": [
+      "over_allow",
+      "over_block",
+      "under_ask",
+      "unnecessary_ask",
+      "wrong_reason_strength",
+      "wrong_strictness_application",
+      "wrong_cooldown_duration",
+      "unsafe_sensitive_advice",
+      "bad_tone",
+      "schema_or_format_failure"
+    ]
+  },
+  "pmReview": {
+    "errorTypes": [
+      { "value": "over_allow", "label": "Over allow" },
+      { "value": "over_block", "label": "Over block" },
+      { "value": "under_ask", "label": "Under ask" },
+      { "value": "unnecessary_ask", "label": "Unnecessary ask" },
+      { "value": "wrong_reason_strength", "label": "Wrong reason strength" },
+      { "value": "wrong_strictness_application", "label": "Wrong strictness" },
+      { "value": "wrong_cooldown_duration", "label": "Wrong cooldown" },
+      { "value": "unsafe_sensitive_advice", "label": "Unsafe sensitive advice" },
+      { "value": "bad_tone", "label": "Bad tone" },
+      { "value": "schema_or_format_failure", "label": "Schema or format failure" }
+    ],
+    "commonTags": [
+      "over_allow",
+      "over_block",
+      "under_ask",
+      "unnecessary_ask",
+      "wrong_reason_strength",
+      "wrong_strictness_application",
+      "wrong_cooldown_duration",
+      "unsafe_sensitive_advice",
+      "bad_tone",
+      "schema_or_format_failure",
+      "work",
+      "school",
+      "social",
+      "video",
+      "nsfw",
+      "zh",
+      "strictness"
+    ],
+    "caseSets": [
+      {
+        "id": "active",
+        "name": "All Active Cases",
+        "description": "Draft, ready, and regression cases that are not archived.",
+        "statuses": ["draft", "ready", "regression"]
+      },
+      {
+        "id": "regression",
+        "name": "Regression Suite",
+        "description": "Release-gating cases.",
+        "statuses": ["regression"]
+      },
+      {
+        "id": "draft",
+        "name": "Draft Review Queue",
+        "description": "Converted or authored cases still needing PM cleanup.",
+        "statuses": ["draft"]
+      },
+      {
+        "id": "sensitive",
+        "name": "Sensitive Risk",
+        "description": "NSFW and unsafe-sensitive cases.",
+        "statuses": ["draft", "ready", "regression"],
+        "tags": ["nsfw", "unsafe_sensitive_advice"]
+      },
+      {
+        "id": "strictness",
+        "name": "Strictness Suite",
+        "description": "Cases focused on strictness behavior.",
+        "statuses": ["draft", "ready", "regression"],
+        "tags": ["strictness", "wrong_strictness_application"]
+      },
+      {
+        "id": "archived",
+        "name": "Archive",
+        "description": "Archived cases excluded from normal eval runs.",
+        "statuses": ["archived"],
+        "includeArchived": true
+      }
+    ]
+  },
+  "sections": {
+    "input": {
+      "title": "Model Input",
+      "summary": "The local AI Check context assembled by the extension before calling the provider.",
+      "fields": [
+        {
+          "path": "targetDisplay",
+          "type": "string",
+          "required": true,
+          "example": "youtube.com",
+          "meaning": "The blocked target the user is trying to open.",
+          "whyNecessary": "The model needs to know which site or URL the user is asking to access.",
+          "productImpact": "Anchors the decision in the current blocked target.",
+          "validation": "Derived from the local blocked target record.",
+          "commonMistakes": "Treating the target as a generic category instead of the concrete blocked target."
+        },
+        {
+          "path": "strictness",
+          "type": "gentle | balanced | strict | monk",
+          "required": true,
+          "example": "strict",
+          "meaning": "The active strictness level for the AI Check.",
+          "whyNecessary": "Strictness changes unlock caps, cooldown ranges, and how much certainty is required.",
+          "productImpact": "Changes decision thresholds and cooldown timing.",
+          "validation": "Must be one of the configured strictness levels.",
+          "commonMistakes": "Evaluating a case without checking which strictness level applies."
+        },
+        {
+          "path": "sessionContext.assistantTurnCount",
+          "type": "number",
+          "required": true,
+          "example": 1,
+          "meaning": "How many assistant turns happened before this model response.",
+          "whyNecessary": "The model needs to know whether it can still ask follow-up questions.",
+          "productImpact": "Controls when ASK_MORE is still allowed.",
+          "validation": "Derived from the local session state.",
+          "commonMistakes": "Counting user messages instead of assistant turns."
+        },
+        {
+          "path": "sessionContext.maxAssistantTurns",
+          "type": "number",
+          "required": true,
+          "example": 5,
+          "meaning": "Maximum assistant turns allowed in this AI Check.",
+          "whyNecessary": "The model needs a bounded conversation limit.",
+          "productImpact": "Prevents endless back-and-forth before enforcement.",
+          "validation": "Derived from the AI Check session policy.",
+          "commonMistakes": "Allowing ASK_MORE after the final turn."
+        },
+        {
+          "path": "sessionContext.isFinalTurn",
+          "type": "boolean",
+          "required": true,
+          "example": false,
+          "meaning": "Whether this response is the final allowed assistant turn.",
+          "whyNecessary": "Final turns must enforce ALLOW, AI_COOLDOWN, or BLOCK instead of ASK_MORE.",
+          "productImpact": "Changes the allowed decision set for this turn.",
+          "validation": "Derived from assistantTurnCount and maxAssistantTurns.",
+          "commonMistakes": "Returning ASK_MORE when this flag is true."
+        },
+        {
+          "path": "messages",
+          "type": "Array<{ role, content, source }>",
+          "required": true,
+          "example": [{ "role": "user", "content": "I just want one quick video.", "source": "user" }],
+          "meaning": "The user-visible AI Check conversation so far.",
+          "whyNecessary": "The model must evaluate the user's stated reason and prior assistant prompts.",
+          "productImpact": "Determines whether the request is specific, bounded, repeated, or vague.",
+          "validation": "System messages are excluded before sending to the provider.",
+          "commonMistakes": "Judging only the latest message when earlier turns contain missing context."
+        },
+        {
+          "path": "patternMemorySnapshot",
+          "type": "Array<PatternMemory>",
+          "required": true,
+          "example": [],
+          "meaning": "Relevant local pattern memory for this target.",
+          "whyNecessary": "The model needs long-term behavior context separate from same-session repetition.",
+          "productImpact": "Can shift vague repeated behavior toward AI_COOLDOWN or BLOCK.",
+          "validation": "Loaded locally and limited before the provider request.",
+          "commonMistakes": "Treating same-session repetition as long-term memory without evidence."
+        }
+      ],
+      "example": {
+        "targetDisplay": "youtube.com",
+        "strictness": "strict",
+        "sessionContext": {
+          "assistantTurnCount": 1,
+          "maxAssistantTurns": 5,
+          "isFinalTurn": false
+        },
+        "messages": [
+          {
+            "role": "assistant",
+            "content": "You're trying to open youtube.com. What are you here to do, and why now?",
+            "source": "local_opening"
+          },
+          {
+            "role": "user",
+            "content": "I just want one quick video.",
+            "source": "user"
+          }
+        ],
+        "patternMemorySnapshot": []
+      }
+    },
+    "output": {
+      "title": "Model Output",
+      "summary": "The JSON object the provider must return for every AI Check decision.",
+      "schemaSummary": "{ decision, userFacingMessage, decisionReasonCategory, unlockMinutes, aiCooldownSeconds, nextQuestion, scores: { repeatedReason, impulse, deliberateness }, memoryUpdate: { behaviorReasonCategory, patternNote } }",
+      "promptSchema": {
+        "decision": "ALLOW|AI_COOLDOWN|ASK_MORE|BLOCK",
+        "userFacingMessage": "string",
+        "decisionReasonCategory": "repeated_excuse|clear_intention|high_risk_pattern|low_risk|insufficient_reason",
+        "unlockMinutes": "number|null",
+        "aiCooldownSeconds": "number|null",
+        "nextQuestion": "string|null",
+        "scores": {
+          "repeatedReason": "number",
+          "impulse": "number",
+          "deliberateness": "number"
+        },
+        "memoryUpdate": {
+          "behaviorReasonCategory": "stress|boredom|loneliness|escape|habit|intentional|other",
+          "patternNote": "string|null"
+        }
+      },
+      "fields": [
+        {
+          "path": "decision",
+          "type": "ALLOW | AI_COOLDOWN | ASK_MORE | BLOCK",
+          "required": true,
+          "example": "ASK_MORE",
+          "meaning": "The enforcement outcome for the current AI Check turn.",
+          "whyNecessary": "The extension needs one explicit outcome to derive temporary unlocks, AI cooldowns, follow-up questions, or block holds.",
+          "productImpact": "Directly controls whether the target opens, pauses, asks for more detail, or stays blocked.",
+          "validation": "Must be one of the four known decision values.",
+          "commonMistakes": "Using free-text decisions or returning ASK_MORE on the final turn."
+        },
+        {
+          "path": "userFacingMessage",
+          "type": "string",
+          "required": true,
+          "example": "What specific task do you need YouTube for, and when will you stop?",
+          "meaning": "The calm explanation shown to the user after the decision.",
+          "whyNecessary": "The user needs to understand the decision without seeing internal scoring or rubric labels.",
+          "productImpact": "Sets tone, trust, and clarity in the block page conversation.",
+          "validation": "Falls back to a generic ask-more message only when missing.",
+          "commonMistakes": "Shaming the user, overexplaining policy, or omitting the concrete next action."
+        },
+        {
+          "path": "decisionReasonCategory",
+          "type": "repeated_excuse | clear_intention | high_risk_pattern | low_risk | insufficient_reason",
+          "required": true,
+          "example": "insufficient_reason",
+          "meaning": "The reason category for this specific decision.",
+          "whyNecessary": "PM Review and evals need a stable reason label separate from long-term behavior memory.",
+          "productImpact": "Explains false allows, false blocks, and strictness behavior in review.",
+          "validation": "Unknown labels are normalized where possible, otherwise default from decision.",
+          "commonMistakes": "Putting behavior-memory categories such as stress or habit in this field."
+        },
+        {
+          "path": "unlockMinutes",
+          "type": "number | null",
+          "required": true,
+          "nullable": true,
+          "example": null,
+          "meaning": "Temporary access duration when the decision is ALLOW.",
+          "whyNecessary": "ALLOW must produce a bounded unlock instead of permanent access.",
+          "productImpact": "Creates the temporary unlock window and caps it by strictness.",
+          "validation": "Required for ALLOW and must be within the strictness cap.",
+          "commonMistakes": "Returning null for ALLOW or a duration above the strictness limit."
+        },
+        {
+          "path": "aiCooldownSeconds",
+          "type": "number | null",
+          "required": true,
+          "nullable": true,
+          "example": null,
+          "meaning": "Pause duration when the decision is AI_COOLDOWN.",
+          "whyNecessary": "AI cooldown is separate from allow and block; it needs its own timer.",
+          "productImpact": "Controls the in-chat cooldown period before the user can continue the AI Check.",
+          "validation": "Required for AI_COOLDOWN and normalized to a sane strictness-derived range.",
+          "commonMistakes": "Using legacy delay fields or returning cooldown seconds for non-cooldown decisions."
+        },
+        {
+          "path": "nextQuestion",
+          "type": "string | null",
+          "required": true,
+          "nullable": true,
+          "example": "What specific task do you need YouTube for, and when will you stop?",
+          "meaning": "The follow-up question when the decision is ASK_MORE.",
+          "whyNecessary": "ASK_MORE must collect missing intent, time limit, or exit-plan details.",
+          "productImpact": "Determines the next prompt shown in the AI Check conversation.",
+          "validation": "Required for ASK_MORE unless the session is already on the final turn.",
+          "commonMistakes": "Asking vague questions or using ASK_MORE when final-turn enforcement is required."
+        },
+        {
+          "path": "scores.repeatedReason",
+          "type": "0-100 number",
+          "required": true,
+          "example": 20,
+          "meaning": "How strongly this resembles a repeated or previously remembered reason.",
+          "whyNecessary": "The model needs a numeric signal that can be evaluated independently from the decision label.",
+          "productImpact": "Helps review repeated-excuse failures and regression strictness.",
+          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
+          "commonMistakes": "Treating the three scores as percentages that must sum to 100."
+        },
+        {
+          "path": "scores.impulse",
+          "type": "0-100 number",
+          "required": true,
+          "example": 62,
+          "meaning": "How impulsive or reactive the current request appears.",
+          "whyNecessary": "Cooldown and block decisions depend on impulse risk, especially in stricter modes.",
+          "productImpact": "Supports PM diagnosis of over-allow and under-ask cases.",
+          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
+          "commonMistakes": "Leaving it low for vague, emotional, or repeated requests."
+        },
+        {
+          "path": "scores.deliberateness",
+          "type": "0-100 number",
+          "required": true,
+          "example": 35,
+          "meaning": "How specific, bounded, and intentional the user's plan appears.",
+          "whyNecessary": "ALLOW should be grounded in deliberate intent, not just a polite request.",
+          "productImpact": "Supports unlock decisions and strictness tuning.",
+          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
+          "commonMistakes": "Overrating generic phrases like one quick video without a stop condition."
+        },
+        {
+          "path": "memoryUpdate.behaviorReasonCategory",
+          "type": "stress | boredom | loneliness | escape | habit | intentional | other",
+          "required": true,
+          "example": "boredom",
+          "meaning": "The long-term behavior pattern category to remember for the target.",
+          "whyNecessary": "Pattern memory needs behavior labels that stay separate from current decision reasoning.",
+          "productImpact": "Affects future repeated-pattern context and PM review of remembered behavior.",
+          "validation": "Unknown labels are normalized where possible and otherwise become other.",
+          "commonMistakes": "Using decision reason labels such as insufficient_reason here."
+        },
+        {
+          "path": "memoryUpdate.patternNote",
+          "type": "string | null",
+          "required": true,
+          "nullable": true,
+          "example": "User tends to request vague short video breaks without a clear stop condition.",
+          "meaning": "Optional short note about the repeated behavior pattern.",
+          "whyNecessary": "The model can preserve useful behavioral context without storing unnecessary transcript detail.",
+          "productImpact": "Improves future AI Check context while keeping local memory concise.",
+          "validation": "Empty strings become null.",
+          "commonMistakes": "Including sensitive or overly detailed personal content when a short pattern note is enough."
+        }
+      ],
+      "example": {
+        "decision": "ASK_MORE",
+        "userFacingMessage": "What specific task do you need YouTube for, and when will you stop?",
+        "decisionReasonCategory": "insufficient_reason",
+        "unlockMinutes": null,
+        "aiCooldownSeconds": null,
+        "nextQuestion": "What specific task do you need YouTube for, and when will you stop?",
+        "scores": {
+          "repeatedReason": 20,
+          "impulse": 62,
+          "deliberateness": 35
+        },
+        "memoryUpdate": {
+          "behaviorReasonCategory": "boredom",
+          "patternNote": "User tends to request vague short video breaks without a clear stop condition."
+        }
+      }
+    },
+    "evaluation": {
+      "title": "Evaluation Case",
+      "summary": "The unified case fixture used to run model regression checks.",
+      "fields": [
+        {
+          "path": "input",
+          "type": "AICheckCaseInput",
+          "required": true,
+          "meaning": "The model input context used for this case.",
+          "whyNecessary": "Evaluation must replay a concrete checkpoint context.",
+          "productImpact": "Determines what the model sees during the eval.",
+          "validation": "Must match the input contract.",
+          "commonMistakes": "Writing assertions without preserving the original target, strictness, or messages."
+        },
+        {
+          "path": "output.parsed",
+          "type": "Model Output",
+          "required": false,
+          "meaning": "Optional captured provider output for inspection.",
+          "whyNecessary": "Stored outputs help compare provider behavior across runs.",
+          "productImpact": "Improves PM review traceability.",
+          "validation": "When present, should match the output contract.",
+          "commonMistakes": "Treating captured output as the expected assertion."
+        },
+        {
+          "path": "eval.expectedOutput.decision",
+          "type": "ALLOW | AI_COOLDOWN | ASK_MORE | BLOCK",
+          "required": true,
+          "example": "ASK_MORE",
+          "meaning": "The expected decision for this case.",
+          "whyNecessary": "Every eval case needs one primary pass/fail decision assertion.",
+          "productImpact": "Determines the core regression result.",
+          "validation": "Must be a valid decision.",
+          "commonMistakes": "Using tags as a substitute for expected decision."
+        },
+        {
+          "path": "eval.mustAskAbout",
+          "type": "string[]",
+          "required": false,
+          "example": ["time limit", "exit plan"],
+          "meaning": "Phrases or topics that must appear in the user-facing message.",
+          "whyNecessary": "Some ASK_MORE cases need specific missing information.",
+          "productImpact": "Catches vague follow-up questions.",
+          "validation": "Each phrase is matched case-insensitively against userFacingMessage.",
+          "commonMistakes": "Making this too specific to one exact wording."
+        },
+        {
+          "path": "eval.mustNotSay",
+          "type": "string[]",
+          "required": false,
+          "example": ["You are weak"],
+          "meaning": "Phrases that must not appear in the user-facing message.",
+          "whyNecessary": "Tone and safety regressions need explicit negative assertions.",
+          "productImpact": "Prevents shame, moral judgment, or unsafe wording.",
+          "validation": "Each phrase is matched case-insensitively against userFacingMessage.",
+          "commonMistakes": "Using broad words that would fail harmless messages."
+        },
+        {
+          "path": "eval.tags",
+          "type": "string[]",
+          "required": true,
+          "example": ["under_ask", "video", "strictness"],
+          "meaning": "Risk and category labels for filtering eval results.",
+          "whyNecessary": "PM Review and eval reporting need grouped risk views.",
+          "productImpact": "Drives case sets and tag-level pass rates.",
+          "validation": "Must be an array; recommended tags are shared in PM Review.",
+          "commonMistakes": "Using tags to encode expected behavior instead of assertions."
+        }
+      ],
+      "example": {
+        "input": {
+          "targetDisplay": "youtube.com",
+          "strictness": "strict",
+          "sessionContext": {
+            "assistantTurnCount": 1,
+            "maxAssistantTurns": 5,
+            "isFinalTurn": false
+          },
+          "messages": [
+            {
+              "role": "user",
+              "content": "I just want one quick video.",
+              "source": "user"
+            }
+          ],
+          "patternMemorySnapshot": []
+        },
+        "eval": {
+          "expectedOutput": {
+            "decision": "ASK_MORE"
+          },
+          "mustAskAbout": ["time limit", "exit plan"],
+          "mustNotSay": ["You are weak"],
+          "tags": ["under_ask", "video", "strictness"],
+          "reviewerNote": "Model should ask for a bounded purpose before allowing."
+        }
+      }
+    }
+  }
+}

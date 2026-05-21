@@ -1,4 +1,5 @@
 import { listPatternMemory } from "./pattern-memory";
+import { AI_CHECK_CONTRACT, AI_CHECK_SESSION_POLICY } from "../shared/ai-check-contract";
 import { createId, nowIso } from "../shared/id";
 import type {
   AICheckCase,
@@ -12,13 +13,15 @@ import type {
   BadCaseReview,
   BehaviorEvent,
   CheckpointDecision,
-  StrictnessLevel
+  CreateEvalCaseInput,
+  StrictnessLevel,
+  UpdateEvalCaseInput
 } from "../shared/types";
 import { getAllRecords, getRecord, putRecord } from "../storage/indexed-db";
 
-export const AI_CHECK_PROMPT_VERSION = "ai-check-prompt-v1";
-export const AI_CHECK_SCHEMA_VERSION = "checkpoint-decision-v1";
-export const AI_CHECK_RUBRIC_VERSION = "strictness-rubric-v1";
+export const AI_CHECK_PROMPT_VERSION = AI_CHECK_CONTRACT.promptVersion;
+export const AI_CHECK_SCHEMA_VERSION = AI_CHECK_CONTRACT.schemaVersion;
+export const AI_CHECK_RUBRIC_VERSION = AI_CHECK_CONTRACT.rubricVersion;
 
 export async function listReviewSessions(): Promise<AIPMReviewSession[]> {
   const [sessions, messages, decisions, badCases, behaviorEvents] = await Promise.all([
@@ -145,7 +148,7 @@ export async function convertBadCaseToEvalCase(input: { badCaseId: string; title
       strictness,
       sessionContext: {
         assistantTurnCount: Math.max(0, badCase.messages.filter((message) => message.role === "assistant").length - 1),
-        maxAssistantTurns: 3,
+        maxAssistantTurns: AI_CHECK_SESSION_POLICY.maxAssistantTurns,
         isFinalTurn: false
       },
       messages: badCase.messages
@@ -172,6 +175,7 @@ export async function convertBadCaseToEvalCase(input: { badCaseId: string; title
       tags: badCase.errorTypes,
       reviewerNote: badCase.reviewerNote
     },
+    status: "draft",
     createdAt: now,
     updatedAt: now
   };
@@ -186,7 +190,137 @@ export async function convertBadCaseToEvalCase(input: { badCaseId: string; title
 
 export async function listEvalCases(): Promise<AICheckCase[]> {
   const cases = await getAllRecords<AICheckCase>("evalCases");
-  return cases.sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
+  const normalized = cases.map(normalizeStoredEvalCase);
+  await Promise.all(
+    normalized
+      .filter((item, index) => item !== cases[index])
+      .map((item) => putRecord("evalCases", item))
+  );
+  return normalized.sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
+}
+
+export async function createEvalCase(input: CreateEvalCaseInput): Promise<AICheckCase> {
+  const now = nowIso();
+  const evalCase = normalizeStoredEvalCase({
+    id: createId("eval"),
+    title: input.title.trim() || "Untitled evaluation case",
+    source: input.source ?? "authored_eval",
+    versions: {
+      promptVersion: AI_CHECK_PROMPT_VERSION,
+      schemaVersion: AI_CHECK_SCHEMA_VERSION,
+      rubricVersion: AI_CHECK_RUBRIC_VERSION
+    },
+    input: {
+      targetDisplay: input.targetDisplay.trim() || "example.com",
+      strictness: input.strictness,
+      sessionContext: {
+        assistantTurnCount: 0,
+        maxAssistantTurns: AI_CHECK_SESSION_POLICY.maxAssistantTurns,
+        isFinalTurn: false
+      },
+      messages: [
+        {
+          role: "user",
+          content: input.userMessage.trim() || "I need to open this for a specific task.",
+          source: "user"
+        }
+      ],
+      patternMemorySnapshot: []
+    },
+    eval: {
+      expectedOutput: {
+        decision: input.expectedDecision
+      },
+      tags: cleanList(input.tags),
+      reviewerNote: input.reviewerNote?.trim() || undefined,
+      mustAskAbout: cleanList(input.mustAskAbout),
+      mustNotSay: cleanList(input.mustNotSay)
+    },
+    status: input.status ?? "draft",
+    createdAt: now,
+    updatedAt: now
+  });
+  await putRecord("evalCases", evalCase);
+  return evalCase;
+}
+
+export async function updateEvalCase(input: UpdateEvalCaseInput): Promise<AICheckCase> {
+  const existing = await getRecord<AICheckCase>("evalCases", input.id);
+  if (!existing) {
+    throw new Error("Eval case not found.");
+  }
+  const current = normalizeStoredEvalCase(existing);
+  const messages = current.input.messages.length > 0 ? [...current.input.messages] : [];
+  if (input.userMessage !== undefined) {
+    const userIndex = messages.findIndex((message) => message.role === "user");
+    const nextUserMessage = {
+      role: "user" as const,
+      content: input.userMessage.trim(),
+      source: "user" as const
+    };
+    if (userIndex >= 0) {
+      messages[userIndex] = {
+        ...messages[userIndex],
+        ...nextUserMessage
+      };
+    } else {
+      messages.push(nextUserMessage);
+    }
+  }
+
+  const next: AICheckCase = normalizeStoredEvalCase({
+    ...current,
+    title: input.title !== undefined ? input.title.trim() || current.title : current.title,
+    status: input.status ?? current.status,
+    input: {
+      ...current.input,
+      targetDisplay: input.targetDisplay !== undefined ? input.targetDisplay.trim() || current.input.targetDisplay : current.input.targetDisplay,
+      strictness: input.strictness ?? current.input.strictness,
+      messages
+    },
+    eval: {
+      expectedOutput: {
+        ...(current.eval?.expectedOutput ?? { decision: "ASK_MORE" }),
+        decision: input.expectedDecision ?? current.eval?.expectedOutput.decision ?? "ASK_MORE"
+      },
+      allowedDecisions: current.eval?.allowedDecisions,
+      disallowedDecisions: current.eval?.disallowedDecisions,
+      expectedCooldownRangeSeconds: current.eval?.expectedCooldownRangeSeconds,
+      expectedScoreRanges: current.eval?.expectedScoreRanges,
+      tags: input.tags !== undefined ? cleanList(input.tags) : current.eval?.tags ?? [],
+      reviewerNote:
+        input.reviewerNote !== undefined ? input.reviewerNote.trim() || undefined : current.eval?.reviewerNote,
+      mustAskAbout: input.mustAskAbout !== undefined ? cleanList(input.mustAskAbout) : current.eval?.mustAskAbout,
+      mustNotSay: input.mustNotSay !== undefined ? cleanList(input.mustNotSay) : current.eval?.mustNotSay
+    },
+    archivedAt:
+      input.status === "archived"
+        ? current.archivedAt ?? nowIso()
+        : input.status
+          ? undefined
+          : current.archivedAt,
+    archivedReason: input.status && input.status !== "archived" ? undefined : current.archivedReason,
+    updatedAt: nowIso()
+  });
+  await putRecord("evalCases", next);
+  return next;
+}
+
+export async function archiveEvalCase(input: { id: string; archivedReason?: string }): Promise<AICheckCase> {
+  const existing = await getRecord<AICheckCase>("evalCases", input.id);
+  if (!existing) {
+    throw new Error("Eval case not found.");
+  }
+  const now = nowIso();
+  const next: AICheckCase = {
+    ...normalizeStoredEvalCase(existing),
+    status: "archived",
+    archivedAt: now,
+    archivedReason: input.archivedReason?.trim() || "Archived from PM Review.",
+    updatedAt: now
+  };
+  await putRecord("evalCases", next);
+  return next;
 }
 
 export async function saveEvalRun(run: AICheckEvalRun): Promise<void> {
@@ -211,4 +345,22 @@ function isStrictnessLevel(value: unknown): value is StrictnessLevel {
 function buildEvalTitle(badCase: BadCaseReview): string {
   const expected = badCase.expectedDecision ? `expected ${badCase.expectedDecision}` : "expected decision";
   return `${badCase.targetDisplay} ${expected}`;
+}
+
+function normalizeStoredEvalCase(evalCase: AICheckCase): AICheckCase {
+  const status = evalCase.archivedAt ? "archived" : evalCase.status ?? "ready";
+  const normalized: AICheckCase = {
+    ...evalCase,
+    status,
+    createdAt: evalCase.createdAt ?? evalCase.updatedAt ?? nowIso(),
+    updatedAt: evalCase.updatedAt ?? evalCase.createdAt ?? nowIso()
+  };
+  if (status !== "archived" && normalized.archivedAt) {
+    delete normalized.archivedAt;
+  }
+  return normalized;
+}
+
+function cleanList(values: string[] | undefined): string[] {
+  return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
 }

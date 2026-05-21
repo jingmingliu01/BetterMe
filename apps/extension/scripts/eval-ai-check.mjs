@@ -1,35 +1,26 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { createServer } from "vite";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultCaseDir = resolve(here, "../evals/ai-check-cases");
+const contractPath = resolve(here, "../src/shared/ai-check-contract.json");
+const providerConfigPath = resolve(here, "../src/shared/provider-config.json");
+const aiCheckContract = JSON.parse(await readFile(contractPath, "utf8"));
+const rawProviderConfigs = JSON.parse(await readFile(providerConfigPath, "utf8"));
 
-const promptVersion = "ai-check-prompt-v1";
-const schemaVersion = "checkpoint-decision-v1";
-const rubricVersion = "strictness-rubric-v1";
+const promptVersion = aiCheckContract.promptVersion;
+const schemaVersion = aiCheckContract.schemaVersion;
+const rubricVersion = aiCheckContract.rubricVersion;
+const contractEnums = aiCheckContract.enums;
+const scoreNames = aiCheckContract.sections.output.fields
+  .map((field) => field.path)
+  .filter((path) => path.startsWith("scores."))
+  .map((path) => path.slice("scores.".length));
 
-const providerConfigs = {
-  mock: { label: "mock" },
-  openai: {
-    label: "OpenAI",
-    envKey: "OPENAI_API_KEY",
-    baseUrl: "https://api.openai.com/v1",
-    defaultModel: "gpt-5.1-mini"
-  },
-  deepseek: {
-    label: "DeepSeek",
-    envKey: "DEEPSEEK_API_KEY",
-    baseUrl: "https://api.deepseek.com",
-    defaultModel: "deepseek-chat"
-  },
-  kimi: {
-    label: "Kimi",
-    envKey: "KIMI_API_KEY",
-    baseUrl: "https://api.moonshot.ai/v1",
-    defaultModel: "kimi-k2.6"
-  }
-};
+const providerConfigs = Object.fromEntries(rawProviderConfigs.map((config) => [config.id, config]));
+providerConfigs.mock = { label: "mock", defaultModel: "mock" };
 
 const args = parseArgs(process.argv.slice(2));
 const provider = args.provider ?? "mock";
@@ -40,42 +31,49 @@ if (!providerConfig) {
 
 const model = args.model ?? providerConfig.defaultModel ?? "mock";
 const casePath = args.cases ? resolve(process.cwd(), args.cases) : defaultCaseDir;
-const cases = await loadCases(casePath);
+const cases = filterCases((await loadCases(casePath)).map(normalizeCase), args);
 const results = [];
+let runtimeModules = null;
 
-for (const testCase of cases) {
-  results.push(await runCase(normalizeCase(testCase), { provider, providerConfig, model }));
-}
-
-const failed = results.filter((result) => !result.pass);
-const tagStats = summarizeByTag(results);
-
-console.log("AI Check Eval Run");
-console.log(`Prompt: ${promptVersion}`);
-console.log(`Schema: ${schemaVersion}`);
-console.log(`Rubric: ${rubricVersion}`);
-console.log(`Provider mode: ${provider}`);
-console.log(`Model: ${model}`);
-console.log("");
-console.log(`Passed: ${results.length - failed.length}/${results.length}`);
-console.log("");
-console.log("By tag:");
-for (const row of tagStats) {
-  console.log(`- ${row.tag}: ${row.passed}/${row.total}`);
-}
-
-if (failed.length > 0) {
-  console.log("");
-  console.log("Failed:");
-  for (const result of failed) {
-    console.log(`- ${result.id}: ${result.failureReasons.join("; ")}`);
+try {
+  for (const testCase of cases) {
+    results.push(await runCase(testCase, { provider, providerConfig, model }));
   }
-  process.exitCode = 1;
+
+  const failed = results.filter((result) => !result.pass);
+  const tagStats = summarizeByTag(results);
+
+  console.log("AI Check Eval Run");
+  console.log(`Prompt: ${promptVersion}`);
+  console.log(`Schema: ${schemaVersion}`);
+  console.log(`Rubric: ${rubricVersion}`);
+  console.log(`Provider mode: ${provider}`);
+  console.log(`Model: ${model}`);
+  console.log(`Case filter: ${describeCaseFilter(args)}`);
+  console.log("");
+  console.log(`Passed: ${results.length - failed.length}/${results.length}`);
+  console.log("");
+  console.log("By tag:");
+  for (const row of tagStats) {
+    console.log(`- ${row.tag}: ${row.passed}/${row.total}`);
+  }
+
+  if (failed.length > 0) {
+    console.log("");
+    console.log("Failed:");
+    for (const result of failed) {
+      console.log(`- ${result.id}: ${result.failureReasons.join("; ")}`);
+    }
+    process.exitCode = 1;
+  }
+} finally {
+  await runtimeModules?.server.close();
 }
 
 async function runCase(testCase, runConfig) {
   validateCase(testCase);
-  const actual = runConfig.provider === "mock" ? mockDecision(testCase.input) : await providerDecision(testCase.input, runConfig);
+  const actual =
+    runConfig.provider === "mock" ? mockDecision(testCase.input) : await providerDecision(testCase, runConfig);
   const assertions = testCase.eval;
   const failureReasons = [];
 
@@ -104,7 +102,7 @@ async function runCase(testCase, runConfig) {
     );
   }
 
-  for (const scoreName of ["repeatedReason", "impulse", "deliberateness"]) {
+  for (const scoreName of scoreNames) {
     const score = actual.scores?.[scoreName];
     if (typeof score !== "number" || !Number.isFinite(score) || score < 0 || score > 100) {
       failureReasons.push(`${scoreName} score ${score ?? "missing"} is not a 0-100 number`);
@@ -150,11 +148,14 @@ async function runCase(testCase, runConfig) {
   };
 }
 
-async function providerDecision(input, runConfig) {
+async function providerDecision(testCase, runConfig) {
+  const input = testCase.input;
   const apiKey = process.env[runConfig.providerConfig.envKey];
   if (!apiKey) {
     throw new Error(`Set ${runConfig.providerConfig.envKey} to run provider mode for ${runConfig.providerConfig.label}.`);
   }
+  const runtime = await loadRuntimeModules();
+  const isFinalTurn = input.sessionContext?.isFinalTurn ?? false;
 
   const response = await fetch(`${runConfig.providerConfig.baseUrl}/chat/completions`, {
     method: "POST",
@@ -166,7 +167,15 @@ async function providerDecision(input, runConfig) {
       model: runConfig.model,
       temperature: 0.1,
       response_format: { type: "json_object" },
-      messages: buildProviderMessages(input)
+      messages: runtime.buildLlmMessages({
+        strictness: input.strictness,
+        targetDisplay: input.targetDisplay,
+        messages: input.messages,
+        patternMemories: input.patternMemorySnapshot ?? [],
+        assistantTurnCount: input.sessionContext?.assistantTurnCount ?? 0,
+        maxAssistantTurns: input.sessionContext?.maxAssistantTurns ?? aiCheckContract.sessionPolicy.maxAssistantTurns,
+        isFinalTurn
+      })
     })
   });
 
@@ -178,33 +187,9 @@ async function providerDecision(input, runConfig) {
   if (typeof raw !== "string") {
     throw new Error(`${runConfig.providerConfig.label} returned no message content.`);
   }
-  return normalizeDecisionPayload(JSON.parse(raw));
-}
-
-function buildProviderMessages(input) {
-  return [
-    {
-      role: "system",
-      content: [
-        "You are BetterMe, a private AI self-control checkpoint.",
-        "Return JSON only.",
-        "Valid decision values: ALLOW, AI_COOLDOWN, ASK_MORE, BLOCK.",
-        "Use AI_COOLDOWN when the user should pause before deciding.",
-        "Use ASK_MORE when a bounded purpose, time limit, or exit plan is missing.",
-        "Use BLOCK for clearly impulsive, repeated, or high-risk patterns.",
-        "Use ALLOW only for specific, bounded, intentional reasons.",
-        "Do not shame the user. Do not use moral judgment. Do not generate explicit sexual content.",
-        "decisionReasonCategory explains the current decision. memoryUpdate.behaviorReasonCategory describes the user's behavior pattern for future memory.",
-        "Mapping rubric: intentional bounded use usually maps to clear_intention; vague boredom/stress/escape/loneliness/habit maps to insufficient_reason; repeated remembered patterns map to repeated_excuse; sensitive impulsive patterns map to high_risk_pattern.",
-        "scores.repeatedReason, scores.impulse, and scores.deliberateness must be independent 0-100 ratings and do not need to sum to 100.",
-        `Strictness: ${input.strictness}.`,
-        `Target: ${input.targetDisplay}.`,
-        `Pattern memory: ${JSON.stringify(input.patternMemorySnapshot ?? [])}`,
-        'Schema: {"decision":"ALLOW|AI_COOLDOWN|ASK_MORE|BLOCK","userFacingMessage":"string","decisionReasonCategory":"repeated_excuse|clear_intention|high_risk_pattern|low_risk|insufficient_reason","unlockMinutes":number|null,"aiCooldownSeconds":number|null,"nextQuestion":string|null,"scores":{"repeatedReason":number,"impulse":number,"deliberateness":number},"memoryUpdate":{"behaviorReasonCategory":"stress|boredom|loneliness|escape|habit|intentional|other","patternNote":string|null}}'
-      ].join("\n")
-    },
-    ...input.messages.map((message) => ({ role: message.role, content: message.content }))
-  ];
+  const decision = runtime.parseCheckpointDecision(raw, `eval_${testCase.id}`);
+  runtime.validateDecisionConstraints(decision, input.strictness, { isFinalTurn });
+  return decision;
 }
 
 function mockDecision(input) {
@@ -329,14 +314,6 @@ function getMockCooldownSeconds(strictness) {
   }
 }
 
-function normalizeDecisionPayload(payload) {
-  return {
-    ...payload,
-    userFacingMessage: String(payload.userFacingMessage ?? payload.nextQuestion ?? ""),
-    scores: payload.scores ?? {}
-  };
-}
-
 async function loadCases(path) {
   const pathStat = await stat(path).catch(() => null);
   if (pathStat?.isDirectory()) {
@@ -366,7 +343,7 @@ function validateCase(testCase) {
       throw new Error(`Eval case ${testCase.id ?? "unknown"} missing ${key}.`);
     }
   }
-  if (!["gentle", "balanced", "strict", "monk"].includes(testCase.input.strictness)) {
+  if (!contractEnums.strictnessLevels.includes(testCase.input.strictness)) {
     throw new Error(`Eval case ${testCase.id} has invalid strictness ${testCase.input.strictness}.`);
   }
   if (!Array.isArray(testCase.input.messages)) {
@@ -375,16 +352,91 @@ function validateCase(testCase) {
   if (!testCase.eval.expectedOutput?.decision) {
     throw new Error(`Eval case ${testCase.id} missing eval.expectedOutput.decision.`);
   }
+  if (!contractEnums.decisions.includes(testCase.eval.expectedOutput.decision)) {
+    throw new Error(`Eval case ${testCase.id} has invalid expected decision ${testCase.eval.expectedOutput.decision}.`);
+  }
+  if (!contractEnums.caseStatuses.includes(testCase.status)) {
+    throw new Error(`Eval case ${testCase.id} has invalid status ${testCase.status}.`);
+  }
+  if (!args["include-legacy"]) {
+    const versions = testCase.versions ?? {};
+    const expectedVersions = { promptVersion, schemaVersion, rubricVersion };
+    for (const [key, expected] of Object.entries(expectedVersions)) {
+      if (versions[key] !== expected) {
+        throw new Error(`Eval case ${testCase.id} has ${key} ${versions[key] ?? "missing"}; expected ${expected}.`);
+      }
+    }
+  }
 }
 
 function normalizeCase(testCase) {
   return {
     ...testCase,
+    status: testCase.archivedAt ? "archived" : testCase.status ?? "ready",
     input: {
       ...testCase.input,
       patternMemorySnapshot: testCase.input.patternMemorySnapshot ?? []
     }
   };
+}
+
+async function loadRuntimeModules() {
+  if (runtimeModules) return runtimeModules;
+  const server = await createServer({
+    configFile: false,
+    root: resolve(here, ".."),
+    server: { middlewareMode: true }
+  });
+  const [{ buildLlmMessages }, { parseCheckpointDecision, validateDecisionConstraints }] = await Promise.all([
+    server.ssrLoadModule("/src/ai/context-builder.ts"),
+    server.ssrLoadModule("/src/ai/checkpoint-schema.ts")
+  ]);
+  runtimeModules = {
+    server,
+    buildLlmMessages,
+    parseCheckpointDecision,
+    validateDecisionConstraints
+  };
+  return runtimeModules;
+}
+
+function filterCases(cases, args) {
+  const requestedStatuses = splitArg(args.status ?? args.statuses);
+  const requestedTags = splitArg(args.tag ?? args.tags);
+  return cases.filter((testCase) => {
+    if (!args["include-archived"] && testCase.status === "archived") {
+      return false;
+    }
+    if (requestedStatuses.length > 0 && !requestedStatuses.includes(testCase.status)) {
+      return false;
+    }
+    if (requestedTags.length > 0) {
+      const tags = new Set(testCase.eval?.tags ?? []);
+      if (!requestedTags.some((tag) => tags.has(tag))) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+function splitArg(value) {
+  return typeof value === "string" && value !== "true"
+    ? value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+}
+
+function describeCaseFilter(args) {
+  const parts = [];
+  const statuses = splitArg(args.status ?? args.statuses);
+  const tags = splitArg(args.tag ?? args.tags);
+  parts.push(args["include-archived"] ? "including archived" : "active only");
+  if (statuses.length > 0) parts.push(`status=${statuses.join(",")}`);
+  if (tags.length > 0) parts.push(`tag=${tags.join(",")}`);
+  return parts.join("; ");
 }
 
 function summarizeByTag(results) {

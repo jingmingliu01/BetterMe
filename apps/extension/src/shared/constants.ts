@@ -1,4 +1,6 @@
-import type { ProviderConfig, StrictnessLevel, UserSettings } from "./types";
+import { AI_CHECK_SESSION_POLICY } from "./ai-check-contract";
+import { PROVIDER_CONFIGS } from "./provider-config";
+import type { StrictnessLevel, UserSettings } from "./types";
 
 export interface BasicCooldownPolicy {
   cooldownSeconds: number;
@@ -27,8 +29,8 @@ export const ACCESS_TIMING = {
 } as const;
 
 export const BASIC_COOLDOWN_SECONDS = ACCESS_TIMING.basicCooldownSeconds;
-export const AI_CHECK_SESSION_MAX_ASSISTANT_TURNS = 5;
-export const AI_CHECK_SESSION_MAX_SECONDS = 10 * 60;
+export const AI_CHECK_SESSION_MAX_ASSISTANT_TURNS = AI_CHECK_SESSION_POLICY.maxAssistantTurns;
+export const AI_CHECK_SESSION_MAX_SECONDS = AI_CHECK_SESSION_POLICY.maxSessionSeconds;
 
 export const STRICTNESS_ORDER: StrictnessLevel[] = ["gentle", "balanced", "strict", "monk"];
 
@@ -134,40 +136,7 @@ export const BLOCK_TARGET_ACTION_LABELS = {
   alreadyBlocked: "Already Blocked"
 } as const;
 
-export const PROVIDERS: ProviderConfig[] = [
-  {
-    id: "openai",
-    label: "OpenAI",
-    baseUrl: "https://api.openai.com/v1",
-    defaultModel: "gpt-5.4-mini",
-    models: ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"]
-  },
-  {
-    id: "deepseek",
-    label: "DeepSeek",
-    baseUrl: "https://api.deepseek.com",
-    defaultModel: "deepseek-v4-flash",
-    models: ["deepseek-v4-flash", "deepseek-v4-pro"]
-  },
-  {
-    id: "kimi",
-    label: "Kimi",
-    baseUrl: "https://api.moonshot.ai/v1",
-    defaultModel: "kimi-k2.6",
-    models: [
-      "kimi-k2.6",
-      "kimi-k2.5",
-      "kimi-k2-0905-preview",
-      "kimi-k2-0711-preview",
-      "kimi-k2-turbo-preview",
-      "kimi-k2-thinking",
-      "kimi-k2-thinking-turbo",
-      "moonshot-v1-8k",
-      "moonshot-v1-32k",
-      "moonshot-v1-128k"
-    ]
-  }
-];
+export const PROVIDERS = PROVIDER_CONFIGS;
 
 export const DEFAULT_SETTINGS: UserSettings = {
   strictness: "balanced",

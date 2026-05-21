@@ -26,6 +26,13 @@ The hard migration to the unified case schema is implemented.
 - Renamed runtime provider output fields to `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`.
 - Removed old `DELAY` / `delaySeconds` provider-output compatibility.
 - Bumped IndexedDB to version 6 and clear old AI Check, review, and eval history stores on upgrade.
+- Marked the current unified schema as `checkpoint-decision-v2` after the earlier schema was fully cleaned and migrated.
+- Added contract-owned session policy for `maxAssistantTurns` and `maxSessionSeconds`.
+- Moved PM Review case statuses, case sources, bad-case error types, common tags, and built-in case sets into the shared AI Check contract.
+- Moved provider metadata into `apps/extension/src/shared/provider-config.json`.
+- Updated provider-mode evals to reuse the runtime AI Check message builder instead of a separate eval-only prompt.
+- Tightened provider output parsing so required fields must exist before normalization/validation succeeds.
+- Updated built-in fixtures to the current prompt/schema/rubric versions and current session policy.
 
 ## Validation Status
 
@@ -41,3 +48,4 @@ Latest validation:
 
 - Add persisted provider eval run history before relying on provider-mode evals for release gating.
 - Consider a small UI affordance that shows `input`, `output`, and `eval` as separate panels in the AI PM Review Workspace.
+- Consider moving from JSON-plus-TypeScript casts to a generated contract artifact if compile-time type derivation from the contract becomes important.

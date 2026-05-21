@@ -24,3 +24,17 @@
 - Keep long-term blocked targets separate from temporary access state.
 - Do not treat license unlock, AI readiness, temporary unlock, cooldown, and block hold as the same concept.
 - Prefer explicit state derivation over scattered UI conditionals.
+
+## AI Check PM Review
+
+- Evaluation cases must use the unified `AICheckCase { input, output?, eval? }` shape.
+- Do not hard-delete Evaluation Cases from PM Review; archive them with `status = "archived"` and `archivedAt`.
+- Regression Cases are Evaluation Cases with `status = "regression"` and no `archivedAt`.
+- AI Check input, output, evaluation schema fields, enum values, examples, and PM Review schema reference should come from `apps/extension/src/shared/ai-check-contract.json`.
+- AI Check session policy, including `maxAssistantTurns` and `maxSessionSeconds`, should come from `apps/extension/src/shared/ai-check-contract.json`.
+- Provider metadata, including base URLs, default models, model allowlists, and eval env-key names, should come from `apps/extension/src/shared/provider-config.json`.
+- Do not manually duplicate AI Check output schema strings in `prompt.ts`, `eval-ai-check.mjs`, or PM Review UI.
+- Provider-mode evals must reuse the runtime AI Check prompt/message builder instead of maintaining a separate eval-only prompt.
+- Evaluation cases should carry the current `promptVersion`, `schemaVersion`, and `rubricVersion`; default eval runs should only use current-version active cases unless a legacy run is explicitly requested.
+- When changing AI Check Input, Output, or Evaluation schema, update `ai-check-contract.json` first, then update parser constraints, TypeScript types, eval assertions, tests, and linked design/progress/issues docs in the same change.
+- When changing Prompt Version or Rubric Version, update the contract version field, eval fixtures or archive status, and linked design/progress/issues docs in the same change.

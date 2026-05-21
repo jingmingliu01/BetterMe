@@ -9,6 +9,13 @@ const server = await createServer({
 
 try {
   const { normalizeAICooldownSeconds } = await server.ssrLoadModule("/src/shared/constants.ts");
+  const {
+    AI_CHECK_CONTRACT,
+    AI_CHECK_DECISIONS,
+    AI_CHECK_OUTPUT_EXAMPLE,
+    AI_CHECK_OUTPUT_SCHEMA_SUMMARY
+  } = await server.ssrLoadModule("/src/shared/ai-check-contract.ts");
+  const { buildSystemPrompt } = await server.ssrLoadModule("/src/ai/prompt.ts");
   const { parseCheckpointDecision, validateDecisionConstraints } = await server.ssrLoadModule("/src/ai/checkpoint-schema.ts");
   const { getDecisionMeter } = await server.ssrLoadModule("/src/ai/decision-meter.ts");
   const { requestCheckpointDecision } = await server.ssrLoadModule("/src/ai/provider-client.ts");
@@ -22,6 +29,37 @@ try {
   });
 
   assert.equal(normalizeAICooldownSeconds("balanced", 700), null);
+
+  assert.deepEqual(AI_CHECK_DECISIONS, ["ALLOW", "AI_COOLDOWN", "ASK_MORE", "BLOCK"]);
+  assert.deepEqual(
+    AI_CHECK_CONTRACT.sections.output.fields.map((field) => field.path),
+    [
+      "decision",
+      "userFacingMessage",
+      "decisionReasonCategory",
+      "unlockMinutes",
+      "aiCooldownSeconds",
+      "nextQuestion",
+      "scores.repeatedReason",
+      "scores.impulse",
+      "scores.deliberateness",
+      "memoryUpdate.behaviorReasonCategory",
+      "memoryUpdate.patternNote"
+    ]
+  );
+
+  const prompt = buildSystemPrompt({
+    strictness: "balanced",
+    assistantTurnCount: 0,
+    maxAssistantTurns: 3,
+    isFinalTurn: false
+  });
+  assert.ok(prompt.includes(`Example json: ${JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE)}`));
+  assert.ok(prompt.includes(`JSON schema: ${AI_CHECK_OUTPUT_SCHEMA_SUMMARY}`));
+  assert.ok(prompt.includes(`Valid decision values: ${AI_CHECK_DECISIONS.join(", ")}.`));
+
+  const contractExampleDecision = parseCheckpointDecision(JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE), "session_contract");
+  validateDecisionConstraints(contractExampleDecision, "balanced");
 
   const cooldownDecision = parseCheckpointDecision(
     JSON.stringify({

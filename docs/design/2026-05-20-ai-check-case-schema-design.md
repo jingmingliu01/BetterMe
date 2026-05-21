@@ -38,6 +38,9 @@ interface AICheckCase {
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
   eval?: AICheckCaseEval;
+  status: "draft" | "ready" | "regression" | "archived";
+  archivedAt?: string;
+  archivedReason?: string;
 }
 ```
 
@@ -52,6 +55,34 @@ interface AICheckCase {
 `output` is the actual model result. It contains provider metadata, raw provider JSON, and parsed decision fields.
 
 `eval` is the PM/evaluator-only ground truth. It contains expected decision assertions, forbidden outputs, score ranges, tags, and reviewer notes.
+
+## Version Boundaries
+
+Evaluation Cases carry three independent version markers:
+
+- `promptVersion`: the runtime AI Check prompt/message assembly used for provider calls.
+- `schemaVersion`: the structured input/output/evaluation contract used by the parser and fixtures.
+- `rubricVersion`: the PM/eval pass-fail standard for decision quality, strictness, score ranges, and tag semantics.
+
+The current schema version is `checkpoint-decision-v2`.
+
+Default eval runs should use only active cases whose `promptVersion`, `schemaVersion`, and `rubricVersion` match the current contract. Legacy cases may be retained for reference, but they should be archived or run only through an explicit legacy mode.
+
+## Single-Source Rules
+
+The canonical AI Check contract is `apps/extension/src/shared/ai-check-contract.json`.
+
+It owns:
+
+- current prompt, schema, and rubric version ids.
+- session policy such as `maxAssistantTurns` and `maxSessionSeconds`.
+- enum values for decisions, reason categories, strictness levels, case statuses, case sources, and bad-case error types.
+- PM Review shared tags and built-in case sets.
+- input, output, and evaluation field references and examples.
+
+Provider metadata is separate from the AI Check contract and lives in `apps/extension/src/shared/provider-config.json`.
+
+Provider-mode evals must reuse the runtime AI Check message builder so evals test the same prompt path that live AI Check sessions use.
 
 ## Category Families
 
@@ -122,6 +153,7 @@ The hard migration removes legacy flat eval case support.
 Current rules:
 
 - The eval runner only accepts `{ input, output?, eval }` cases.
+- Default eval runs reject cases whose prompt/schema/rubric versions do not match the current contract unless legacy mode is explicitly requested.
 - Built-in fixtures are stored in the unified shape.
 - New bad-case conversions write the unified shape.
 - IndexedDB upgrade to version 6 clears old AI Check, review, and eval history stores instead of migrating legacy local history.

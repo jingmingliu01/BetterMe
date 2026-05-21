@@ -14,6 +14,8 @@ The first local review/eval loop is implemented.
 
 The existing AI Check flow supports local BYOK provider calls, structured decisions, behavior history, AI cooldown, block holds, held read-only replay, and now PM review conversion into eval cases.
 
+The next-stage PM Review workspace design is tracked in [2026-05-20-pm-review-workspace-design.md](2026-05-20-pm-review-workspace-design.md). That newer design expands the workspace beyond History Case review into Evaluation Case management, Regression Case filtering, and Schema Reference.
+
 ## Planned Slice
 
 2026-05-18:

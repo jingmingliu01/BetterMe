@@ -47,10 +47,13 @@ import {
   startAndSendAICheckMessage
 } from "../ai/ai-check-session-service";
 import {
+  archiveEvalCase,
   convertBadCaseToEvalCase,
+  createEvalCase,
   createBadCaseReview,
   listEvalCases,
   listReviewSessions,
+  updateEvalCase,
   updateBadCaseReview
 } from "../ai/review-store";
 import { createBasicCooldown, createUnlockFromCompletedCooldown } from "../blocking/cooldowns";
@@ -309,6 +312,12 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await convertBadCaseToEvalCase(message.payload));
       case "review/listEvalCases":
         return ok(await listEvalCases());
+      case "review/createEvalCase":
+        return ok(await createEvalCase(message.payload));
+      case "review/updateEvalCase":
+        return ok(await updateEvalCase(message.payload));
+      case "review/archiveEvalCase":
+        return ok(await archiveEvalCase(message.payload));
       case "data/export":
         return ok({
           ...(await bootstrap()),

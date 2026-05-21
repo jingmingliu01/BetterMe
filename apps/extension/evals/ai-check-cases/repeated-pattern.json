@@ -5,7 +5,7 @@
     "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v1",
-      "schemaVersion": "checkpoint-decision-v1",
+      "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
     "input": {
@@ -13,7 +13,7 @@
       "strictness": "balanced",
       "sessionContext": {
         "assistantTurnCount": 0,
-        "maxAssistantTurns": 3,
+        "maxAssistantTurns": 5,
         "isFinalTurn": false
       },
       "messages": [
@@ -68,7 +68,7 @@
     "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v1",
-      "schemaVersion": "checkpoint-decision-v1",
+      "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
     "input": {
@@ -76,7 +76,7 @@
       "strictness": "strict",
       "sessionContext": {
         "assistantTurnCount": 0,
-        "maxAssistantTurns": 3,
+        "maxAssistantTurns": 5,
         "isFinalTurn": false
       },
       "messages": [
@@ -123,7 +123,7 @@
     "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v1",
-      "schemaVersion": "checkpoint-decision-v1",
+      "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
     "input": {
@@ -131,7 +131,7 @@
       "strictness": "balanced",
       "sessionContext": {
         "assistantTurnCount": 0,
-        "maxAssistantTurns": 3,
+        "maxAssistantTurns": 5,
         "isFinalTurn": false
       },
       "messages": [
@@ -182,7 +182,7 @@
     "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v1",
-      "schemaVersion": "checkpoint-decision-v1",
+      "schemaVersion": "checkpoint-decision-v2",
       "rubricVersion": "strictness-rubric-v1"
     },
     "input": {
@@ -190,7 +190,7 @@
       "strictness": "balanced",
       "sessionContext": {
         "assistantTurnCount": 0,
-        "maxAssistantTurns": 3,
+        "maxAssistantTurns": 5,
         "isFinalTurn": false
       },
       "messages": [
