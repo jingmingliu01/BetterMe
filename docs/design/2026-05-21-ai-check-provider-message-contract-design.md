@@ -309,7 +309,7 @@ This remains acceptable because repair is a second request after validation fail
 The PM Review Schema Reference should evolve from:
 
 ```text
-Input / System Prompt / Output / Evaluation / Compare
+Input / System Prompt / Output / Evaluation
 ```
 
 to:
@@ -318,7 +318,6 @@ to:
 Provider Messages
 Output
 Evaluation
-Compare
 ```
 
 Provider Messages should be the default view. It shows the provider `messages[]` request tree on the left and the selected section preview on the right, instead of splitting System Prompt, Round Context, Conversation, and Turn Context into separate tabs.

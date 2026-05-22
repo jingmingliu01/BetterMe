@@ -21,10 +21,7 @@ import {
   AI_CHECK_COMMON_TAGS,
   AI_CHECK_CURRENT_VERSIONS,
   AI_CHECK_DECISIONS,
-  AI_CHECK_EVALUATION_FIELD_REFERENCE,
   AI_CHECK_EVALUATION_SCHEMA_VERSIONS,
-  AI_CHECK_INPUT_FIELD_REFERENCE,
-  AI_CHECK_OUTPUT_FIELD_REFERENCE,
   AI_CHECK_OUTPUT_SCHEMA_VERSIONS,
   AI_CHECK_PROMPT_VERSIONS,
   AI_CHECK_STRICTNESS_LEVELS
@@ -55,7 +52,7 @@ import type {
 import "../shared/styles.css";
 
 type ReviewArea = "history" | "eval" | "schema";
-type SchemaManualTab = "messages" | "output" | "evaluation" | "compare";
+type SchemaManualTab = "messages" | "output" | "evaluation";
 
 interface EvalFormState {
   title: string;
@@ -79,14 +76,6 @@ interface SchemaManualSection {
   example: unknown;
   schemaSummary?: string;
   promptSchema?: unknown;
-}
-
-interface CompareRow {
-  path: string;
-  input: string;
-  output: string;
-  evaluation: string;
-  relation: string;
 }
 
 type ProviderMessageFocus = "system" | "round" | "conversation" | "turn";
@@ -351,9 +340,6 @@ export function ReviewPage() {
         <AreaButton active={area === "history"} icon={<History size={16} />} label="History Cases" onClick={() => setArea("history")} />
         <AreaButton active={area === "eval"} icon={<FlaskConical size={16} />} label="Evaluation Cases" onClick={() => setArea("eval")} />
         <AreaButton active={area === "schema"} icon={<BookOpenText size={16} />} label="Schema Reference" onClick={() => setArea("schema")} />
-        <button className="icon-btn" title="Refresh workspace" onClick={() => void refreshAll()}>
-          <RotateCcw size={16} />
-        </button>
       </nav>
 
       {area === "history" && (
@@ -364,12 +350,14 @@ export function ReviewPage() {
           reviewerNote={reviewerNote}
           saving={saving}
           selected={selectedSession}
+          sessionsLoading={sessionsLoading}
           sessions={sessions}
           setErrorTypes={setErrorTypes}
           setExpectedDecision={setExpectedDecision}
           setReviewerNote={setReviewerNote}
           setSelectedSessionId={setSelectedSessionId}
           onConvert={convertToEvalCase}
+          onRefresh={() => void refreshSessions()}
           onSave={saveBadCase}
         />
       )}
@@ -414,16 +402,27 @@ export function ReviewPage() {
                 <span className="section-label">Evaluation Cases</span>
                 <h2>{selectedSet.name}</h2>
               </div>
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  setArea("eval");
-                  setCreatingEvalCase(true);
-                  setSelectedEvalCaseId(null);
-                }}
-              >
-                <Plus size={16} /> Add Case
-              </button>
+              <div className="row">
+                <button
+                  aria-label="Refresh evaluation cases"
+                  className="icon-btn"
+                  disabled={evalLoading}
+                  title="Refresh evaluation cases"
+                  onClick={() => void refreshEvalCases()}
+                >
+                  <RotateCcw size={16} />
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setArea("eval");
+                    setCreatingEvalCase(true);
+                    setSelectedEvalCaseId(null);
+                  }}
+                >
+                  <Plus size={16} /> Add Case
+                </button>
+              </div>
             </div>
             <label className="search-field">
               <Search size={16} />
@@ -493,12 +492,14 @@ function HistoryCases({
   reviewerNote,
   saving,
   selected,
+  sessionsLoading,
   sessions,
   setErrorTypes,
   setExpectedDecision,
   setReviewerNote,
   setSelectedSessionId,
   onConvert,
+  onRefresh,
   onSave
 }: {
   errorTypes: BadCaseErrorType[];
@@ -507,20 +508,33 @@ function HistoryCases({
   reviewerNote: string;
   saving: boolean;
   selected: AIPMReviewSession | null;
+  sessionsLoading: boolean;
   sessions: AIPMReviewSession[];
   setErrorTypes: (value: BadCaseErrorType[] | ((current: BadCaseErrorType[]) => BadCaseErrorType[])) => void;
   setExpectedDecision: (value: AIDecision | "") => void;
   setReviewerNote: (value: string) => void;
   setSelectedSessionId: (value: string) => void;
   onConvert: () => void;
+  onRefresh: () => void;
   onSave: () => void;
 }) {
   return (
     <section className="review-layout">
       <aside className="panel review-session-list stack">
-        <div className="section-heading">
-          <span className="section-label">History Cases</span>
-          <h2>Recent AI Checks</h2>
+        <div className="row space-between">
+          <div className="section-heading">
+            <span className="section-label">History Cases</span>
+            <h2>Recent AI Checks</h2>
+          </div>
+          <button
+            aria-label="Refresh history cases"
+            className="icon-btn"
+            disabled={sessionsLoading}
+            title="Refresh history cases"
+            onClick={onRefresh}
+          >
+            <RotateCcw size={16} />
+          </button>
         </div>
         {sessions.length === 0 ? (
           <p className="muted">No AI Check sessions yet.</p>
@@ -911,7 +925,7 @@ function SchemaReference() {
       </div>
 
       <div className="schema-manual-tabs" role="tablist" aria-label="Schema reference views">
-        {(["messages", "output", "evaluation", "compare"] as SchemaManualTab[]).map((tab) => (
+        {(["messages", "output", "evaluation"] as SchemaManualTab[]).map((tab) => (
           <button
             key={tab}
             className={activeTab === tab ? "schema-manual-tab schema-manual-tab-active" : "schema-manual-tab"}
@@ -939,7 +953,6 @@ function SchemaReference() {
           version={selectedEvaluationSchema?.version ?? AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion}
         />
       )}
-      {activeTab === "compare" && <SchemaCompareReference />}
     </section>
   );
 }
@@ -1568,49 +1581,6 @@ function PromptPreviewBlockBody({ block }: { block: PromptPreviewBlock }) {
   return <pre className="provider-preview-section-body">{block.body}</pre>;
 }
 
-function SchemaCompareReference() {
-  const rows = useMemo(() => buildCompareRows(), []);
-
-  return (
-    <section className="panel stack">
-      <div className="section-heading">
-        <span className="section-label">Contract Diff</span>
-        <h2>Input vs Output vs Evaluation</h2>
-      </div>
-      <p className="muted">
-        This table is generated from contract section field paths so reviewers can see which fields belong to each part of the
-        AI Check loop.
-      </p>
-      <div className="compare-table-wrap">
-        <table className="table compare-table">
-          <thead>
-            <tr>
-              <th>Path</th>
-              <th>Input</th>
-              <th>Output</th>
-              <th>Evaluation</th>
-              <th>Relation</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.path}>
-                <td>
-                  <code>{row.path}</code>
-                </td>
-                <td>{row.input}</td>
-                <td>{row.output}</td>
-                <td>{row.evaluation}</td>
-                <td>{row.relation}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 function formatSchemaManualTab(tab: SchemaManualTab): string {
   switch (tab) {
     case "messages":
@@ -1619,8 +1589,6 @@ function formatSchemaManualTab(tab: SchemaManualTab): string {
       return "Output";
     case "evaluation":
       return "Evaluation";
-    case "compare":
-      return "Compare";
   }
 }
 
@@ -1706,67 +1674,6 @@ function getSampleConversationMessages(): Array<{ role: "assistant" | "user"; co
       content: "I need a tutorial for homework and I will close it after 10 minutes."
     }
   ];
-}
-
-function buildCompareRows(): CompareRow[] {
-  const inputPaths = new Set(AI_CHECK_INPUT_FIELD_REFERENCE.map((field) => field.path));
-  const outputPaths = new Set(AI_CHECK_OUTPUT_FIELD_REFERENCE.map((field) => field.path));
-  const evaluationPaths = new Set(AI_CHECK_EVALUATION_FIELD_REFERENCE.map((field) => field.path));
-  const orderedPaths = [
-    ...AI_CHECK_INPUT_FIELD_REFERENCE.map((field) => field.path),
-    ...AI_CHECK_OUTPUT_FIELD_REFERENCE.map((field) => field.path),
-    ...AI_CHECK_EVALUATION_FIELD_REFERENCE.map((field) => field.path)
-  ];
-  const paths = [...new Set(orderedPaths)];
-
-  return paths.map((path) => ({
-    path,
-    input: compareLabel(path, inputPaths, "input"),
-    output: compareLabel(path, outputPaths, "output"),
-    evaluation: compareLabel(path, evaluationPaths, "evaluation"),
-    relation: compareRelation(path, inputPaths, outputPaths, evaluationPaths)
-  }));
-}
-
-function compareLabel(path: string, paths: Set<string>, section: "input" | "output" | "evaluation"): string {
-  if (paths.has(path)) return "Yes";
-  if (section === "evaluation" && path === "decision" && paths.has("eval.expectedOutput.decision")) {
-    return "Asserted";
-  }
-  if (section === "evaluation" && path.startsWith("input.") && paths.has("input")) {
-    return "Nested";
-  }
-  if (section === "output" && path === "output.parsed") {
-    return "Captured";
-  }
-  return "No";
-}
-
-function compareRelation(
-  path: string,
-  inputPaths: Set<string>,
-  outputPaths: Set<string>,
-  evaluationPaths: Set<string>
-): string {
-  if (path === "decision" && outputPaths.has(path) && evaluationPaths.has("eval.expectedOutput.decision")) {
-    return "Output decision is the primary expected decision assertion.";
-  }
-  if (path === "input" && evaluationPaths.has(path)) {
-    return "Evaluation embeds the model input fixture.";
-  }
-  if (path === "output.parsed") {
-    return "Optional captured provider output for inspection, not the expected answer.";
-  }
-  if (path.startsWith("eval.")) {
-    return "PM-authored evaluation assertion or reporting metadata.";
-  }
-  if (inputPaths.has(path)) {
-    return "Runtime context used to build the provider request.";
-  }
-  if (outputPaths.has(path)) {
-    return "Provider response field parsed into product behavior.";
-  }
-  return "";
 }
 
 function findFirstExampleFieldPath(example: unknown, fields: AICheckSchemaFieldReference[]): string | null {

@@ -1172,6 +1172,12 @@ button {
   background: #eef6f1;
 }
 
+.icon-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .review-area-tabs {
   display: flex;
   align-items: center;
@@ -2086,20 +2092,6 @@ button {
   color: #24513c;
   font-size: 12px;
   font-weight: 700;
-}
-
-.compare-table-wrap {
-  overflow: auto;
-}
-
-.compare-table {
-  min-width: 780px;
-}
-
-.compare-table code {
-  color: #173327;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 12px;
 }
 
 .table th,

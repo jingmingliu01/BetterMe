@@ -133,24 +133,22 @@ Risk:
 
 - Reviewers can see the model output shape but not how the provider request is assembled.
 - The page can imply that the System Prompt is formed after model input, when it is actually part of the provider request.
-- Reviewers cannot quickly compare what belongs to Input, Output, and Evaluation.
+- Reviewers need Output and Evaluation references close to the provider request explanation.
 
 Expected behavior:
 
 - Schema Reference behaves as an AI Check Contract Manual.
 - The manual shows the correct runtime flow: contract and runtime context feed the System Prompt builder, then the provider request includes System Prompt, current target, pattern memory, and user-visible messages.
-- The manual has internal tabs for Provider Messages, Output, Evaluation, and Compare.
+- The manual has internal tabs for Provider Messages, Output, and Evaluation.
 - Provider Messages renders the `messages[]` tree; Output and Evaluation tabs render schema JSON on the left and the complete example on the right.
-- Compare is generated from contract section field paths and shows which paths appear in Input, Output, and Evaluation.
 
 Resolution:
 
-- Schema Reference now has internal tabs for Provider Messages, Output, Evaluation, and Compare.
+- Schema Reference now has internal tabs for Provider Messages, Output, and Evaluation.
 - Provider Messages renders the same `messages[]` tree with a focused preview panel for the selected section.
 - The preview panel renders generated prompt/context content as section blocks, preserving original line breaks and keeping visual wrapping from looking like missing structure.
 - Output and Evaluation tabs render contract schema JSON on the left and complete examples in the same dark code style as Provider Messages on the right.
 - The top of the manual shows version references. The old multi-card runtime flow was removed because the provider message tree now carries the main orientation job.
-- Compare is generated from contract section field paths.
 
 ### ISSUE-009: System Prompt preview needs source-aware dynamic fragments
 

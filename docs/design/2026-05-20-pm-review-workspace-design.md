@@ -271,7 +271,6 @@ Schema Reference should contain internal tabs:
 - `Provider Messages`
 - `Output`
 - `Evaluation`
-- `Compare`
 
 The original top-level PM Review area remains unchanged. These are tabs inside Schema Reference.
 
@@ -396,30 +395,6 @@ The page should distinguish:
 - `output.parsed`: optional captured provider behavior for inspection.
 - `eval`: PM-authored assertions and tags.
 
-### Compare Tab
-
-Compare should make the difference between Input, Output, and Evaluation obvious.
-
-The first version should use path-level comparison rather than a complex semantic diff:
-
-```text
-Path                         Input   Output   Evaluation
-targetDisplay                yes     no       inside input
-decision                     no      yes      expectedOutput.decision
-scores.impulse               no      yes      expectedOutput.scores.impulse
-memoryUpdate.behaviorReasonCategory no yes    expectedOutput.memoryUpdate.behaviorReasonCategory
-```
-
-The comparison should be derived from the contract section field paths, not from a manually maintained table.
-
-Lightweight visual highlights can help orientation:
-
-- newly visible paths get a short add highlight.
-- removed paths get a muted state in Compare, not in the normal schema tabs.
-- paths with related but not identical meanings can get a changed marker.
-
-The Compare table is the primary explanation. Animation should only reinforce the difference, not carry the meaning.
-
 ### Drift Prevention
 
 This manual must stay synchronized with runtime schema, parser validation, prompt contract, eval runner, and design docs.
@@ -504,11 +479,10 @@ Phase 3: Schema Reference
 
 Phase 3b: AI Check Contract Manual
 
-- Add Schema Reference internal tabs for Provider Messages, Output, Evaluation, and Compare.
+- Add Schema Reference internal tabs for Provider Messages, Output, and Evaluation.
 - Render version chips from `AI_CHECK_CONTRACT` reference fields rather than hardcoded labels.
 - Render Output and Evaluation examples from their contract sections.
 - Add a Provider Messages viewer backed by structured prompt/context parts from the runtime builders.
-- Add path-level Compare generated from contract section field paths.
 
 Phase 4: regression workflow
 

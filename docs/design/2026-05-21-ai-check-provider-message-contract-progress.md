@@ -71,7 +71,7 @@ The latest prompt contract also uses XML-like sections for the static System Pro
 
 ### Phase 4: PM Review Contract Manual
 
-- Done: update Contract Manual tabs to show Provider Messages, Output, Evaluation, and Compare.
+- Done: update Contract Manual tabs to show Provider Messages, Output, and Evaluation.
 - Done: show provider message array shape in PM Review.
 - Done: preserve source/provenance highlights for generated non-user blocks.
 - Done: simplify the PM Review Contract Manual so Provider Messages is the default tab, provider sections are selected inside the same `messages[]` tree, and generated blocks use a lighter preview panel instead of the detailed inspector.
@@ -96,7 +96,7 @@ Validation performed:
 - `npm --workspace apps/extension run eval:ai-check`
 - `npm --workspace apps/extension run test:e2e`
 - `git diff --check`
-- Packaged `review.html` Playwright tab check for Provider Messages, Output, Evaluation, and Compare.
+- Packaged `review.html` Playwright tab check for Provider Messages, Output, and Evaluation.
 
 Pending validation:
 
