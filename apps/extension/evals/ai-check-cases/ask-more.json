@@ -45,7 +45,8 @@
         "work",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "under_ask_work_need_vague_balanced_001",
@@ -93,7 +94,8 @@
         "work",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "under_ask_research_missing_exit_balanced_001",
@@ -141,7 +143,8 @@
         "school",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "under_ask_chinese_work_missing_time_001",
@@ -189,7 +192,8 @@
         "zh",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "under_ask_homework_missing_time_001",
@@ -237,7 +241,8 @@
         "school",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "under_ask_recipe_missing_time_001",
@@ -285,7 +290,8 @@
         "low_risk",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "unnecessary_ask_clear_tutorial_gentle_001",
@@ -327,7 +333,8 @@
         "work",
         "gentle"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "unnecessary_ask_clear_answer_balanced_001",
@@ -369,7 +376,8 @@
         "work",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "unnecessary_ask_clear_chinese_balanced_001",
@@ -411,7 +419,8 @@
         "zh",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "unnecessary_ask_appointment_strict_001",
@@ -453,6 +462,7 @@
         "important_task",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   }
 ]

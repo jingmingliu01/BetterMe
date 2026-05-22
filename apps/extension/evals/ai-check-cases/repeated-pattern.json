@@ -57,7 +57,8 @@
         "nsfw",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "repeated_pattern_escape_social_strict_001",
@@ -109,7 +110,8 @@
         "strict",
         "social"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "repeated_pattern_same_session_not_history_001",
@@ -169,7 +171,8 @@
         "under_ask",
         "same_session"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "repeated_pattern_removed_readded_social_001",
@@ -222,6 +225,7 @@
         "social",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   }
 ]

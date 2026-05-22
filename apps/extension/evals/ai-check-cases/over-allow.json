@@ -52,7 +52,8 @@
         "nsfw",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_allow_reward_nsfw_strict_001",
@@ -99,7 +100,8 @@
         "nsfw",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_allow_escape_social_balanced_001",
@@ -142,7 +144,8 @@
         "social",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_allow_quick_scroll_video_strict_001",
@@ -185,7 +188,8 @@
         "video",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_allow_chinese_relax_balanced_001",
@@ -236,7 +240,8 @@
         "zh",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_allow_lonely_nsfw_monk_001",
@@ -286,7 +291,8 @@
         "nsfw",
         "monk"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_allow_tired_social_balanced_001",
@@ -329,7 +335,8 @@
         "social",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_allow_vague_one_thing_strict_001",
@@ -371,6 +378,7 @@
         "wrong_reason_strength",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   }
 ]

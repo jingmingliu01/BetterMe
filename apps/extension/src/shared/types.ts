@@ -1,23 +1,47 @@
-export type StrictnessLevel = "gentle" | "balanced" | "strict" | "monk";
+import type {
+  AICheckCase,
+  AICheckCaseStatus,
+  AICheckExpectedOutput,
+  AICheckScores,
+  AIDecision,
+  BadCaseErrorType,
+  BehaviorReasonCategory,
+  CheckpointDecision,
+  StrictnessLevel
+} from "./ai-check-contract.generated";
+
+export type {
+  AICheckCase,
+  AICheckCaseEval,
+  AICheckCaseInput,
+  AICheckCaseOutput,
+  AICheckCaseSource,
+  AICheckCaseStatus,
+  AICheckContract,
+  AICheckContractSection,
+  AICheckCurrentVersions,
+  AICheckDecisionExpectation,
+  AICheckEvalResult,
+  AICheckEvalRun,
+  AICheckExpectedOutput,
+  AICheckNullableNumberExpectation,
+  AICheckNullableTextExpectation,
+  AICheckNumberRangeExpectation,
+  AICheckResolvedVersionEntry,
+  AICheckSchemaFieldReference,
+  AICheckScoreName,
+  AICheckScores,
+  AICheckTextExpectation,
+  AIDecision,
+  BadCaseErrorType,
+  BehaviorReasonCategory,
+  CheckpointDecision,
+  DecisionReasonCategory,
+  StrictnessLevel
+} from "./ai-check-contract.generated";
+
 export type BlockedTargetType = "domain" | "exactUrl";
-export type AIDecision = "ALLOW" | "AI_COOLDOWN" | "ASK_MORE" | "BLOCK";
 export type ProviderId = "openai" | "deepseek" | "kimi";
-export type DecisionReasonCategory =
-  | "repeated_excuse"
-  | "clear_intention"
-  | "high_risk_pattern"
-  | "low_risk"
-  | "insufficient_reason";
-export type BehaviorReasonCategory =
-  | "stress"
-  | "boredom"
-  | "loneliness"
-  | "escape"
-  | "habit"
-  | "intentional"
-  | "other";
-export type AICheckScoreName = "repeatedReason" | "impulse" | "deliberateness";
-export type AICheckScores = Record<AICheckScoreName, number>;
 export type AccessState =
   | "not_blocked"
   | "blocked"
@@ -195,29 +219,6 @@ export interface AICheckMessage {
   createdAt: string;
 }
 
-export interface CheckpointDecision {
-  id: string;
-  sessionId: string;
-  decision: AIDecision;
-  userFacingMessage: string;
-  decisionReasonCategory: DecisionReasonCategory;
-  unlockMinutes: number | null;
-  aiCooldownSeconds: number | null;
-  aiCooldownNormalization?: {
-    originalSeconds: number;
-    normalizedSeconds: number;
-    minSeconds: number;
-    maxSeconds: number;
-  };
-  scores: AICheckScores;
-  memoryUpdate: {
-    behaviorReasonCategory: BehaviorReasonCategory;
-    patternNote: string | null;
-  };
-  createdAt: string;
-  rawProvider?: string;
-}
-
 export interface PatternMemory {
   id: string;
   targetDisplay: string;
@@ -238,18 +239,6 @@ export interface AICheckSummary {
   createdAt: string;
 }
 
-export type BadCaseErrorType =
-  | "over_allow"
-  | "over_block"
-  | "under_ask"
-  | "unnecessary_ask"
-  | "wrong_reason_strength"
-  | "wrong_strictness_application"
-  | "wrong_cooldown_duration"
-  | "unsafe_sensitive_advice"
-  | "bad_tone"
-  | "schema_or_format_failure";
-
 export interface BadCaseReview {
   id: string;
   sourceSessionId: string;
@@ -264,106 +253,6 @@ export interface BadCaseReview {
   convertedEvalCaseId?: string;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface AICheckCaseInput {
-  targetDisplay: string;
-  strictness: StrictnessLevel;
-  sessionContext: {
-    assistantTurnCount: number;
-    maxAssistantTurns: number;
-    isFinalTurn: boolean;
-  };
-  messages: Array<Pick<AICheckMessage, "role" | "content" | "source">>;
-  patternMemorySnapshot: Array<
-    Omit<PatternMemory, "id"> & {
-      id?: string;
-    }
-  >;
-}
-
-export interface AICheckCaseOutput {
-  provider?: ProviderId | "mock";
-  model?: string;
-  rawProvider?: string;
-  parsed: Omit<CheckpointDecision, "id" | "sessionId" | "createdAt" | "decisionReasonCategory" | "memoryUpdate"> & {
-    decisionReasonCategory: DecisionReasonCategory;
-    memoryUpdate: {
-      behaviorReasonCategory: BehaviorReasonCategory;
-      patternNote: string | null;
-    };
-  };
-}
-
-export type AICheckDecisionExpectation =
-  | AIDecision
-  | {
-      exact?: AIDecision;
-      allowed?: AIDecision[];
-      disallowed?: AIDecision[];
-    };
-
-export interface AICheckTextExpectation {
-  exact?: string;
-  mustMention?: string[];
-  mustNotMention?: string[];
-}
-
-export interface AICheckNullableTextExpectation {
-  exact?: string | null;
-  mustMention?: string[];
-  mustNotMention?: string[];
-}
-
-export interface AICheckNullableNumberExpectation {
-  exact?: number | null;
-  min?: number;
-  max?: number;
-}
-
-export interface AICheckNumberRangeExpectation {
-  min?: number;
-  max?: number;
-}
-
-export interface AICheckExpectedOutput {
-  decision?: AICheckDecisionExpectation;
-  userFacingMessage?: AICheckTextExpectation;
-  decisionReasonCategory?: DecisionReasonCategory;
-  unlockMinutes?: AICheckNullableNumberExpectation;
-  aiCooldownSeconds?: AICheckNullableNumberExpectation;
-  scores?: Partial<Record<AICheckScoreName, AICheckNumberRangeExpectation>>;
-  memoryUpdate?: {
-    behaviorReasonCategory?: BehaviorReasonCategory;
-    patternNote?: AICheckNullableTextExpectation;
-  };
-}
-
-export interface AICheckCaseEval {
-  expectedOutput: AICheckExpectedOutput;
-  tags: string[];
-  reviewerNote?: string;
-}
-
-export type AICheckCaseStatus = "draft" | "ready" | "regression" | "archived";
-
-export interface AICheckCase {
-  id: string;
-  title: string;
-  source: "authored_eval" | "real_session" | "bad_case_review";
-  versions: {
-    promptVersion: string;
-    outputSchemaVersion: string;
-    evaluationSchemaVersion: string;
-  };
-  input: AICheckCaseInput;
-  output?: AICheckCaseOutput;
-  eval?: AICheckCaseEval;
-  status: AICheckCaseStatus;
-  archivedAt?: string;
-  archivedReason?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export interface AICheckCaseSet {
@@ -382,39 +271,6 @@ export interface AICheckCaseSet {
   };
   createdAt: string;
   updatedAt: string;
-}
-
-export interface AICheckSchemaFieldReference {
-  path: string;
-  type: string;
-  required: boolean;
-  nullable?: boolean;
-  example?: unknown;
-  meaning: string;
-  whyNecessary: string;
-  productImpact: string;
-  validation: string;
-  commonMistakes: string;
-}
-
-export interface AICheckEvalRun {
-  id: string;
-  promptVersion: string;
-  outputSchemaVersion: string;
-  evaluationSchemaVersion: string;
-  providerMode: "mock" | "byok";
-  createdAt: string;
-}
-
-export interface AICheckEvalResult {
-  id: string;
-  runId: string;
-  evalCaseId: string;
-  actualDecision: AIDecision | null;
-  pass: boolean;
-  failureReasons: string[];
-  rawProvider?: string;
-  createdAt: string;
 }
 
 export interface AIPMReviewSession {

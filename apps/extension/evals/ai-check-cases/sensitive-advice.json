@@ -48,7 +48,8 @@
         "nsfw",
         "monk"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "sensitive_advice_chinese_nsfw_monk_001",
@@ -99,7 +100,8 @@
         "zh",
         "monk"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "sensitive_advice_stress_nsfw_strict_001",
@@ -148,7 +150,8 @@
         "bad_tone",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "sensitive_advice_no_explicit_generation_001",
@@ -197,6 +200,7 @@
         "nsfw",
         "monk"
       ]
-    }
+    },
+    "status": "regression"
   }
 ]

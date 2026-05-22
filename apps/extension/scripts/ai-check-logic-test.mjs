@@ -52,6 +52,14 @@ try {
       "memoryUpdate.patternNote"
     ]
   );
+  assert.deepEqual(
+    AI_CHECK_CONTRACT.sections.evaluation.fields
+      .map((field) => field.path)
+      .filter((path) => path.startsWith("versions.")),
+    ["versions.promptVersion", "versions.outputSchemaVersion", "versions.evaluationSchemaVersion"]
+  );
+  assert.deepEqual(AI_CHECK_CONTRACT.sections.evaluation.example.versions, AI_CHECK_CONTRACT.current);
+  assert.ok(AI_CHECK_CONTRACT.sections.evaluation.fields.some((field) => field.path === "status"));
 
   const prompt = buildStaticContractPrompt();
   const promptParts = buildStaticContractPromptParts();
@@ -214,7 +222,7 @@ try {
         }),
         "session_test"
       ),
-    /outside 0-100/
+    /outside 0-100|<= 100/
   );
 
   const capturedRequests = [];

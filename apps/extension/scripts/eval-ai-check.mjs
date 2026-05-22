@@ -2,12 +2,14 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { createServer } from "vite";
+import { buildGeneratedSections, validateCaseShape } from "./ai-check-contract-shape.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultCaseDir = resolve(here, "../evals/ai-check-cases");
 const contractPath = resolve(here, "../src/shared/ai-check-contract.json");
 const providerConfigPath = resolve(here, "../src/shared/provider-config.json");
 const aiCheckContract = JSON.parse(await readFile(contractPath, "utf8"));
+const contractSections = buildGeneratedSections(aiCheckContract);
 const rawProviderConfigs = JSON.parse(await readFile(providerConfigPath, "utf8"));
 
 const currentVersions = aiCheckContract.current ?? {
@@ -19,7 +21,7 @@ const promptVersion = currentVersions.promptVersion;
 const outputSchemaVersion = currentVersions.outputSchemaVersion;
 const evaluationSchemaVersion = currentVersions.evaluationSchemaVersion;
 const contractEnums = aiCheckContract.enums;
-const scoreNames = aiCheckContract.sections.output.fields
+const scoreNames = contractSections.output.fields
   .map((field) => field.path)
   .filter((path) => path.startsWith("scores."))
   .map((path) => path.slice("scores.".length));
@@ -395,6 +397,10 @@ async function readJsonArray(path) {
 }
 
 function validateCase(testCase) {
+  const shapeErrors = validateCaseShape(aiCheckContract, testCase, { label: `Eval case ${testCase.id ?? "unknown"}` });
+  if (shapeErrors.length > 0) {
+    throw new Error(shapeErrors.join(" "));
+  }
   const required = ["id", "title", "input", "eval"];
   for (const key of required) {
     if (!(key in testCase)) {

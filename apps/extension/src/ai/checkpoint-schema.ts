@@ -3,7 +3,8 @@ import { normalizeAICooldownSeconds, STRICTNESS_UNLOCK_CAP_MINUTES } from "../sh
 import {
   AI_CHECK_BEHAVIOR_REASON_CATEGORIES,
   AI_CHECK_DECISION_REASON_CATEGORIES,
-  AI_CHECK_DECISIONS
+  AI_CHECK_DECISIONS,
+  assertAIContractOutputShape
 } from "../shared/ai-check-contract";
 import type { AICheckScoreName, AIDecision, CheckpointDecision, StrictnessLevel } from "../shared/types";
 
@@ -39,6 +40,7 @@ export function parseCheckpointDecision(raw: string, sessionId: string): Checkpo
   } catch {
     throw new Error("LLM did not return valid JSON.");
   }
+  assertAIContractOutputShape(parsed, { label: "LLM response", enumMode: "provider" });
 
   const decision = normalizeDecision(parsed.decision);
   if (!decision) {

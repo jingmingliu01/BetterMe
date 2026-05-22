@@ -36,7 +36,12 @@
     "maxSessionSeconds": 600
   },
   "enums": {
-    "decisions": ["ALLOW", "AI_COOLDOWN", "ASK_MORE", "BLOCK"],
+    "decisions": [
+      "ALLOW",
+      "AI_COOLDOWN",
+      "ASK_MORE",
+      "BLOCK"
+    ],
     "decisionReasonCategories": [
       "repeated_excuse",
       "clear_intention",
@@ -44,10 +49,32 @@
       "low_risk",
       "insufficient_reason"
     ],
-    "behaviorReasonCategories": ["stress", "boredom", "loneliness", "escape", "habit", "intentional", "other"],
-    "strictnessLevels": ["gentle", "balanced", "strict", "monk"],
-    "caseStatuses": ["draft", "ready", "regression", "archived"],
-    "caseSources": ["authored_eval", "real_session", "bad_case_review"],
+    "behaviorReasonCategories": [
+      "stress",
+      "boredom",
+      "loneliness",
+      "escape",
+      "habit",
+      "intentional",
+      "other"
+    ],
+    "strictnessLevels": [
+      "gentle",
+      "balanced",
+      "strict",
+      "monk"
+    ],
+    "caseStatuses": [
+      "draft",
+      "ready",
+      "regression",
+      "archived"
+    ],
+    "caseSources": [
+      "authored_eval",
+      "real_session",
+      "bad_case_review"
+    ],
     "badCaseErrorTypes": [
       "over_allow",
       "over_block",
@@ -63,16 +90,46 @@
   },
   "pmReview": {
     "errorTypes": [
-      { "value": "over_allow", "label": "Over allow" },
-      { "value": "over_block", "label": "Over block" },
-      { "value": "under_ask", "label": "Under ask" },
-      { "value": "unnecessary_ask", "label": "Unnecessary ask" },
-      { "value": "wrong_reason_strength", "label": "Wrong reason strength" },
-      { "value": "wrong_strictness_application", "label": "Wrong strictness" },
-      { "value": "wrong_cooldown_duration", "label": "Wrong cooldown" },
-      { "value": "unsafe_sensitive_advice", "label": "Unsafe sensitive advice" },
-      { "value": "bad_tone", "label": "Bad tone" },
-      { "value": "schema_or_format_failure", "label": "Schema or format failure" }
+      {
+        "value": "over_allow",
+        "label": "Over allow"
+      },
+      {
+        "value": "over_block",
+        "label": "Over block"
+      },
+      {
+        "value": "under_ask",
+        "label": "Under ask"
+      },
+      {
+        "value": "unnecessary_ask",
+        "label": "Unnecessary ask"
+      },
+      {
+        "value": "wrong_reason_strength",
+        "label": "Wrong reason strength"
+      },
+      {
+        "value": "wrong_strictness_application",
+        "label": "Wrong strictness"
+      },
+      {
+        "value": "wrong_cooldown_duration",
+        "label": "Wrong cooldown"
+      },
+      {
+        "value": "unsafe_sensitive_advice",
+        "label": "Unsafe sensitive advice"
+      },
+      {
+        "value": "bad_tone",
+        "label": "Bad tone"
+      },
+      {
+        "value": "schema_or_format_failure",
+        "label": "Schema or format failure"
+      }
     ],
     "commonTags": [
       "over_allow",
@@ -98,127 +155,390 @@
         "id": "active",
         "name": "All Active Cases",
         "description": "Draft, ready, and regression cases that are not archived.",
-        "statuses": ["draft", "ready", "regression"]
+        "statuses": [
+          "draft",
+          "ready",
+          "regression"
+        ]
       },
       {
         "id": "regression",
         "name": "Regression Suite",
         "description": "Release-gating cases.",
-        "statuses": ["regression"]
+        "statuses": [
+          "regression"
+        ]
       },
       {
         "id": "draft",
         "name": "Draft Review Queue",
         "description": "Converted or authored cases still needing PM cleanup.",
-        "statuses": ["draft"]
+        "statuses": [
+          "draft"
+        ]
       },
       {
         "id": "sensitive",
         "name": "Sensitive Risk",
         "description": "NSFW and unsafe-sensitive cases.",
-        "statuses": ["draft", "ready", "regression"],
-        "tags": ["nsfw", "unsafe_sensitive_advice"]
+        "statuses": [
+          "draft",
+          "ready",
+          "regression"
+        ],
+        "tags": [
+          "nsfw",
+          "unsafe_sensitive_advice"
+        ]
       },
       {
         "id": "strictness",
         "name": "Strictness Suite",
         "description": "Cases focused on strictness behavior.",
-        "statuses": ["draft", "ready", "regression"],
-        "tags": ["strictness", "wrong_strictness_application"]
+        "statuses": [
+          "draft",
+          "ready",
+          "regression"
+        ],
+        "tags": [
+          "strictness",
+          "wrong_strictness_application"
+        ]
       },
       {
         "id": "archived",
         "name": "Archive",
         "description": "Archived cases excluded from normal eval runs.",
-        "statuses": ["archived"],
+        "statuses": [
+          "archived"
+        ],
         "includeArchived": true
       }
-    ]
-  },
-  "sections": {
-    "input": {
-      "title": "Model Input",
-      "summary": "The local AI Check context assembled by the extension before calling the provider.",
-      "fields": [
-        {
-          "path": "targetDisplay",
-          "type": "string",
-          "required": true,
-          "example": "youtube.com",
+    ],
+    "fieldDocs": {
+      "input": {
+        "targetDisplay": {
           "meaning": "The blocked target the user is trying to open.",
           "whyNecessary": "The model needs to know which site or URL the user is asking to access.",
           "productImpact": "Anchors the decision in the current blocked target.",
           "validation": "Derived from the local blocked target record.",
           "commonMistakes": "Treating the target as a generic category instead of the concrete blocked target."
         },
-        {
-          "path": "strictness",
-          "type": "gentle | balanced | strict | monk",
-          "required": true,
-          "example": "strict",
+        "strictness": {
           "meaning": "The active strictness level for the AI Check.",
           "whyNecessary": "Strictness changes unlock caps, cooldown ranges, and how much certainty is required.",
           "productImpact": "Changes decision thresholds and cooldown timing.",
           "validation": "Must be one of the configured strictness levels.",
           "commonMistakes": "Evaluating a case without checking which strictness level applies."
         },
-        {
-          "path": "sessionContext.assistantTurnCount",
-          "type": "number",
-          "required": true,
-          "example": 1,
+        "sessionContext.assistantTurnCount": {
           "meaning": "How many assistant turns happened before this model response.",
           "whyNecessary": "The model needs to know whether it can still ask follow-up questions.",
           "productImpact": "Controls when ASK_MORE is still allowed.",
           "validation": "Derived from the local session state.",
           "commonMistakes": "Counting user messages instead of assistant turns."
         },
-        {
-          "path": "sessionContext.maxAssistantTurns",
-          "type": "number",
-          "required": true,
-          "example": 5,
+        "sessionContext.maxAssistantTurns": {
           "meaning": "Maximum assistant turns allowed in this AI Check.",
           "whyNecessary": "The model needs a bounded conversation limit.",
           "productImpact": "Prevents endless back-and-forth before enforcement.",
           "validation": "Derived from the AI Check session policy.",
           "commonMistakes": "Allowing ASK_MORE after the final turn."
         },
-        {
-          "path": "sessionContext.isFinalTurn",
-          "type": "boolean",
-          "required": true,
-          "example": false,
+        "sessionContext.isFinalTurn": {
           "meaning": "Whether this response is the final allowed assistant turn.",
           "whyNecessary": "Final turns must enforce ALLOW, AI_COOLDOWN, or BLOCK instead of ASK_MORE.",
           "productImpact": "Changes the allowed decision set for this turn.",
           "validation": "Derived from assistantTurnCount and maxAssistantTurns.",
           "commonMistakes": "Returning ASK_MORE when this flag is true."
         },
-        {
-          "path": "messages",
-          "type": "Array<{ role, content, source }>",
-          "required": true,
-          "example": [{ "role": "user", "content": "I just want one quick video.", "source": "user" }],
+        "messages": {
           "meaning": "The user-visible AI Check conversation so far.",
           "whyNecessary": "The model must evaluate the user's stated reason and prior assistant prompts.",
           "productImpact": "Determines whether the request is specific, bounded, repeated, or vague.",
           "validation": "System messages are excluded before sending to the provider.",
           "commonMistakes": "Judging only the latest message when earlier turns contain missing context."
         },
-        {
-          "path": "patternMemorySnapshot",
-          "type": "Array<PatternMemory>",
-          "required": true,
-          "example": [],
+        "patternMemorySnapshot": {
           "meaning": "Relevant local pattern memory for this target.",
           "whyNecessary": "The model needs long-term behavior context separate from same-session repetition.",
           "productImpact": "Can shift vague repeated behavior toward AI_COOLDOWN or BLOCK.",
           "validation": "Loaded locally and limited before the provider request.",
           "commonMistakes": "Treating same-session repetition as long-term memory without evidence."
         }
+      },
+      "output": {
+        "decision": {
+          "meaning": "The enforcement outcome for the current AI Check turn.",
+          "whyNecessary": "The extension needs one explicit outcome to derive temporary unlocks, AI cooldowns, follow-up questions, or block holds.",
+          "productImpact": "Directly controls whether the target opens, pauses, asks for more detail, or stays blocked.",
+          "validation": "Must be one of the four known decision values.",
+          "commonMistakes": "Using free-text decisions or returning ASK_MORE on the final turn."
+        },
+        "userFacingMessage": {
+          "meaning": "The calm explanation or follow-up question shown to the user after the decision.",
+          "whyNecessary": "The user needs to understand the decision or answer the next ASK_MORE question without seeing internal scoring or policy labels.",
+          "productImpact": "Sets tone, trust, and clarity in the block page conversation.",
+          "validation": "Must be non-empty. For ASK_MORE, it must be the concrete follow-up question that continues the same session.",
+          "commonMistakes": "Shaming the user, overexplaining policy, omitting the concrete next action, or putting the ASK_MORE question in a separate field."
+        },
+        "decisionReasonCategory": {
+          "meaning": "The reason category for this specific decision.",
+          "whyNecessary": "PM Review and evals need a stable reason label separate from long-term behavior memory.",
+          "productImpact": "Explains false allows, false blocks, and strictness behavior in review.",
+          "validation": "Unknown labels are normalized where possible, otherwise default from decision.",
+          "commonMistakes": "Putting behavior-memory categories such as stress or habit in this field."
+        },
+        "unlockMinutes": {
+          "meaning": "Temporary access duration when the decision is ALLOW.",
+          "whyNecessary": "ALLOW must produce a bounded unlock instead of permanent access.",
+          "productImpact": "Creates the temporary unlock window and caps it by strictness.",
+          "validation": "Required for ALLOW and must be within the strictness cap.",
+          "commonMistakes": "Returning null for ALLOW or a duration above the strictness limit."
+        },
+        "aiCooldownSeconds": {
+          "meaning": "Pause duration when the decision is AI_COOLDOWN.",
+          "whyNecessary": "AI cooldown is separate from allow and block; it needs its own timer.",
+          "productImpact": "Controls the in-chat cooldown period before the user can continue the AI Check.",
+          "validation": "Required for AI_COOLDOWN and normalized to a sane strictness-derived range.",
+          "commonMistakes": "Using legacy delay fields or returning cooldown seconds for non-cooldown decisions."
+        },
+        "scores.repeatedReason": {
+          "meaning": "How strongly this resembles a repeated or previously remembered reason.",
+          "whyNecessary": "The model needs a numeric signal that can be evaluated independently from the decision label.",
+          "productImpact": "Helps review repeated-excuse failures and regression strictness.",
+          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
+          "commonMistakes": "Treating the three scores as percentages that must sum to 100."
+        },
+        "scores.impulse": {
+          "meaning": "How impulsive or reactive the current request appears.",
+          "whyNecessary": "Cooldown and block decisions depend on impulse risk, especially in stricter modes.",
+          "productImpact": "Supports PM diagnosis of over-allow and under-ask cases.",
+          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
+          "commonMistakes": "Leaving it low for vague, emotional, or repeated requests."
+        },
+        "scores.deliberateness": {
+          "meaning": "How specific, bounded, and intentional the user's plan appears.",
+          "whyNecessary": "ALLOW should be grounded in deliberate intent, not just a polite request.",
+          "productImpact": "Supports unlock decisions and strictness tuning.",
+          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
+          "commonMistakes": "Overrating generic phrases like one quick video without a stop condition."
+        },
+        "memoryUpdate.behaviorReasonCategory": {
+          "meaning": "The long-term behavior pattern category to remember for the target.",
+          "whyNecessary": "Pattern memory needs behavior labels that stay separate from current decision reasoning.",
+          "productImpact": "Affects future repeated-pattern context and PM review of remembered behavior.",
+          "validation": "Unknown labels are normalized where possible and otherwise become other.",
+          "commonMistakes": "Using decision reason labels such as insufficient_reason here."
+        },
+        "memoryUpdate.patternNote": {
+          "meaning": "Optional short note about the repeated behavior pattern.",
+          "whyNecessary": "The model can preserve useful behavioral context without storing unnecessary transcript detail.",
+          "productImpact": "Improves future AI Check context while keeping local memory concise.",
+          "validation": "Empty strings become null.",
+          "commonMistakes": "Including sensitive or overly detailed personal content when a short pattern note is enough."
+        }
+      },
+      "evaluation": {
+        "id": {
+          "meaning": "Stable identifier for the evaluation case.",
+          "whyNecessary": "Eval results, PM Review edits, and regression history need a durable case id.",
+          "productImpact": "Keeps repeated runs and PM edits tied to the same case.",
+          "validation": "Must be a non-empty unique string within the case set.",
+          "commonMistakes": "Changing ids when only expectations or notes change."
+        },
+        "title": {
+          "meaning": "Human-readable case name shown in PM Review.",
+          "whyNecessary": "PMs need to scan and select cases without reading the full fixture.",
+          "productImpact": "Improves review queue and regression suite navigation.",
+          "validation": "Must be non-empty.",
+          "commonMistakes": "Using a title that only describes the domain but not the expected behavior."
+        },
+        "source": {
+          "meaning": "Where the case came from.",
+          "whyNecessary": "PM Review needs to distinguish hand-authored fixtures from converted history cases.",
+          "productImpact": "Helps prioritize cleanup and understand evidence quality.",
+          "validation": "Must be one of the known case source values.",
+          "commonMistakes": "Treating converted bad cases as authored evals before PM cleanup."
+        },
+        "versions.promptVersion": {
+          "meaning": "Prompt version this case targets.",
+          "whyNecessary": "Eval runs need to know whether a case belongs to the current prompt contract or a legacy run.",
+          "productImpact": "Prevents silently judging old prompt expectations against a new prompt.",
+          "validation": "Default eval runs require the current prompt version unless legacy mode is explicit.",
+          "commonMistakes": "Omitting versions and making the case look current by accident."
+        },
+        "versions.outputSchemaVersion": {
+          "meaning": "Model output schema version this case targets.",
+          "whyNecessary": "Expected output fields must align with the model output parser shape.",
+          "productImpact": "Prevents eval failures caused by output schema drift rather than model behavior.",
+          "validation": "Default eval runs require the current output schema version unless legacy mode is explicit.",
+          "commonMistakes": "Updating expectedOutput fields without bumping or checking the output schema version."
+        },
+        "versions.evaluationSchemaVersion": {
+          "meaning": "Evaluation schema version used to interpret eval expectations.",
+          "whyNecessary": "EvaluationRunner semantics are versioned separately from model output parsing.",
+          "productImpact": "Keeps PM-authored expectations comparable across prompt and model changes.",
+          "validation": "Default eval runs require the current evaluation schema version unless legacy mode is explicit.",
+          "commonMistakes": "Changing eval expectation semantics without moving the evaluation schema version."
+        },
+        "input": {
+          "meaning": "The model input context used for this case.",
+          "whyNecessary": "Evaluation must replay a concrete checkpoint context.",
+          "productImpact": "Determines what the model sees during the eval.",
+          "validation": "Must match the input contract.",
+          "commonMistakes": "Writing assertions without preserving the original target, strictness, or messages."
+        },
+        "output.parsed": {
+          "meaning": "Optional captured provider output for inspection.",
+          "whyNecessary": "Stored outputs help compare provider behavior across runs.",
+          "productImpact": "Improves PM review traceability.",
+          "validation": "When present, should match the output contract.",
+          "commonMistakes": "Treating captured output as the expected assertion."
+        },
+        "eval.expectedOutput.decision": {
+          "meaning": "The expected decision constraint for this case.",
+          "whyNecessary": "Every eval case needs one primary pass/fail decision expectation.",
+          "productImpact": "Determines the core regression result.",
+          "validation": "String values require exact match. Object values may set exact, allowed, and disallowed decision constraints.",
+          "commonMistakes": "Using tags as a substitute for expected decision."
+        },
+        "eval.expectedOutput.userFacingMessage.mustMention": {
+          "meaning": "Phrases or topics that must appear in the user-facing message.",
+          "whyNecessary": "Some ASK_MORE cases need specific missing information.",
+          "productImpact": "Catches vague follow-up questions.",
+          "validation": "Each phrase is matched case-insensitively against userFacingMessage.",
+          "commonMistakes": "Making this too specific to one exact wording."
+        },
+        "eval.expectedOutput.userFacingMessage.mustNotMention": {
+          "meaning": "Phrases that must not appear in the user-facing message.",
+          "whyNecessary": "Tone and safety regressions need explicit negative assertions.",
+          "productImpact": "Prevents shame, moral judgment, or unsafe wording.",
+          "validation": "Each phrase is matched case-insensitively against userFacingMessage.",
+          "commonMistakes": "Using broad words that would fail harmless messages."
+        },
+        "eval.expectedOutput.decisionReasonCategory": {
+          "meaning": "Expected current-decision reason category.",
+          "whyNecessary": "Reason expectations catch cases where the decision is right but the model's explanation category is wrong.",
+          "productImpact": "Improves diagnosis of strictness and false-positive behavior.",
+          "validation": "When present, must exactly match decisionReasonCategory.",
+          "commonMistakes": "Using behavior-memory labels here instead of decision reason labels."
+        },
+        "eval.expectedOutput.aiCooldownSeconds": {
+          "meaning": "Expected AI cooldown duration constraint.",
+          "whyNecessary": "Cooldown decisions need duration expectations, not just decision labels.",
+          "productImpact": "Catches cooldown durations that are too weak or too harsh for the case.",
+          "validation": "Exact takes precedence when present; otherwise min and max bound the numeric value.",
+          "commonMistakes": "Expecting cooldown seconds for non-cooldown decisions."
+        },
+        "eval.expectedOutput.scores": {
+          "meaning": "Expected score ranges by output score name.",
+          "whyNecessary": "Some cases need the model to get risk strength roughly right even if the decision passes.",
+          "productImpact": "Catches weak scoring that can hide borderline behavior.",
+          "validation": "Each configured score range checks min and max only for that score.",
+          "commonMistakes": "Setting ranges for every score when only one score is important."
+        },
+        "eval.expectedOutput.memoryUpdate.behaviorReasonCategory": {
+          "meaning": "Expected long-term behavior memory category.",
+          "whyNecessary": "Memory expectations catch cases where future pattern context would learn the wrong behavior label.",
+          "productImpact": "Protects repeated-pattern learning quality.",
+          "validation": "When present, must exactly match memoryUpdate.behaviorReasonCategory.",
+          "commonMistakes": "Forgetting memoryUpdate expectations when the bad case is about learned behavior."
+        },
+        "eval.expectedOutput.memoryUpdate.patternNote": {
+          "meaning": "Expected memory note constraints.",
+          "whyNecessary": "Pattern notes should preserve useful behavior context without over-storing personal detail.",
+          "productImpact": "Improves future AI Check context quality.",
+          "validation": "Exact checks exact string or null; phrase checks are case-insensitive.",
+          "commonMistakes": "Requiring exact prose when topic coverage is enough."
+        },
+        "eval.tags": {
+          "meaning": "Risk and category labels for filtering eval results.",
+          "whyNecessary": "PM Review and eval reporting need grouped risk views.",
+          "productImpact": "Drives case sets and tag-level pass rates.",
+          "validation": "Must be an array; recommended tags are shared in PM Review.",
+          "commonMistakes": "Using tags to encode expected behavior instead of assertions."
+        },
+        "eval.reviewerNote": {
+          "meaning": "PM-authored note explaining the expectation.",
+          "whyNecessary": "Reviewer notes preserve the product reasoning behind a case.",
+          "productImpact": "Improves future prompt/schema review and case cleanup.",
+          "validation": "Optional free text.",
+          "commonMistakes": "Putting machine-checked expectations only in reviewerNote instead of expectedOutput."
+        },
+        "status": {
+          "meaning": "PM Review lifecycle status for the case.",
+          "whyNecessary": "Default eval runs and PM queues need to know whether a case is active, release-gating, or archived.",
+          "productImpact": "Controls which cases appear in active, draft, regression, and archive views.",
+          "validation": "Must be one of the known case statuses.",
+          "commonMistakes": "Using regression for unfinished cases or hard-deleting stale cases instead of archiving."
+        },
+        "archivedAt": {
+          "meaning": "Archive timestamp when the case has been retired.",
+          "whyNecessary": "Archived cases should remain traceable without running by default.",
+          "productImpact": "Preserves review history while keeping normal eval runs clean.",
+          "validation": "Present only when status is archived.",
+          "commonMistakes": "Leaving archivedAt on a regression case."
+        },
+        "archivedReason": {
+          "meaning": "Optional explanation for archiving the case.",
+          "whyNecessary": "PMs need to know why a case was retired.",
+          "productImpact": "Reduces duplicate case re-creation and preserves decision context.",
+          "validation": "Optional free text.",
+          "commonMistakes": "Archiving without explaining what replaced or invalidated the case."
+        }
+      }
+    }
+  },
+  "examples": {
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "strict",
+      "sessionContext": {
+        "assistantTurnCount": 1,
+        "maxAssistantTurns": 5,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?",
+          "source": "local_opening"
+        },
+        {
+          "role": "user",
+          "content": "I just want one quick video.",
+          "source": "user"
+        }
       ],
-      "example": {
+      "patternMemorySnapshot": []
+    },
+    "output": {
+      "decision": "ASK_MORE",
+      "userFacingMessage": "What specific task do you need YouTube for, and when will you stop?",
+      "decisionReasonCategory": "insufficient_reason",
+      "unlockMinutes": null,
+      "aiCooldownSeconds": null,
+      "scores": {
+        "repeatedReason": 20,
+        "impulse": 62,
+        "deliberateness": 35
+      },
+      "memoryUpdate": {
+        "behaviorReasonCategory": "boredom",
+        "patternNote": "User tends to request vague short video breaks without a clear stop condition."
+      }
+    },
+    "evaluation": {
+      "id": "under_ask_youtube_strict_001",
+      "title": "Vague YouTube break should ask for a boundary",
+      "source": "authored_eval",
+      "versions": {
+        "promptVersion": "ai-check-prompt-v4",
+        "outputSchemaVersion": "checkpoint-decision-v3",
+        "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      },
+      "input": {
         "targetDisplay": "youtube.com",
         "strictness": "strict",
         "sessionContext": {
@@ -228,329 +548,451 @@
         },
         "messages": [
           {
-            "role": "assistant",
-            "content": "You're trying to open youtube.com. What are you here to do, and why now?",
-            "source": "local_opening"
-          },
-          {
             "role": "user",
             "content": "I just want one quick video.",
             "source": "user"
           }
         ],
         "patternMemorySnapshot": []
+      },
+      "eval": {
+        "expectedOutput": {
+          "decision": "ASK_MORE",
+          "userFacingMessage": {
+            "mustMention": [
+              "time limit",
+              "exit plan"
+            ],
+            "mustNotMention": [
+              "You are weak"
+            ]
+          },
+          "scores": {
+            "impulse": {
+              "min": 50,
+              "max": 90
+            }
+          },
+          "memoryUpdate": {
+            "behaviorReasonCategory": "boredom"
+          }
+        },
+        "tags": [
+          "under_ask",
+          "video",
+          "strictness"
+        ],
+        "reviewerNote": "Model should ask for a bounded purpose before allowing."
+      },
+      "status": "regression"
+    }
+  },
+  "schemas": {
+    "input": {
+      "title": "Model Input",
+      "summary": "The local AI Check context assembled by the extension before calling the provider.",
+      "type": "object",
+      "required": true,
+      "fields": {
+        "targetDisplay": {
+          "type": "string",
+          "required": true
+        },
+        "strictness": {
+          "type": "enum",
+          "enum": "strictnessLevels",
+          "required": true
+        },
+        "sessionContext": {
+          "type": "object",
+          "required": true,
+          "fields": {
+            "assistantTurnCount": {
+              "type": "number",
+              "required": true,
+              "min": 0
+            },
+            "maxAssistantTurns": {
+              "type": "number",
+              "required": true,
+              "min": 1
+            },
+            "isFinalTurn": {
+              "type": "boolean",
+              "required": true
+            }
+          }
+        },
+        "messages": {
+          "type": "array",
+          "required": true,
+          "item": {
+            "type": "object",
+            "required": true,
+            "fields": {
+              "role": {
+                "type": "enum",
+                "required": true,
+                "values": [
+                  "system",
+                  "assistant",
+                  "user"
+                ]
+              },
+              "content": {
+                "type": "string",
+                "required": true
+              },
+              "source": {
+                "type": "enum",
+                "required": true,
+                "values": [
+                  "local_opening",
+                  "user",
+                  "llm",
+                  "system"
+                ]
+              }
+            }
+          }
+        },
+        "patternMemorySnapshot": {
+          "type": "array",
+          "required": true,
+          "item": {
+            "type": "object",
+            "required": true,
+            "fields": {
+              "id": {
+                "type": "string",
+                "required": false
+              },
+              "targetDisplay": {
+                "type": "string",
+                "required": true
+              },
+              "behaviorReasonCategory": {
+                "type": "enum",
+                "enum": "behaviorReasonCategories",
+                "required": true
+              },
+              "repeatedCount": {
+                "type": "number",
+                "required": true,
+                "min": 0
+              },
+              "lastUserReason": {
+                "type": "string",
+                "required": true
+              },
+              "guidance": {
+                "type": "string",
+                "required": true
+              },
+              "updatedAt": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
+        }
       }
     },
     "output": {
       "title": "Model Output",
       "summary": "The JSON object the provider must return for every AI Check decision.",
-      "schemaSummary": "{ decision, userFacingMessage, decisionReasonCategory, unlockMinutes, aiCooldownSeconds, scores: { repeatedReason, impulse, deliberateness }, memoryUpdate: { behaviorReasonCategory, patternNote } }",
-      "promptSchema": {
-        "decision": "ALLOW|AI_COOLDOWN|ASK_MORE|BLOCK",
-        "userFacingMessage": "string",
-        "decisionReasonCategory": "repeated_excuse|clear_intention|high_risk_pattern|low_risk|insufficient_reason",
-        "unlockMinutes": "number|null",
-        "aiCooldownSeconds": "number|null",
-        "scores": {
-          "repeatedReason": "number",
-          "impulse": "number",
-          "deliberateness": "number"
+      "type": "object",
+      "required": true,
+      "fields": {
+        "decision": {
+          "type": "enum",
+          "enum": "decisions",
+          "required": true
         },
-        "memoryUpdate": {
-          "behaviorReasonCategory": "stress|boredom|loneliness|escape|habit|intentional|other",
-          "patternNote": "string|null"
-        }
-      },
-      "fields": [
-        {
-          "path": "decision",
-          "type": "ALLOW | AI_COOLDOWN | ASK_MORE | BLOCK",
-          "required": true,
-          "example": "ASK_MORE",
-          "meaning": "The enforcement outcome for the current AI Check turn.",
-          "whyNecessary": "The extension needs one explicit outcome to derive temporary unlocks, AI cooldowns, follow-up questions, or block holds.",
-          "productImpact": "Directly controls whether the target opens, pauses, asks for more detail, or stays blocked.",
-          "validation": "Must be one of the four known decision values.",
-          "commonMistakes": "Using free-text decisions or returning ASK_MORE on the final turn."
-        },
-        {
-          "path": "userFacingMessage",
+        "userFacingMessage": {
           "type": "string",
-          "required": true,
-          "example": "What specific task do you need YouTube for, and when will you stop?",
-          "meaning": "The calm explanation or follow-up question shown to the user after the decision.",
-          "whyNecessary": "The user needs to understand the decision or answer the next ASK_MORE question without seeing internal scoring or policy labels.",
-          "productImpact": "Sets tone, trust, and clarity in the block page conversation.",
-          "validation": "Must be non-empty. For ASK_MORE, it must be the concrete follow-up question that continues the same session.",
-          "commonMistakes": "Shaming the user, overexplaining policy, omitting the concrete next action, or putting the ASK_MORE question in a separate field."
+          "required": true
         },
-        {
-          "path": "decisionReasonCategory",
-          "type": "repeated_excuse | clear_intention | high_risk_pattern | low_risk | insufficient_reason",
-          "required": true,
-          "example": "insufficient_reason",
-          "meaning": "The reason category for this specific decision.",
-          "whyNecessary": "PM Review and evals need a stable reason label separate from long-term behavior memory.",
-          "productImpact": "Explains false allows, false blocks, and strictness behavior in review.",
-          "validation": "Unknown labels are normalized where possible, otherwise default from decision.",
-          "commonMistakes": "Putting behavior-memory categories such as stress or habit in this field."
+        "decisionReasonCategory": {
+          "type": "enum",
+          "enum": "decisionReasonCategories",
+          "required": true
         },
-        {
-          "path": "unlockMinutes",
-          "type": "number | null",
+        "unlockMinutes": {
+          "type": "number",
           "required": true,
           "nullable": true,
-          "example": null,
-          "meaning": "Temporary access duration when the decision is ALLOW.",
-          "whyNecessary": "ALLOW must produce a bounded unlock instead of permanent access.",
-          "productImpact": "Creates the temporary unlock window and caps it by strictness.",
-          "validation": "Required for ALLOW and must be within the strictness cap.",
-          "commonMistakes": "Returning null for ALLOW or a duration above the strictness limit."
+          "min": 0
         },
-        {
-          "path": "aiCooldownSeconds",
-          "type": "number | null",
+        "aiCooldownSeconds": {
+          "type": "number",
           "required": true,
           "nullable": true,
-          "example": null,
-          "meaning": "Pause duration when the decision is AI_COOLDOWN.",
-          "whyNecessary": "AI cooldown is separate from allow and block; it needs its own timer.",
-          "productImpact": "Controls the in-chat cooldown period before the user can continue the AI Check.",
-          "validation": "Required for AI_COOLDOWN and normalized to a sane strictness-derived range.",
-          "commonMistakes": "Using legacy delay fields or returning cooldown seconds for non-cooldown decisions."
+          "min": 0
         },
-        {
-          "path": "scores.repeatedReason",
-          "type": "0-100 number",
-          "required": true,
-          "example": 20,
-          "meaning": "How strongly this resembles a repeated or previously remembered reason.",
-          "whyNecessary": "The model needs a numeric signal that can be evaluated independently from the decision label.",
-          "productImpact": "Helps review repeated-excuse failures and regression strictness.",
-          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
-          "commonMistakes": "Treating the three scores as percentages that must sum to 100."
-        },
-        {
-          "path": "scores.impulse",
-          "type": "0-100 number",
-          "required": true,
-          "example": 62,
-          "meaning": "How impulsive or reactive the current request appears.",
-          "whyNecessary": "Cooldown and block decisions depend on impulse risk, especially in stricter modes.",
-          "productImpact": "Supports PM diagnosis of over-allow and under-ask cases.",
-          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
-          "commonMistakes": "Leaving it low for vague, emotional, or repeated requests."
-        },
-        {
-          "path": "scores.deliberateness",
-          "type": "0-100 number",
-          "required": true,
-          "example": 35,
-          "meaning": "How specific, bounded, and intentional the user's plan appears.",
-          "whyNecessary": "ALLOW should be grounded in deliberate intent, not just a polite request.",
-          "productImpact": "Supports unlock decisions and strictness tuning.",
-          "validation": "Must be a finite number between 0 and 100; rounded to an integer.",
-          "commonMistakes": "Overrating generic phrases like one quick video without a stop condition."
-        },
-        {
-          "path": "memoryUpdate.behaviorReasonCategory",
-          "type": "stress | boredom | loneliness | escape | habit | intentional | other",
-          "required": true,
-          "example": "boredom",
-          "meaning": "The long-term behavior pattern category to remember for the target.",
-          "whyNecessary": "Pattern memory needs behavior labels that stay separate from current decision reasoning.",
-          "productImpact": "Affects future repeated-pattern context and PM review of remembered behavior.",
-          "validation": "Unknown labels are normalized where possible and otherwise become other.",
-          "commonMistakes": "Using decision reason labels such as insufficient_reason here."
-        },
-        {
-          "path": "memoryUpdate.patternNote",
-          "type": "string | null",
-          "required": true,
-          "nullable": true,
-          "example": "User tends to request vague short video breaks without a clear stop condition.",
-          "meaning": "Optional short note about the repeated behavior pattern.",
-          "whyNecessary": "The model can preserve useful behavioral context without storing unnecessary transcript detail.",
-          "productImpact": "Improves future AI Check context while keeping local memory concise.",
-          "validation": "Empty strings become null.",
-          "commonMistakes": "Including sensitive or overly detailed personal content when a short pattern note is enough."
-        }
-      ],
-      "example": {
-        "decision": "ASK_MORE",
-        "userFacingMessage": "What specific task do you need YouTube for, and when will you stop?",
-        "decisionReasonCategory": "insufficient_reason",
-        "unlockMinutes": null,
-        "aiCooldownSeconds": null,
         "scores": {
-          "repeatedReason": 20,
-          "impulse": 62,
-          "deliberateness": 35
+          "type": "object",
+          "required": true,
+          "fields": {
+            "repeatedReason": {
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "max": 100
+            },
+            "impulse": {
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "max": 100
+            },
+            "deliberateness": {
+              "type": "number",
+              "required": true,
+              "min": 0,
+              "max": 100
+            }
+          }
         },
         "memoryUpdate": {
-          "behaviorReasonCategory": "boredom",
-          "patternNote": "User tends to request vague short video breaks without a clear stop condition."
+          "type": "object",
+          "required": true,
+          "fields": {
+            "behaviorReasonCategory": {
+              "type": "enum",
+              "enum": "behaviorReasonCategories",
+              "required": true
+            },
+            "patternNote": {
+              "type": "string",
+              "required": true,
+              "nullable": true
+            }
+          }
         }
       }
     },
     "evaluation": {
       "title": "Evaluation Case",
       "summary": "The unified case fixture used to run model regression checks.",
-      "fields": [
-        {
-          "path": "input",
-          "type": "AICheckCaseInput",
+      "type": "object",
+      "required": true,
+      "fields": {
+        "id": {
+          "type": "string",
+          "required": true
+        },
+        "title": {
+          "type": "string",
+          "required": true
+        },
+        "source": {
+          "type": "enum",
+          "enum": "caseSources",
+          "required": true
+        },
+        "versions": {
+          "type": "object",
           "required": true,
-          "meaning": "The model input context used for this case.",
-          "whyNecessary": "Evaluation must replay a concrete checkpoint context.",
-          "productImpact": "Determines what the model sees during the eval.",
-          "validation": "Must match the input contract.",
-          "commonMistakes": "Writing assertions without preserving the original target, strictness, or messages."
-        },
-        {
-          "path": "output.parsed",
-          "type": "Model Output",
-          "required": false,
-          "meaning": "Optional captured provider output for inspection.",
-          "whyNecessary": "Stored outputs help compare provider behavior across runs.",
-          "productImpact": "Improves PM review traceability.",
-          "validation": "When present, should match the output contract.",
-          "commonMistakes": "Treating captured output as the expected assertion."
-        },
-        {
-          "path": "eval.expectedOutput.decision",
-          "type": "ALLOW | AI_COOLDOWN | ASK_MORE | BLOCK | { exact?, allowed?, disallowed? }",
-          "required": true,
-          "example": "ASK_MORE",
-          "meaning": "The expected decision constraint for this case.",
-          "whyNecessary": "Every eval case needs one primary pass/fail decision expectation.",
-          "productImpact": "Determines the core regression result.",
-          "validation": "String values require exact match. Object values may set exact, allowed, and disallowed decision constraints.",
-          "commonMistakes": "Using tags as a substitute for expected decision."
-        },
-        {
-          "path": "eval.expectedOutput.userFacingMessage.mustMention",
-          "type": "string[]",
-          "required": false,
-          "example": ["time limit", "exit plan"],
-          "meaning": "Phrases or topics that must appear in the user-facing message.",
-          "whyNecessary": "Some ASK_MORE cases need specific missing information.",
-          "productImpact": "Catches vague follow-up questions.",
-          "validation": "Each phrase is matched case-insensitively against userFacingMessage.",
-          "commonMistakes": "Making this too specific to one exact wording."
-        },
-        {
-          "path": "eval.expectedOutput.userFacingMessage.mustNotMention",
-          "type": "string[]",
-          "required": false,
-          "example": ["You are weak"],
-          "meaning": "Phrases that must not appear in the user-facing message.",
-          "whyNecessary": "Tone and safety regressions need explicit negative assertions.",
-          "productImpact": "Prevents shame, moral judgment, or unsafe wording.",
-          "validation": "Each phrase is matched case-insensitively against userFacingMessage.",
-          "commonMistakes": "Using broad words that would fail harmless messages."
-        },
-        {
-          "path": "eval.expectedOutput.decisionReasonCategory",
-          "type": "repeated_excuse | clear_intention | high_risk_pattern | low_risk | insufficient_reason",
-          "required": false,
-          "example": "insufficient_reason",
-          "meaning": "Expected current-decision reason category.",
-          "whyNecessary": "Reason expectations catch cases where the decision is right but the model's explanation category is wrong.",
-          "productImpact": "Improves diagnosis of strictness and false-positive behavior.",
-          "validation": "When present, must exactly match decisionReasonCategory.",
-          "commonMistakes": "Using behavior-memory labels here instead of decision reason labels."
-        },
-        {
-          "path": "eval.expectedOutput.aiCooldownSeconds",
-          "type": "{ exact?: number|null, min?: number, max?: number }",
-          "required": false,
-          "example": { "min": 60, "max": 300 },
-          "meaning": "Expected AI cooldown duration constraint.",
-          "whyNecessary": "Cooldown decisions need duration expectations, not just decision labels.",
-          "productImpact": "Catches cooldown durations that are too weak or too harsh for the case.",
-          "validation": "Exact takes precedence when present; otherwise min and max bound the numeric value.",
-          "commonMistakes": "Expecting cooldown seconds for non-cooldown decisions."
-        },
-        {
-          "path": "eval.expectedOutput.scores",
-          "type": "{ repeatedReason?, impulse?, deliberateness? }",
-          "required": false,
-          "example": { "impulse": { "min": 50, "max": 90 } },
-          "meaning": "Expected score ranges by output score name.",
-          "whyNecessary": "Some cases need the model to get risk strength roughly right even if the decision passes.",
-          "productImpact": "Catches weak scoring that can hide borderline behavior.",
-          "validation": "Each configured score range checks min and max only for that score.",
-          "commonMistakes": "Setting ranges for every score when only one score is important."
-        },
-        {
-          "path": "eval.expectedOutput.memoryUpdate.behaviorReasonCategory",
-          "type": "stress | boredom | loneliness | escape | habit | intentional | other",
-          "required": false,
-          "example": "boredom",
-          "meaning": "Expected long-term behavior memory category.",
-          "whyNecessary": "Memory expectations catch cases where future pattern context would learn the wrong behavior label.",
-          "productImpact": "Protects repeated-pattern learning quality.",
-          "validation": "When present, must exactly match memoryUpdate.behaviorReasonCategory.",
-          "commonMistakes": "Forgetting memoryUpdate expectations when the bad case is about learned behavior."
-        },
-        {
-          "path": "eval.expectedOutput.memoryUpdate.patternNote",
-          "type": "{ exact?: string|null, mustMention?: string[], mustNotMention?: string[] }",
-          "required": false,
-          "example": { "mustMention": ["vague video breaks"] },
-          "meaning": "Expected memory note constraints.",
-          "whyNecessary": "Pattern notes should preserve useful behavior context without over-storing personal detail.",
-          "productImpact": "Improves future AI Check context quality.",
-          "validation": "Exact checks exact string or null; phrase checks are case-insensitive.",
-          "commonMistakes": "Requiring exact prose when topic coverage is enough."
-        },
-        {
-          "path": "eval.tags",
-          "type": "string[]",
-          "required": true,
-          "example": ["under_ask", "video", "strictness"],
-          "meaning": "Risk and category labels for filtering eval results.",
-          "whyNecessary": "PM Review and eval reporting need grouped risk views.",
-          "productImpact": "Drives case sets and tag-level pass rates.",
-          "validation": "Must be an array; recommended tags are shared in PM Review.",
-          "commonMistakes": "Using tags to encode expected behavior instead of assertions."
-        }
-      ],
-      "example": {
-        "input": {
-          "targetDisplay": "youtube.com",
-          "strictness": "strict",
-          "sessionContext": {
-            "assistantTurnCount": 1,
-            "maxAssistantTurns": 5,
-            "isFinalTurn": false
-          },
-          "messages": [
-            {
-              "role": "user",
-              "content": "I just want one quick video.",
-              "source": "user"
+          "fields": {
+            "promptVersion": {
+              "type": "string",
+              "required": true
+            },
+            "outputSchemaVersion": {
+              "type": "string",
+              "required": true
+            },
+            "evaluationSchemaVersion": {
+              "type": "string",
+              "required": true
             }
-          ],
-          "patternMemorySnapshot": []
+          }
+        },
+        "input": {
+          "type": "ref",
+          "ref": "input",
+          "required": true
+        },
+        "output": {
+          "type": "object",
+          "required": false,
+          "fields": {
+            "provider": {
+              "type": "string",
+              "required": false
+            },
+            "model": {
+              "type": "string",
+              "required": false
+            },
+            "rawProvider": {
+              "type": "string",
+              "required": false
+            },
+            "parsed": {
+              "type": "ref",
+              "ref": "output",
+              "required": true
+            }
+          }
         },
         "eval": {
-          "expectedOutput": {
-            "decision": "ASK_MORE",
-            "userFacingMessage": {
-              "mustMention": ["time limit", "exit plan"],
-              "mustNotMention": ["You are weak"]
+          "type": "object",
+          "required": true,
+          "fields": {
+            "expectedOutput": {
+              "type": "object",
+              "required": true,
+              "fields": {
+                "decision": {
+                  "type": "union",
+                  "required": false,
+                  "variants": [
+                    {
+                      "type": "enum",
+                      "enum": "decisions",
+                      "required": true
+                    },
+                    {
+                      "type": "object",
+                      "required": true,
+                      "fields": {
+                        "exact": {
+                          "type": "enum",
+                          "enum": "decisions",
+                          "required": false
+                        },
+                        "allowed": {
+                          "type": "array",
+                          "required": false,
+                          "item": {
+                            "type": "enum",
+                            "enum": "decisions",
+                            "required": true
+                          }
+                        },
+                        "disallowed": {
+                          "type": "array",
+                          "required": false,
+                          "item": {
+                            "type": "enum",
+                            "enum": "decisions",
+                            "required": true
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "userFacingMessage": {
+                  "type": "object",
+                  "required": false,
+                  "fields": {
+                    "exact": {
+                      "type": "string",
+                      "required": false
+                    },
+                    "mustMention": {
+                      "type": "array",
+                      "required": false,
+                      "item": {
+                        "type": "string",
+                        "required": true
+                      }
+                    },
+                    "mustNotMention": {
+                      "type": "array",
+                      "required": false,
+                      "item": {
+                        "type": "string",
+                        "required": true
+                      }
+                    }
+                  }
+                },
+                "decisionReasonCategory": {
+                  "type": "enum",
+                  "enum": "decisionReasonCategories",
+                  "required": false
+                },
+                "unlockMinutes": {
+                  "type": "nullableNumberExpectation",
+                  "required": false
+                },
+                "aiCooldownSeconds": {
+                  "type": "nullableNumberExpectation",
+                  "required": false
+                },
+                "scores": {
+                  "type": "object",
+                  "required": false,
+                  "fields": {
+                    "repeatedReason": {
+                      "type": "numberRangeExpectation",
+                      "required": false
+                    },
+                    "impulse": {
+                      "type": "numberRangeExpectation",
+                      "required": false
+                    },
+                    "deliberateness": {
+                      "type": "numberRangeExpectation",
+                      "required": false
+                    }
+                  }
+                },
+                "memoryUpdate": {
+                  "type": "object",
+                  "required": false,
+                  "fields": {
+                    "behaviorReasonCategory": {
+                      "type": "enum",
+                      "enum": "behaviorReasonCategories",
+                      "required": false
+                    },
+                    "patternNote": {
+                      "type": "nullableTextExpectation",
+                      "required": false
+                    }
+                  }
+                }
+              }
             },
-            "scores": {
-              "impulse": { "min": 50, "max": 90 }
+            "tags": {
+              "type": "array",
+              "required": true,
+              "item": {
+                "type": "string",
+                "required": true
+              }
             },
-            "memoryUpdate": {
-              "behaviorReasonCategory": "boredom"
+            "reviewerNote": {
+              "type": "string",
+              "required": false
             }
-          },
-          "tags": ["under_ask", "video", "strictness"],
-          "reviewerNote": "Model should ask for a bounded purpose before allowing."
+          }
+        },
+        "status": {
+          "type": "enum",
+          "enum": "caseStatuses",
+          "required": true
+        },
+        "archivedAt": {
+          "type": "string",
+          "required": false
+        },
+        "archivedReason": {
+          "type": "string",
+          "required": false
+        },
+        "createdAt": {
+          "type": "string",
+          "required": false
+        },
+        "updatedAt": {
+          "type": "string",
+          "required": false
         }
       }
     }

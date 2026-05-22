@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "npm --workspace apps/extension run dev",
     "build": "npm --workspace apps/extension run build",
+    "generate:ai-check-contract": "npm --workspace apps/extension run generate:ai-check-contract",
+    "validate:ai-check-contract": "npm --workspace apps/extension run validate:ai-check-contract",
+    "check:ai-check-contract": "npm --workspace apps/extension run check:ai-check-contract",
     "typecheck": "npm --workspace apps/extension run typecheck"
   },
   "workspaces": [

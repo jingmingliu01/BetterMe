@@ -7,6 +7,9 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "eval:ai-check": "node scripts/eval-ai-check.mjs",
+    "generate:ai-check-contract": "node scripts/generate-ai-check-contract.mjs",
+    "validate:ai-check-contract": "node scripts/validate-ai-check-contract.mjs",
+    "check:ai-check-contract": "npm run generate:ai-check-contract -- --check && npm run validate:ai-check-contract",
     "test:ai-check": "node scripts/ai-check-logic-test.mjs",
     "test:e2e": "npm run build && node scripts/e2e-extension.mjs",
     "typecheck": "tsc --noEmit"

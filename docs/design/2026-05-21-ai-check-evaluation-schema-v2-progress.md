@@ -15,6 +15,7 @@ Evaluation Schema V2 is implemented.
 ## Target State
 
 - `evaluationSchemaVersion` is `ai-check-evaluation-v2`.
+- PM Review schema reference shows the full `AICheckCase` envelope, including `versions` and lifecycle metadata.
 - `eval.expectedOutput` mirrors the model Output Schema.
 - PM Review stores message, score, cooldown, and memory expectations under `eval.expectedOutput`.
 - EvaluationRunner reports field-path-specific failures.
@@ -30,6 +31,8 @@ Evaluation Schema V2 is implemented.
 - Updated EvaluationRunner to compare actual output against field-level expected-output constraints.
 - Updated PM Review eval editing to store user-facing message expectations under `eval.expectedOutput.userFacingMessage`.
 - Updated contract reference docs and linked PM Review / case schema docs.
+- Updated Evaluation schema reference to include `versions.promptVersion`, `versions.outputSchemaVersion`, `versions.evaluationSchemaVersion`, case source/status fields, and matching example data.
+- Added AI Check logic assertions so the Evaluation schema reference cannot omit version fields or drift from the current contract versions.
 - Validation passed:
   - `npm run typecheck`
   - `npm --workspace apps/extension run test:ai-check`

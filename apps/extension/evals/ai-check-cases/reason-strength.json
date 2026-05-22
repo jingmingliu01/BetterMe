@@ -49,7 +49,8 @@
         "over_allow",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "reason_strength_strong_debug_balanced_001",
@@ -102,7 +103,8 @@
         "over_block",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "reason_strength_break_language_strict_001",
@@ -144,7 +146,8 @@
         "over_allow",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "reason_strength_specific_recipe_gentle_001",
@@ -186,7 +189,8 @@
         "low_risk",
         "gentle"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "reason_strength_chinese_vague_001",
@@ -228,6 +232,7 @@
         "zh",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   }
 ]

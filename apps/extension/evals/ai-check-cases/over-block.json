@@ -40,7 +40,8 @@
         "work",
         "gentle"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_block_stackoverflow_answer_balanced_001",
@@ -82,7 +83,8 @@
         "work",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_block_reddit_debug_balanced_001",
@@ -124,7 +126,8 @@
         "work",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_block_recipe_video_gentle_001",
@@ -166,7 +169,8 @@
         "low_risk",
         "gentle"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_block_chinese_work_balanced_001",
@@ -209,7 +213,8 @@
         "zh",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "over_block_doctor_appointment_strict_001",
@@ -251,6 +256,7 @@
         "important_task",
         "strict"
       ]
-    }
+    },
+    "status": "regression"
   }
 ]

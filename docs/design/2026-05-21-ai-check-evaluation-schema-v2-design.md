@@ -30,6 +30,9 @@ Evaluation Case remains:
 
 ```ts
 interface AICheckCase {
+  id: string;
+  title: string;
+  source: "authored_eval" | "real_session" | "bad_case_review";
   versions: {
     promptVersion: string;
     outputSchemaVersion: string;
@@ -37,11 +40,14 @@ interface AICheckCase {
   };
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
-  eval: AICheckCaseEval;
+  eval?: AICheckCaseEval;
+  status: "draft" | "ready" | "regression" | "archived";
+  archivedAt?: string;
+  archivedReason?: string;
 }
 ```
 
-`input` reconstructs the provider request with `promptVersion`. `output` stores a captured actual provider output when available. `eval` stores PM expectations for automated regression judging.
+`versions` records the prompt, output schema, and evaluation schema that the case targets. `input` reconstructs the provider request. `output` stores a captured actual provider output when available. `eval` stores PM expectations for automated regression judging. PM Review lifecycle metadata such as `status`, `archivedAt`, and `archivedReason` is part of the same case envelope and must appear in the schema reference.
 
 ## Expected Output Mirror
 

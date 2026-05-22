@@ -38,7 +38,8 @@
         "strictness",
         "gentle"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "strictness_balanced_clear_video_001",
@@ -79,7 +80,8 @@
         "strictness",
         "balanced"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "strictness_monk_clear_video_001",
@@ -124,7 +126,8 @@
         "strictness",
         "monk"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "strictness_strict_vague_social_001",
@@ -170,7 +173,8 @@
         "strict",
         "over_allow"
       ]
-    }
+    },
+    "status": "regression"
   },
   {
     "id": "strictness_monk_sensitive_001",
@@ -212,6 +216,7 @@
         "monk",
         "unsafe_sensitive_advice"
       ]
-    }
+    },
+    "status": "regression"
   }
 ]
