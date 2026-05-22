@@ -1,8 +1,9 @@
 import { listPatternMemory } from "./pattern-memory";
-import { AI_CHECK_CONTRACT, AI_CHECK_SESSION_POLICY } from "../shared/ai-check-contract";
+import { AI_CHECK_CURRENT_VERSIONS, AI_CHECK_SESSION_POLICY } from "../shared/ai-check-contract";
 import { createId, nowIso } from "../shared/id";
 import type {
   AICheckCase,
+  AICheckExpectedOutput,
   AICheckEvalResult,
   AICheckEvalRun,
   AICheckMessage,
@@ -12,6 +13,7 @@ import type {
   BadCaseErrorType,
   BadCaseReview,
   BehaviorEvent,
+  BehaviorReasonCategory,
   CheckpointDecision,
   CreateEvalCaseInput,
   StrictnessLevel,
@@ -19,9 +21,9 @@ import type {
 } from "../shared/types";
 import { getAllRecords, getRecord, putRecord } from "../storage/indexed-db";
 
-export const AI_CHECK_PROMPT_VERSION = AI_CHECK_CONTRACT.promptVersion;
-export const AI_CHECK_SCHEMA_VERSION = AI_CHECK_CONTRACT.schemaVersion;
-export const AI_CHECK_RUBRIC_VERSION = AI_CHECK_CONTRACT.rubricVersion;
+export const AI_CHECK_PROMPT_VERSION = AI_CHECK_CURRENT_VERSIONS.promptVersion;
+export const AI_CHECK_OUTPUT_SCHEMA_VERSION = AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion;
+export const AI_CHECK_EVALUATION_SCHEMA_VERSION = AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion;
 
 export async function listReviewSessions(): Promise<AIPMReviewSession[]> {
   const [sessions, messages, decisions, badCases, behaviorEvents] = await Promise.all([
@@ -140,8 +142,8 @@ export async function convertBadCaseToEvalCase(input: { badCaseId: string; title
     source: "bad_case_review",
     versions: {
       promptVersion: AI_CHECK_PROMPT_VERSION,
-      schemaVersion: AI_CHECK_SCHEMA_VERSION,
-      rubricVersion: AI_CHECK_RUBRIC_VERSION
+      outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
+      evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION
     },
     input: {
       targetDisplay: badCase.targetDisplay,
@@ -171,7 +173,6 @@ export async function convertBadCaseToEvalCase(input: { badCaseId: string; title
       expectedOutput: {
         decision: badCase.expectedDecision
       },
-      disallowedDecisions: badCase.actualDecision ? [badCase.actualDecision].filter((item) => item !== badCase.expectedDecision) : [],
       tags: badCase.errorTypes,
       reviewerNote: badCase.reviewerNote
     },
@@ -207,8 +208,8 @@ export async function createEvalCase(input: CreateEvalCaseInput): Promise<AIChec
     source: input.source ?? "authored_eval",
     versions: {
       promptVersion: AI_CHECK_PROMPT_VERSION,
-      schemaVersion: AI_CHECK_SCHEMA_VERSION,
-      rubricVersion: AI_CHECK_RUBRIC_VERSION
+      outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
+      evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION
     },
     input: {
       targetDisplay: input.targetDisplay.trim() || "example.com",
@@ -229,12 +230,11 @@ export async function createEvalCase(input: CreateEvalCaseInput): Promise<AIChec
     },
     eval: {
       expectedOutput: {
-        decision: input.expectedDecision
+        decision: input.expectedDecision,
+        ...buildUserFacingExpectation(input.userFacingMustMention, input.userFacingMustNotMention)
       },
       tags: cleanList(input.tags),
-      reviewerNote: input.reviewerNote?.trim() || undefined,
-      mustAskAbout: cleanList(input.mustAskAbout),
-      mustNotSay: cleanList(input.mustNotSay)
+      reviewerNote: input.reviewerNote?.trim() || undefined
     },
     status: input.status ?? "draft",
     createdAt: now,
@@ -281,17 +281,16 @@ export async function updateEvalCase(input: UpdateEvalCaseInput): Promise<AIChec
     eval: {
       expectedOutput: {
         ...(current.eval?.expectedOutput ?? { decision: "ASK_MORE" }),
-        decision: input.expectedDecision ?? current.eval?.expectedOutput.decision ?? "ASK_MORE"
+        decision: input.expectedDecision ?? current.eval?.expectedOutput.decision ?? "ASK_MORE",
+        ...buildUserFacingExpectation(
+          input.userFacingMustMention,
+          input.userFacingMustNotMention,
+          current.eval?.expectedOutput.userFacingMessage
+        )
       },
-      allowedDecisions: current.eval?.allowedDecisions,
-      disallowedDecisions: current.eval?.disallowedDecisions,
-      expectedCooldownRangeSeconds: current.eval?.expectedCooldownRangeSeconds,
-      expectedScoreRanges: current.eval?.expectedScoreRanges,
       tags: input.tags !== undefined ? cleanList(input.tags) : current.eval?.tags ?? [],
       reviewerNote:
-        input.reviewerNote !== undefined ? input.reviewerNote.trim() || undefined : current.eval?.reviewerNote,
-      mustAskAbout: input.mustAskAbout !== undefined ? cleanList(input.mustAskAbout) : current.eval?.mustAskAbout,
-      mustNotSay: input.mustNotSay !== undefined ? cleanList(input.mustNotSay) : current.eval?.mustNotSay
+        input.reviewerNote !== undefined ? input.reviewerNote.trim() || undefined : current.eval?.reviewerNote
     },
     archivedAt:
       input.status === "archived"
@@ -349,8 +348,49 @@ function buildEvalTitle(badCase: BadCaseReview): string {
 
 function normalizeStoredEvalCase(evalCase: AICheckCase): AICheckCase {
   const status = evalCase.archivedAt ? "archived" : evalCase.status ?? "ready";
+  const legacyEval = (evalCase.eval ?? { expectedOutput: {}, tags: [] }) as NonNullable<AICheckCase["eval"]> & {
+    allowedDecisions?: AIDecision[];
+    disallowedDecisions?: AIDecision[];
+    expectedCooldownRangeSeconds?: { min: number; max: number };
+    expectedScoreRanges?: AICheckExpectedOutput["scores"];
+    mustAskAbout?: string[];
+    mustNotSay?: string[];
+  };
+  const expectedOutput: AICheckExpectedOutput = {
+    ...(legacyEval?.expectedOutput ?? {}),
+    ...(legacyEval?.mustAskAbout || legacyEval?.mustNotSay
+      ? buildUserFacingExpectation(
+          legacyEval.mustAskAbout,
+          legacyEval.mustNotSay,
+          legacyEval.expectedOutput?.userFacingMessage
+        )
+      : {}),
+    ...(legacyEval?.expectedCooldownRangeSeconds ? { aiCooldownSeconds: legacyEval.expectedCooldownRangeSeconds } : {}),
+    ...(legacyEval?.expectedScoreRanges ? { scores: legacyEval.expectedScoreRanges } : {})
+  };
+  if (legacyEval?.allowedDecisions?.length) {
+    expectedOutput.decision = {
+      allowed: legacyEval.allowedDecisions,
+      ...(legacyEval.disallowedDecisions?.length ? { disallowed: legacyEval.disallowedDecisions } : {})
+    };
+  }
+  const legacyBehaviorReason = (expectedOutput as AICheckExpectedOutput & {
+    behaviorReasonCategory?: BehaviorReasonCategory;
+  }).behaviorReasonCategory;
+  if (legacyBehaviorReason) {
+    expectedOutput.memoryUpdate = {
+      ...(expectedOutput.memoryUpdate ?? {}),
+      behaviorReasonCategory: legacyBehaviorReason
+    };
+    delete (expectedOutput as AICheckExpectedOutput & { behaviorReasonCategory?: BehaviorReasonCategory }).behaviorReasonCategory;
+  }
   const normalized: AICheckCase = {
     ...evalCase,
+    eval: {
+      expectedOutput,
+      tags: legacyEval?.tags ?? [],
+      reviewerNote: legacyEval?.reviewerNote
+    },
     status,
     createdAt: evalCase.createdAt ?? evalCase.updatedAt ?? nowIso(),
     updatedAt: evalCase.updatedAt ?? evalCase.createdAt ?? nowIso()
@@ -363,4 +403,26 @@ function normalizeStoredEvalCase(evalCase: AICheckCase): AICheckCase {
 
 function cleanList(values: string[] | undefined): string[] {
   return [...new Set((values ?? []).map((value) => value.trim()).filter(Boolean))];
+}
+
+function buildUserFacingExpectation(
+  mustMention: string[] | undefined,
+  mustNotMention: string[] | undefined,
+  current?: AICheckExpectedOutput["userFacingMessage"]
+): { userFacingMessage?: NonNullable<AICheckExpectedOutput["userFacingMessage"]> } {
+  if (mustMention === undefined && mustNotMention === undefined) {
+    return current ? { userFacingMessage: current } : {};
+  }
+  const next: NonNullable<AICheckExpectedOutput["userFacingMessage"]> = {
+    ...(current ?? {}),
+    mustMention: cleanList(mustMention),
+    mustNotMention: cleanList(mustNotMention)
+  };
+  if (!next.mustMention?.length) {
+    delete next.mustMention;
+  }
+  if (!next.mustNotMention?.length) {
+    delete next.mustNotMention;
+  }
+  return Object.keys(next).length ? { userFacingMessage: next } : {};
 }

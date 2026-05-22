@@ -78,7 +78,7 @@ Schema Reference now acts as an AI Check Contract Manual centered on the provide
 ### Phase 3b: AI Check Contract Manual
 
 - Done: add internal Contract Manual tabs for Provider Messages, Output, Evaluation, and Compare.
-- Done: render version chips from `AI_CHECK_CONTRACT.promptVersion`, `AI_CHECK_CONTRACT.schemaVersion`, `AI_CHECK_CONTRACT.rubricVersion`, and `AI_CHECK_CONTRACT.sessionPolicy`.
+- Done: render version controls from `AI_CHECK_CONTRACT.current`, `AI_CHECK_CONTRACT.versionRegistry`, and `AI_CHECK_CONTRACT.sessionPolicy`.
 - Done: render Output and Evaluation examples from `AI_CHECK_CONTRACT.sections`.
 - Done: add a Provider Messages viewer that displays the provider request tree and highlights generated parts with source references.
 - Done: render the actual XML-like provider-visible prompt/context sections in the Provider Messages preview while keeping output schema/example JSON.
@@ -88,7 +88,10 @@ Schema Reference now acts as an AI Check Contract Manual centered on the provide
 - Done: simplify Contract Manual readability by making the provider `messages[]` tree the default view, removing the extra provider-section tabs, removing the multi-card flow diagram, and replacing the heavy source inspector with a lightweight preview panel.
 - Done: render selected prompt/context content as XML-like section blocks in the right preview, preserving original line breaks while reducing ambiguity from viewport wrapping.
 - Done: unify Provider Messages preview tags to `Cross-Round Context`, `Cross-Turn Context`, `Round-Level Context`, `Conversation`, and `Turn-Level Context`.
-- Done: update Output and Evaluation tabs to match the Provider Messages interaction pattern: selectable contract example on the left, selected-field explanation with contract metadata on the right.
+- Done: render provider-preview contract enum blocks as highlighted tokens instead of plain comma-separated text.
+- Done: update Output and Evaluation tabs to show schema JSON on the left and complete example JSON on the right.
+- Done: add lightweight JSON syntax highlighting for schema and example code viewers.
+- Done: back Contract Manual version controls with `AI_CHECK_CONTRACT.current` and `AI_CHECK_CONTRACT.versionRegistry`.
 
 ### Phase 4: Regression Workflow
 
@@ -137,6 +140,12 @@ Pending validation:
 - Simplified the Contract Manual presentation so Provider Messages is the default model and System/Round/Conversation/Turn are clicked inside the same `messages[]` tree instead of separate tabs.
 - Updated `AGENTS.md` with PM Review schema-sync, archive, and regression rules.
 - Updated this progress doc and the issues doc because scope/status changed from design-only to implementation checkpoint.
+
+2026-05-21:
+
+- PM Review Contract Manual now reflects `checkpoint-decision-v3` / `ai-check-prompt-v4` from the shared AI Check contract.
+- Output reference no longer shows a separate `nextQuestion`; `ASK_MORE` uses `userFacingMessage` as the follow-up question.
+- Design and issues docs were checked; no PM Review layout or blocker update was needed because the UI renders the contract data dynamically.
 
 ## Update Checklist
 

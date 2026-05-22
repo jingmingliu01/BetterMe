@@ -45,7 +45,6 @@ try {
       "decisionReasonCategory",
       "unlockMinutes",
       "aiCooldownSeconds",
-      "nextQuestion",
       "scores.repeatedReason",
       "scores.impulse",
       "scores.deliberateness",
@@ -128,7 +127,6 @@ try {
       decisionReasonCategory: "insufficient_reason",
       unlockMinutes: null,
       aiCooldownSeconds: 20,
-      nextQuestion: null,
       scores: {
         repeatedReason: 40,
         impulse: 75,
@@ -152,7 +150,6 @@ try {
       decisionReasonCategory: "insufficient_reason",
       unlockMinutes: null,
       aiCooldownSeconds: null,
-      nextQuestion: "What will make you leave?",
       scores: {
         repeatedReason: 20,
         impulse: 50,
@@ -181,7 +178,6 @@ try {
       decisionReasonCategory: "vague reason",
       unlockMinutes: null,
       aiCooldownSeconds: null,
-      nextQuestion: "What would make this deliberate?",
       scores: {
         repeatedReason: 20,
         impulse: 50,
@@ -206,7 +202,6 @@ try {
           decisionReasonCategory: "insufficient_reason",
           unlockMinutes: null,
           aiCooldownSeconds: null,
-          nextQuestion: "What is the specific task?",
           scores: {
             repeatedReason: 10,
             impulse: 120,
@@ -240,7 +235,6 @@ try {
                 decisionReasonCategory: "insufficient_reason",
                 unlockMinutes: null,
                 aiCooldownSeconds: null,
-                nextQuestion: "What is the specific task?",
                 scores: {
                   repeatedReason: 10,
                   impulse: 50,

@@ -22,7 +22,7 @@ blocked site
   -> local enforcement
   -> PM review marks bad case
   -> bad case becomes eval case
-  -> prompt/schema/rubric changes are regression-tested
+  -> prompt/output-schema/evaluation-schema changes are regression-tested
 ```
 
 The first implementation remains BYOK and local-first. The extension can demonstrate the loop without a cloud backend.
@@ -102,8 +102,8 @@ interface AICheckCase {
   source: "authored_eval" | "real_session" | "bad_case_review";
   versions: {
     promptVersion: string;
-    schemaVersion: string;
-    rubricVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
   };
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
@@ -135,7 +135,7 @@ Case files are grouped by decision risk:
 - `over-block.json`
 - `ask-more.json`
 - `reason-strength.json`
-- `strictness-rubric.json`
+- `strictness-behavior.json`
 - `sensitive-advice.json`
 - `repeated-pattern.json`
 
@@ -159,7 +159,7 @@ Provider mode reads `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`, or `KIMI_API_KEY` from
 
 Future runner scope:
 
-- prompt/rubric version comparisons.
+- prompt and evaluation schema version comparisons.
 - direct import of PM Review exported eval cases.
 - persisted eval run/result history in the extension UI.
 
@@ -168,7 +168,7 @@ Future runner scope:
 Every AI session should eventually carry:
 
 - `promptVersion`
-- `schemaVersion`
-- `rubricVersion`
+- `outputSchemaVersion`
+- `evaluationSchemaVersion`
 
 The first implementation may use constants and include them in eval output before all stored sessions are migrated.

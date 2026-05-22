@@ -1495,10 +1495,32 @@ button {
   font-size: 13px;
 }
 
+.contract-version-picker select {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #173327;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 760;
+  outline: none;
+}
+
+.contract-version-picker select:disabled {
+  appearance: none;
+  opacity: 1;
+}
+
 .contract-version-chip code {
   color: #66736b;
+  display: block;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .schema-manual-tabs {
@@ -1532,6 +1554,10 @@ button {
   align-items: start;
 }
 
+.schema-workspace-reference {
+  grid-template-columns: minmax(500px, 1fr) minmax(460px, 0.9fr);
+}
+
 .schema-tree-panel,
 .schema-example-panel {
   min-width: 0;
@@ -1561,13 +1587,13 @@ button {
 
 .provider-message-tree {
   overflow: auto;
-  padding: 16px;
+  padding: 18px;
   border-radius: 10px;
-  background: #17221c;
+  background: #13211a;
   color: #e8fff2;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.62;
 }
 
 .provider-code-line {
@@ -1586,6 +1612,49 @@ button {
 
 .provider-syntax-string {
   color: #f6d28d;
+}
+
+.json-line-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.json-token-key {
+  color: #9fe7c0;
+  font-weight: 760;
+}
+
+.json-token-string {
+  color: #f6d28d;
+}
+
+.json-token-schema-type {
+  color: #b9e8ff;
+  font-weight: 720;
+}
+
+.json-token-number {
+  color: #8ed5ff;
+  font-weight: 720;
+}
+
+.json-token-literal {
+  color: #d5c4ff;
+  font-weight: 720;
+}
+
+.json-token-null {
+  color: #9fb2a8;
+  font-weight: 720;
+}
+
+.json-token-punctuation {
+  color: rgba(232, 255, 242, 0.58);
+}
+
+.json-token-badge {
+  color: #79cf9d;
+  font-weight: 760;
 }
 
 .provider-message-block,
@@ -1615,21 +1684,22 @@ button {
 
 .schema-example-viewer {
   max-height: 760px;
+  min-height: 520px;
 }
 
 .schema-example-code-line,
 .schema-example-line-action {
   display: flex;
   align-items: flex-start;
-  min-height: 24px;
+  min-height: 25px;
 }
 
 .schema-example-line-action {
   width: 100%;
-  margin: 3px 0;
+  margin: 2px 0;
   padding: 4px 8px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -1640,8 +1710,8 @@ button {
 .schema-example-line-action:hover,
 .schema-example-line-action:focus-visible {
   outline: none;
-  border-color: rgba(121, 207, 157, 0.42);
-  background: rgba(121, 207, 157, 0.13);
+  border-color: rgba(121, 207, 157, 0.34);
+  background: rgba(121, 207, 157, 0.1);
 }
 
 .schema-example-indent {
@@ -1744,6 +1814,27 @@ button {
   tab-size: 2;
 }
 
+.provider-preview-token-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow: visible;
+  white-space: normal;
+}
+
+.provider-contract-token {
+  display: inline-flex;
+  align-items: center;
+  min-height: 23px;
+  padding: 2px 7px;
+  border: 1px solid rgba(142, 213, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(142, 213, 255, 0.1);
+  color: #b9e8ff;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
 .provider-preview-highlight {
   display: block;
   margin: 1px 0;
@@ -1763,6 +1854,23 @@ button {
   border: 1px solid rgba(29, 62, 46, 0.1);
   border-radius: 10px;
   background: #f7fbf8;
+}
+
+.schema-root-row strong {
+  flex: 0 0 auto;
+  min-width: 0;
+  color: #173327;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  white-space: nowrap;
+}
+
+.schema-root-row span:last-child {
+  min-width: 0;
+  color: #66736b;
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 
 .schema-brace {
@@ -1913,6 +2021,13 @@ button {
 
 .schema-guidance {
   padding-top: 2px;
+}
+
+.schema-guidance summary {
+  color: #173327;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 720;
 }
 
 .schema-guidance .status-item strong {

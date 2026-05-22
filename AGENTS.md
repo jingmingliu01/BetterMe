@@ -37,6 +37,8 @@
 - Provider-mode evals must reuse the runtime AI Check prompt/message builder instead of maintaining a separate eval-only prompt.
 - Provider messages should keep the cache-friendly order: static System Prompt, trusted Round Context, append-only Conversation, then trusted Turn Context.
 - Round Context values, including strictness and policy snapshots, should stay fixed for the active AI Check round; Settings changes apply to the next round.
-- Evaluation cases should carry the current `promptVersion`, `schemaVersion`, and `rubricVersion`; default eval runs should only use current-version active cases unless a legacy run is explicitly requested.
+- Evaluation cases should carry the current `promptVersion`, `outputSchemaVersion`, and `evaluationSchemaVersion`; default eval runs should only use current-version active cases unless a legacy run is explicitly requested.
+- AI Check contract version bumps must preserve old entries in `versionRegistry`; add the new version as current instead of overwriting historical prompt, output schema, or evaluation schema references.
+- Evaluation expectations should live under `eval.expectedOutput` as an output-shaped mirror; do not add new root-level eval assertion fields unless they cannot be tied to a model output field.
 - When changing AI Check Input, Output, or Evaluation schema, update `ai-check-contract.json` first, then update parser constraints, TypeScript types, eval assertions, tests, and linked design/progress/issues docs in the same change.
-- When changing Prompt Version or Rubric Version, update the contract version field, eval fixtures or archive status, and linked design/progress/issues docs in the same change.
+- When changing Prompt Version, Output Schema Version, or Evaluation Schema Version, update `current`, `versionRegistry`, eval fixtures or archive status, and linked design/progress/issues docs in the same change.

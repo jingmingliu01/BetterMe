@@ -36,7 +36,7 @@ The next-stage PM Review workspace design is tracked in [2026-05-20-pm-review-wo
   - under-ask
   - unnecessary-ask
   - reason strength
-  - strictness rubric
+  - strictness behavior
   - sensitive advice boundary
   - repeated pattern handling
 - Split eval cases into categorized files under `apps/extension/evals/ai-check-cases/`.

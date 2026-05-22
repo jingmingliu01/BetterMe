@@ -147,8 +147,8 @@ export interface AICheckSession {
   maxAssistantTurns: number;
   strictness?: StrictnessLevel;
   promptVersion?: string;
-  schemaVersion?: string;
-  rubricVersion?: string;
+  outputSchemaVersion?: string;
+  evaluationSchemaVersion?: string;
   roundSnapshot?: AICheckRoundSnapshot;
   finalDecision?: AIDecision;
   finalDecisionId?: string;
@@ -176,8 +176,8 @@ export interface AICheckRoundSnapshot {
   patternMemorySnapshot: PatternMemory[];
   versions: {
     promptVersion: string;
-    schemaVersion: string;
-    rubricVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
   };
   provider?: {
     id: ProviderId;
@@ -209,7 +209,6 @@ export interface CheckpointDecision {
     minSeconds: number;
     maxSeconds: number;
   };
-  nextQuestion: string | null;
   scores: AICheckScores;
   memoryUpdate: {
     behaviorReasonCategory: BehaviorReasonCategory;
@@ -296,18 +295,52 @@ export interface AICheckCaseOutput {
   };
 }
 
-export interface AICheckCaseEval {
-  expectedOutput: {
-    decision: AIDecision;
-    decisionReasonCategory?: DecisionReasonCategory;
+export type AICheckDecisionExpectation =
+  | AIDecision
+  | {
+      exact?: AIDecision;
+      allowed?: AIDecision[];
+      disallowed?: AIDecision[];
+    };
+
+export interface AICheckTextExpectation {
+  exact?: string;
+  mustMention?: string[];
+  mustNotMention?: string[];
+}
+
+export interface AICheckNullableTextExpectation {
+  exact?: string | null;
+  mustMention?: string[];
+  mustNotMention?: string[];
+}
+
+export interface AICheckNullableNumberExpectation {
+  exact?: number | null;
+  min?: number;
+  max?: number;
+}
+
+export interface AICheckNumberRangeExpectation {
+  min?: number;
+  max?: number;
+}
+
+export interface AICheckExpectedOutput {
+  decision?: AICheckDecisionExpectation;
+  userFacingMessage?: AICheckTextExpectation;
+  decisionReasonCategory?: DecisionReasonCategory;
+  unlockMinutes?: AICheckNullableNumberExpectation;
+  aiCooldownSeconds?: AICheckNullableNumberExpectation;
+  scores?: Partial<Record<AICheckScoreName, AICheckNumberRangeExpectation>>;
+  memoryUpdate?: {
     behaviorReasonCategory?: BehaviorReasonCategory;
+    patternNote?: AICheckNullableTextExpectation;
   };
-  allowedDecisions?: AIDecision[];
-  disallowedDecisions?: AIDecision[];
-  expectedCooldownRangeSeconds?: { min: number; max: number };
-  expectedScoreRanges?: Partial<Record<AICheckScoreName, { min: number; max: number }>>;
-  mustAskAbout?: string[];
-  mustNotSay?: string[];
+}
+
+export interface AICheckCaseEval {
+  expectedOutput: AICheckExpectedOutput;
   tags: string[];
   reviewerNote?: string;
 }
@@ -320,8 +353,8 @@ export interface AICheckCase {
   source: "authored_eval" | "real_session" | "bad_case_review";
   versions: {
     promptVersion: string;
-    schemaVersion: string;
-    rubricVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
   };
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
@@ -343,8 +376,8 @@ export interface AICheckCaseSet {
     strictness?: StrictnessLevel[];
     expectedDecisions?: AIDecision[];
     promptVersions?: string[];
-    schemaVersions?: string[];
-    rubricVersions?: string[];
+    outputSchemaVersions?: string[];
+    evaluationSchemaVersions?: string[];
     includeArchived?: boolean;
   };
   createdAt: string;
@@ -367,8 +400,8 @@ export interface AICheckSchemaFieldReference {
 export interface AICheckEvalRun {
   id: string;
   promptVersion: string;
-  schemaVersion: string;
-  rubricVersion: string;
+  outputSchemaVersion: string;
+  evaluationSchemaVersion: string;
   providerMode: "mock" | "byok";
   createdAt: string;
 }
@@ -498,8 +531,8 @@ export interface CreateEvalCaseInput {
   expectedDecision: AIDecision;
   tags: string[];
   reviewerNote?: string;
-  mustAskAbout?: string[];
-  mustNotSay?: string[];
+  userFacingMustMention?: string[];
+  userFacingMustNotMention?: string[];
 }
 
 export interface UpdateEvalCaseInput {
@@ -512,8 +545,8 @@ export interface UpdateEvalCaseInput {
   expectedDecision?: AIDecision;
   tags?: string[];
   reviewerNote?: string;
-  mustAskAbout?: string[];
-  mustNotSay?: string[];
+  userFacingMustMention?: string[];
+  userFacingMustNotMention?: string[];
 }
 
 export interface ExtensionResult<T> {

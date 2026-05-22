@@ -24,7 +24,7 @@ import { appendBehaviorEvent } from "../storage/behavior-events";
 import { createBlockHoldUntilNextDay, createTemporaryUnlock } from "../blocking/unlocks";
 import { loadDecryptedApiKey } from "../storage/crypto-key-store";
 import { getTargetKey } from "../blocking/target-parser";
-import { AI_CHECK_PROMPT_VERSION, AI_CHECK_RUBRIC_VERSION, AI_CHECK_SCHEMA_VERSION } from "./review-store";
+import { AI_CHECK_PROMPT_VERSION, AI_CHECK_EVALUATION_SCHEMA_VERSION, AI_CHECK_OUTPUT_SCHEMA_VERSION } from "./review-store";
 
 export async function startAICheckSession(
   target: BlockedTarget,
@@ -56,8 +56,8 @@ export async function startAICheckSession(
     maxAssistantTurns: AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
     strictness,
     promptVersion: AI_CHECK_PROMPT_VERSION,
-    schemaVersion: AI_CHECK_SCHEMA_VERSION,
-    rubricVersion: AI_CHECK_RUBRIC_VERSION,
+    outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
+    evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION,
     roundSnapshot
   };
   const opening: AICheckMessage = {
@@ -80,8 +80,8 @@ export async function startAICheckSession(
       maxAssistantTurns: session.maxAssistantTurns,
       strictness: roundSnapshot.strictness,
       promptVersion: roundSnapshot.versions.promptVersion,
-      schemaVersion: roundSnapshot.versions.schemaVersion,
-      rubricVersion: roundSnapshot.versions.rubricVersion
+      outputSchemaVersion: roundSnapshot.versions.outputSchemaVersion,
+      evaluationSchemaVersion: roundSnapshot.versions.evaluationSchemaVersion
     }
   });
   return { session, messages: [opening] };
@@ -165,8 +165,8 @@ export async function sendAICheckMessage(input: {
       strictness: roundSnapshot.strictness,
       maxAssistantTurns: roundSnapshot.maxAssistantTurns,
       promptVersion: roundSnapshot.versions.promptVersion,
-      schemaVersion: roundSnapshot.versions.schemaVersion,
-      rubricVersion: roundSnapshot.versions.rubricVersion,
+      outputSchemaVersion: roundSnapshot.versions.outputSchemaVersion,
+      evaluationSchemaVersion: roundSnapshot.versions.evaluationSchemaVersion,
       roundSnapshot
     };
     await putRecord("aiCheckSessions", activeSession);
@@ -245,7 +245,7 @@ export async function sendAICheckMessage(input: {
     sessionId: input.sessionId,
     role: "assistant",
     source: "llm",
-    content: decision.nextQuestion ?? decision.userFacingMessage,
+    content: decision.userFacingMessage,
     createdAt: nowIso()
   };
 

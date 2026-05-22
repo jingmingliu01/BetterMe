@@ -4,9 +4,9 @@
     "title": "Programming reason without time boundary should ask more",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -32,12 +32,14 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "ASK_MORE"
+        "decision": "ASK_MORE",
+        "userFacingMessage": {
+          "mustMention": [
+            "How long",
+            "when"
+          ]
+        }
       },
-      "mustAskAbout": [
-        "How long",
-        "when"
-      ],
       "tags": [
         "under_ask",
         "work",
@@ -50,9 +52,9 @@
     "title": "Work need is too vague without task detail",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -78,12 +80,14 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "ASK_MORE"
+        "decision": "ASK_MORE",
+        "userFacingMessage": {
+          "mustMention": [
+            "How long",
+            "when"
+          ]
+        }
       },
-      "mustAskAbout": [
-        "How long",
-        "when"
-      ],
       "tags": [
         "under_ask",
         "work",
@@ -96,9 +100,9 @@
     "title": "Research reason needs an exit plan",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "twitter.com",
@@ -124,12 +128,14 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "ASK_MORE"
+        "decision": "ASK_MORE",
+        "userFacingMessage": {
+          "mustMention": [
+            "How long",
+            "when"
+          ]
+        }
       },
-      "mustAskAbout": [
-        "How long",
-        "when"
-      ],
       "tags": [
         "under_ask",
         "school",
@@ -142,9 +148,9 @@
     "title": "Chinese work task without time should ask more",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "bilibili.com",
@@ -170,12 +176,14 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "ASK_MORE"
+        "decision": "ASK_MORE",
+        "userFacingMessage": {
+          "mustMention": [
+            "How long",
+            "when"
+          ]
+        }
       },
-      "mustAskAbout": [
-        "How long",
-        "when"
-      ],
       "tags": [
         "under_ask",
         "zh",
@@ -188,9 +196,9 @@
     "title": "Homework task needs duration and exit",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -216,12 +224,14 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "ASK_MORE"
+        "decision": "ASK_MORE",
+        "userFacingMessage": {
+          "mustMention": [
+            "How long",
+            "when"
+          ]
+        }
       },
-      "mustAskAbout": [
-        "How long",
-        "when"
-      ],
       "tags": [
         "under_ask",
         "school",
@@ -234,9 +244,9 @@
     "title": "Low-risk task still needs a time box",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -262,12 +272,14 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "ASK_MORE"
+        "decision": "ASK_MORE",
+        "userFacingMessage": {
+          "mustMention": [
+            "How long",
+            "when"
+          ]
+        }
       },
-      "mustAskAbout": [
-        "How long",
-        "when"
-      ],
       "tags": [
         "under_ask",
         "low_risk",
@@ -280,9 +292,9 @@
     "title": "Clear tutorial plan should not be questioned again",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -310,9 +322,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "ASK_MORE"
-      ],
       "tags": [
         "unnecessary_ask",
         "work",
@@ -325,9 +334,9 @@
     "title": "Clear answer lookup should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "stackoverflow.com",
@@ -355,9 +364,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "ASK_MORE"
-      ],
       "tags": [
         "unnecessary_ask",
         "work",
@@ -370,9 +376,9 @@
     "title": "Clear Chinese task should not be over-questioned",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "zhihu.com",
@@ -400,9 +406,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "ASK_MORE"
-      ],
       "tags": [
         "unnecessary_ask",
         "zh",
@@ -415,9 +418,9 @@
     "title": "Clear important appointment task should not be questioned",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "facebook.com",
@@ -445,10 +448,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "ASK_MORE",
-        "BLOCK"
-      ],
       "tags": [
         "unnecessary_ask",
         "important_task",

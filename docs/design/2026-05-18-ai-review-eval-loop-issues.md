@@ -16,7 +16,7 @@ Status: closed
 Current risk:
 
 - Bad AI Check decisions can be noticed manually but cannot be saved as structured bad cases.
-- Prompt/schema/rubric changes cannot be regression-tested against prior mistakes.
+- Prompt, output schema, and evaluation schema changes cannot be regression-tested against prior mistakes.
 - The product demonstrates AI Check but not the full PM review to eval case loop.
 
 Expected behavior:

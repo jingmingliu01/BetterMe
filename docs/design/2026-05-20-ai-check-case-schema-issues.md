@@ -26,7 +26,7 @@ Expected behavior:
 Resolution:
 
 - Added explicit type aliases for both category families.
-- Added mapping rubric to the design and prompt.
+- Added mapping rules to the design and prompt.
 - Renamed runtime provider output and stored decision fields to `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`.
 
 ### ISSUE-002: Eval case schema mixes model-visible input with evaluator-only assertions
@@ -84,12 +84,12 @@ Expected behavior:
 - AI Check session policy and PM Review enum/filter facts come from `apps/extension/src/shared/ai-check-contract.json`.
 - Provider metadata comes from `apps/extension/src/shared/provider-config.json`.
 - Provider-mode evals reuse the runtime AI Check message builder.
-- Default eval runs reject current cases whose prompt/schema/rubric versions do not match the shared contract.
+- Default eval runs reject current cases whose prompt/output-schema/evaluation-schema versions do not match the shared contract.
 
 Resolution:
 
 - Added `sessionPolicy`, case status/source/error enums, PM Review common tags, and built-in case sets to the AI Check contract.
 - Added shared provider config for runtime and eval runner use.
 - Updated provider-mode evals to call the runtime message builder and parse/validate provider output through the runtime parser.
-- Updated fixtures to `checkpoint-decision-v2` and the contract session policy.
+- Updated fixtures to `checkpoint-decision-v3` and the contract session policy.
 - Updated `AGENTS.md` so future work keeps these facts single-source.

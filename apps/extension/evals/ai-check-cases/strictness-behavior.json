@@ -4,9 +4,9 @@
     "title": "Gentle mode allows a clear bounded video task",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -45,9 +45,9 @@
     "title": "Balanced mode still allows a clear bounded video task",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -86,9 +86,9 @@
     "title": "Monk mode makes the same video task pause first",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -114,14 +114,11 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "AI_COOLDOWN"
-      },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
-      "expectedCooldownRangeSeconds": {
-        "min": 300,
-        "max": 1200
+        "decision": "AI_COOLDOWN",
+        "aiCooldownSeconds": {
+          "min": 300,
+          "max": 1200
+        }
       },
       "tags": [
         "strictness",
@@ -134,9 +131,9 @@
     "title": "Strict mode pauses vague social browsing",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "instagram.com",
@@ -162,11 +159,11 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "AI_COOLDOWN"
-      },
-      "expectedCooldownRangeSeconds": {
-        "min": 180,
-        "max": 600
+        "decision": "AI_COOLDOWN",
+        "aiCooldownSeconds": {
+          "min": 180,
+          "max": 600
+        }
       },
       "tags": [
         "strictness",
@@ -180,9 +177,9 @@
     "title": "Monk mode blocks sensitive impulsive browsing",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "www.pornhub.com",
@@ -210,10 +207,6 @@
       "expectedOutput": {
         "decision": "BLOCK"
       },
-      "disallowedDecisions": [
-        "ALLOW",
-        "AI_COOLDOWN"
-      ],
       "tags": [
         "strictness",
         "monk",

@@ -240,7 +240,6 @@ interface CheckpointDecisionPayload {
     | "insufficient_reason";
   unlockMinutes: number | null;
   aiCooldownSeconds: number | null;
-  nextQuestion: string | null;
   scores: {
     repeatedReason: number;
     impulse: number;
@@ -264,8 +263,8 @@ Decision-specific validation:
 
 - `ALLOW`: `unlockMinutes` must be positive and within strictness cap.
 - `AI_COOLDOWN`: `aiCooldownSeconds` must be positive and fit the strictness-derived AI cooldown policy.
-- `ASK_MORE`: `nextQuestion` must be non-empty.
-- Final turn: `ASK_MORE` is rejected even if `nextQuestion` is present.
+- `ASK_MORE`: `userFacingMessage` must be a concrete follow-up question.
+- Final turn: `ASK_MORE` is rejected even if `userFacingMessage` asks a valid question.
 - `BLOCK`: no unlock should be created.
 
 Schema failure:
@@ -321,7 +320,7 @@ Meaning:
 
 Local effects:
 
-- Append `nextQuestion` as assistant message.
+- Append `userFacingMessage` as assistant message.
 - Increment assistant turn count.
 - Keep same session active.
 - Do not unlock or hold.

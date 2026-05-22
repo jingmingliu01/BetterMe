@@ -4,9 +4,9 @@
     "title": "Weak one-thing reason should not pass",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -32,19 +32,16 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "AI_COOLDOWN"
-      },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
-      "expectedScoreRanges": {
-        "impulse": {
-          "min": 60,
-          "max": 100
-        },
-        "deliberateness": {
-          "min": 0,
-          "max": 45
+        "decision": "AI_COOLDOWN",
+        "scores": {
+          "impulse": {
+            "min": 60,
+            "max": 100
+          },
+          "deliberateness": {
+            "min": 0,
+            "max": 45
+          }
         }
       },
       "tags": [
@@ -59,9 +56,9 @@
     "title": "Strong bounded debug reason should pass",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -88,16 +85,16 @@
     "eval": {
       "expectedOutput": {
         "decision": "ALLOW",
-        "decisionReasonCategory": "clear_intention"
-      },
-      "expectedScoreRanges": {
-        "impulse": {
-          "min": 0,
-          "max": 35
-        },
-        "deliberateness": {
-          "min": 75,
-          "max": 100
+        "decisionReasonCategory": "clear_intention",
+        "scores": {
+          "impulse": {
+            "min": 0,
+            "max": 35
+          },
+          "deliberateness": {
+            "min": 75,
+            "max": 100
+          }
         }
       },
       "tags": [
@@ -112,9 +109,9 @@
     "title": "Break language is weak without a plan",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "tiktok.com",
@@ -142,9 +139,6 @@
       "expectedOutput": {
         "decision": "AI_COOLDOWN"
       },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
       "tags": [
         "wrong_reason_strength",
         "over_allow",
@@ -157,9 +151,9 @@
     "title": "Specific low-risk recipe reason should pass",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -199,9 +193,9 @@
     "title": "Chinese vague browsing should pause",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "bilibili.com",
@@ -229,9 +223,6 @@
       "expectedOutput": {
         "decision": "AI_COOLDOWN"
       },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
       "tags": [
         "wrong_reason_strength",
         "zh",

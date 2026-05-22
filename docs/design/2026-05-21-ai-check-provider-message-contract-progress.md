@@ -37,6 +37,13 @@ The latest prompt contract also uses XML-like sections for the static System Pro
 - Static contract prompt, trusted round context, trusted turn context, and provider message assembly builders.
 - Explicit `AICheckSession.roundSnapshot` for round-stable strictness, policy, memory, version, and provider/model snapshots.
 - Provider-mode evals use the same provider message builder as live AI Check.
+- Provider-visible output contract is `ai-check-prompt-v4` / `checkpoint-decision-v3`, with `ASK_MORE` using `userFacingMessage` as the follow-up question.
+
+2026-05-21:
+
+- Bumped the provider-visible prompt contract to `ai-check-prompt-v4` because the output schema removed `nextQuestion`.
+- Bumped the decision schema to `checkpoint-decision-v3` and updated current eval fixtures.
+- Design and issues docs were checked; the provider message ordering did not change, so no architecture or issue-state update was needed.
 
 ## Planned Scope
 
@@ -75,7 +82,7 @@ The latest prompt contract also uses XML-like sections for the static System Pro
 - Done: remove mixed System Prompt assumptions from runtime provider message assembly.
 - Done: update linked docs and `AGENTS.md` with provider message ordering and round snapshot rules.
 - Done: remove repeated trusted-context authority lines from Round/Turn Context; the authority rule now lives once in the static System Prompt.
-- Done: keep prompt/schema/rubric versions in metadata/UI rather than sending them as decision context.
+- Done: keep prompt/output-schema/evaluation-schema versions in metadata/UI rather than sending them as decision context.
 - Done: standardize PM Review Provider Messages tags to `Cross-Round Context`, `Cross-Turn Context`, `Round-Level Context`, `Conversation`, and `Turn-Level Context`.
 
 ## Validation Status

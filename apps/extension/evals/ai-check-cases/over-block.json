@@ -4,9 +4,9 @@
     "title": "Bounded work tutorial should be allowed in gentle mode",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -35,9 +35,6 @@
         "decision": "ALLOW",
         "decisionReasonCategory": "clear_intention"
       },
-      "disallowedDecisions": [
-        "BLOCK"
-      ],
       "tags": [
         "over_block",
         "work",
@@ -50,9 +47,9 @@
     "title": "Specific programming answer should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "stackoverflow.com",
@@ -80,10 +77,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "BLOCK",
-        "AI_COOLDOWN"
-      ],
       "tags": [
         "over_block",
         "work",
@@ -96,9 +89,9 @@
     "title": "Bounded Reddit debugging search should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -126,9 +119,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "BLOCK"
-      ],
       "tags": [
         "over_block",
         "work",
@@ -141,9 +131,9 @@
     "title": "Low-risk recipe video with time box should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -171,9 +161,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "BLOCK"
-      ],
       "tags": [
         "over_block",
         "low_risk",
@@ -186,9 +173,9 @@
     "title": "Chinese bounded work reason should be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "zhihu.com",
@@ -216,10 +203,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "BLOCK",
-        "AI_COOLDOWN"
-      ],
       "tags": [
         "over_block",
         "work",
@@ -233,9 +216,9 @@
     "title": "Important bounded appointment task should be allowed even in strict mode",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "facebook.com",
@@ -263,9 +246,6 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
-      "disallowedDecisions": [
-        "BLOCK"
-      ],
       "tags": [
         "over_block",
         "important_task",

@@ -10,9 +10,14 @@ const providerConfigPath = resolve(here, "../src/shared/provider-config.json");
 const aiCheckContract = JSON.parse(await readFile(contractPath, "utf8"));
 const rawProviderConfigs = JSON.parse(await readFile(providerConfigPath, "utf8"));
 
-const promptVersion = aiCheckContract.promptVersion;
-const schemaVersion = aiCheckContract.schemaVersion;
-const rubricVersion = aiCheckContract.rubricVersion;
+const currentVersions = aiCheckContract.current ?? {
+  promptVersion: aiCheckContract.promptVersion,
+  outputSchemaVersion: aiCheckContract.outputSchemaVersion,
+  evaluationSchemaVersion: aiCheckContract.evaluationSchemaVersion
+};
+const promptVersion = currentVersions.promptVersion;
+const outputSchemaVersion = currentVersions.outputSchemaVersion;
+const evaluationSchemaVersion = currentVersions.evaluationSchemaVersion;
 const contractEnums = aiCheckContract.enums;
 const scoreNames = aiCheckContract.sections.output.fields
   .map((field) => field.path)
@@ -45,8 +50,8 @@ try {
 
   console.log("AI Check Eval Run");
   console.log(`Prompt: ${promptVersion}`);
-  console.log(`Schema: ${schemaVersion}`);
-  console.log(`Rubric: ${rubricVersion}`);
+  console.log(`Output Schema: ${outputSchemaVersion}`);
+  console.log(`Evaluation Schema: ${evaluationSchemaVersion}`);
   console.log(`Provider mode: ${provider}`);
   console.log(`Model: ${model}`);
   console.log(`Case filter: ${describeCaseFilter(args)}`);
@@ -74,33 +79,32 @@ async function runCase(testCase, runConfig) {
   validateCase(testCase);
   const actual =
     runConfig.provider === "mock" ? mockDecision(testCase.input) : await providerDecision(testCase, runConfig);
-  const assertions = testCase.eval;
+  const evaluation = testCase.eval;
+  const expected = evaluation.expectedOutput ?? {};
   const failureReasons = [];
 
-  if (assertions.allowedDecisions?.length && !assertions.allowedDecisions.includes(actual.decision)) {
-    failureReasons.push(`decision ${actual.decision} not in allowed set ${assertions.allowedDecisions.join(",")}`);
-  } else if (!assertions.allowedDecisions?.length && actual.decision !== assertions.expectedOutput.decision) {
-    failureReasons.push(`expected ${assertions.expectedOutput.decision}, got ${actual.decision}`);
-  }
-
-  if (assertions.disallowedDecisions?.includes(actual.decision)) {
-    failureReasons.push(`disallowed decision ${actual.decision}`);
-  }
-
-  if (assertions.expectedOutput.decisionReasonCategory && actual.decisionReasonCategory !== assertions.expectedOutput.decisionReasonCategory) {
-    failureReasons.push(
-      `expected reasoning ${assertions.expectedOutput.decisionReasonCategory}, got ${actual.decisionReasonCategory ?? "missing"}`
-    );
-  }
-
-  if (
-    assertions.expectedOutput.behaviorReasonCategory &&
-    actual.memoryUpdate?.behaviorReasonCategory !== assertions.expectedOutput.behaviorReasonCategory
-  ) {
-    failureReasons.push(
-      `expected behavior reason ${assertions.expectedOutput.behaviorReasonCategory}, got ${actual.memoryUpdate?.behaviorReasonCategory ?? "missing"}`
-    );
-  }
+  checkDecisionExpectation("decision", actual.decision, expected.decision, failureReasons);
+  checkTextExpectation("userFacingMessage", actual.userFacingMessage, expected.userFacingMessage, failureReasons);
+  checkExactExpectation(
+    "decisionReasonCategory",
+    actual.decisionReasonCategory,
+    expected.decisionReasonCategory,
+    failureReasons
+  );
+  checkNullableNumberExpectation("unlockMinutes", actual.unlockMinutes, expected.unlockMinutes, failureReasons);
+  checkNullableNumberExpectation("aiCooldownSeconds", actual.aiCooldownSeconds, expected.aiCooldownSeconds, failureReasons);
+  checkExactExpectation(
+    "memoryUpdate.behaviorReasonCategory",
+    actual.memoryUpdate?.behaviorReasonCategory,
+    expected.memoryUpdate?.behaviorReasonCategory,
+    failureReasons
+  );
+  checkNullableTextExpectation(
+    "memoryUpdate.patternNote",
+    actual.memoryUpdate?.patternNote ?? null,
+    expected.memoryUpdate?.patternNote,
+    failureReasons
+  );
 
   for (const scoreName of scoreNames) {
     const score = actual.scores?.[scoreName];
@@ -109,43 +113,102 @@ async function runCase(testCase, runConfig) {
     }
   }
 
-  for (const phrase of assertions.mustAskAbout ?? []) {
-    if (!actual.userFacingMessage.toLowerCase().includes(phrase.toLowerCase())) {
-      failureReasons.push(`missing required ask phrase: ${phrase}`);
-    }
-  }
-
-  for (const phrase of assertions.mustNotSay ?? []) {
-    if (actual.userFacingMessage.toLowerCase().includes(phrase.toLowerCase())) {
-      failureReasons.push(`used forbidden phrase: ${phrase}`);
-    }
-  }
-
-  if (assertions.expectedCooldownRangeSeconds) {
-    if (typeof actual.aiCooldownSeconds !== "number") {
-      failureReasons.push("missing aiCooldownSeconds");
-    } else {
-      const { min, max } = assertions.expectedCooldownRangeSeconds;
-      if (actual.aiCooldownSeconds < min || actual.aiCooldownSeconds > max) {
-        failureReasons.push(`cooldown ${actual.aiCooldownSeconds}s outside ${min}-${max}s`);
-      }
-    }
-  }
-
-  for (const [scoreName, range] of Object.entries(assertions.expectedScoreRanges ?? {})) {
+  for (const [scoreName, range] of Object.entries(expected.scores ?? {})) {
     const score = actual.scores?.[scoreName];
-    if (typeof score !== "number" || score < range.min || score > range.max) {
-      failureReasons.push(`${scoreName} score ${score ?? "missing"} outside ${range.min}-${range.max}`);
+    if (typeof score !== "number") {
+      failureReasons.push(`scores.${scoreName} missing`);
+    } else {
+      checkNumberRangeExpectation(`scores.${scoreName}`, score, range, failureReasons);
     }
   }
 
   return {
     id: testCase.id,
-    tags: assertions.tags ?? [],
+    tags: evaluation.tags ?? [],
     actualDecision: actual.decision,
     pass: failureReasons.length === 0,
     failureReasons
   };
+}
+
+function checkDecisionExpectation(path, actual, expectation, failureReasons) {
+  if (!expectation) return;
+  if (typeof expectation === "string") {
+    checkExactExpectation(path, actual, expectation, failureReasons);
+    return;
+  }
+  if (expectation.exact) {
+    checkExactExpectation(path, actual, expectation.exact, failureReasons);
+  }
+  if (expectation.allowed?.length && !expectation.allowed.includes(actual)) {
+    failureReasons.push(`${path} ${actual} not in allowed set ${expectation.allowed.join(",")}`);
+  }
+  if (expectation.disallowed?.includes(actual)) {
+    failureReasons.push(`${path} used disallowed value ${actual}`);
+  }
+}
+
+function checkExactExpectation(path, actual, expected, failureReasons) {
+  if (expected === undefined) return;
+  if (actual !== expected) {
+    failureReasons.push(`${path} expected ${expected}, got ${actual ?? "missing"}`);
+  }
+}
+
+function checkTextExpectation(path, actual, expectation, failureReasons) {
+  if (!expectation) return;
+  if (expectation.exact !== undefined && actual !== expectation.exact) {
+    failureReasons.push(`${path} expected exact text ${JSON.stringify(expectation.exact)}, got ${JSON.stringify(actual)}`);
+  }
+  checkPhraseExpectations(path, actual ?? "", expectation, failureReasons);
+}
+
+function checkNullableTextExpectation(path, actual, expectation, failureReasons) {
+  if (!expectation) return;
+  if ("exact" in expectation && actual !== expectation.exact) {
+    failureReasons.push(`${path} expected ${expectation.exact ?? "null"}, got ${actual ?? "null"}`);
+  }
+  if (actual !== null) {
+    checkPhraseExpectations(path, actual, expectation, failureReasons);
+  }
+}
+
+function checkPhraseExpectations(path, actual, expectation, failureReasons) {
+  const lowerActual = actual.toLowerCase();
+  for (const phrase of expectation.mustMention ?? []) {
+    if (!lowerActual.includes(phrase.toLowerCase())) {
+      failureReasons.push(`${path} missing required phrase: ${phrase}`);
+    }
+  }
+  for (const phrase of expectation.mustNotMention ?? []) {
+    if (lowerActual.includes(phrase.toLowerCase())) {
+      failureReasons.push(`${path} used forbidden phrase: ${phrase}`);
+    }
+  }
+}
+
+function checkNullableNumberExpectation(path, actual, expectation, failureReasons) {
+  if (!expectation) return;
+  if ("exact" in expectation) {
+    if (actual !== expectation.exact) {
+      failureReasons.push(`${path} expected ${expectation.exact ?? "null"}, got ${actual ?? "null"}`);
+    }
+    return;
+  }
+  if (typeof actual !== "number") {
+    failureReasons.push(`${path} missing`);
+    return;
+  }
+  checkNumberRangeExpectation(path, actual, expectation, failureReasons);
+}
+
+function checkNumberRangeExpectation(path, actual, expectation, failureReasons) {
+  if (typeof expectation.min === "number" && actual < expectation.min) {
+    failureReasons.push(`${path} ${actual} below min ${expectation.min}`);
+  }
+  if (typeof expectation.max === "number" && actual > expectation.max) {
+    failureReasons.push(`${path} ${actual} above max ${expectation.max}`);
+  }
 }
 
 async function providerDecision(testCase, runConfig) {
@@ -284,7 +347,6 @@ function decision(decisionValue, message, options = {}) {
     decisionReasonCategory: options.decisionReasonCategory ?? "insufficient_reason",
     unlockMinutes: options.unlockMinutes ?? null,
     aiCooldownSeconds: options.aiCooldownSeconds ?? null,
-    nextQuestion: decisionValue === "ASK_MORE" ? message : null,
     scores: {
       repeatedReason: options.repeatedReason ?? 0,
       impulse: options.impulse ?? 50,
@@ -345,22 +407,48 @@ function validateCase(testCase) {
   if (!Array.isArray(testCase.input.messages)) {
     throw new Error(`Eval case ${testCase.id} has invalid messages.`);
   }
-  if (!testCase.eval.expectedOutput?.decision) {
-    throw new Error(`Eval case ${testCase.id} missing eval.expectedOutput.decision.`);
+  if (!testCase.eval.expectedOutput || Object.keys(testCase.eval.expectedOutput).length === 0) {
+    throw new Error(`Eval case ${testCase.id} missing eval.expectedOutput expectations.`);
   }
-  if (!contractEnums.decisions.includes(testCase.eval.expectedOutput.decision)) {
-    throw new Error(`Eval case ${testCase.id} has invalid expected decision ${testCase.eval.expectedOutput.decision}.`);
+  validateDecisionExpectation(testCase.id, testCase.eval.expectedOutput.decision);
+  const expectedBehaviorReason = testCase.eval.expectedOutput.memoryUpdate?.behaviorReasonCategory;
+  if (expectedBehaviorReason && !contractEnums.behaviorReasonCategories.includes(expectedBehaviorReason)) {
+    throw new Error(`Eval case ${testCase.id} has invalid expected behavior reason ${expectedBehaviorReason}.`);
+  }
+  const expectedDecisionReason = testCase.eval.expectedOutput.decisionReasonCategory;
+  if (expectedDecisionReason && !contractEnums.decisionReasonCategories.includes(expectedDecisionReason)) {
+    throw new Error(`Eval case ${testCase.id} has invalid expected decision reason ${expectedDecisionReason}.`);
   }
   if (!contractEnums.caseStatuses.includes(testCase.status)) {
     throw new Error(`Eval case ${testCase.id} has invalid status ${testCase.status}.`);
   }
   if (!args["include-legacy"]) {
     const versions = testCase.versions ?? {};
-    const expectedVersions = { promptVersion, schemaVersion, rubricVersion };
+    const expectedVersions = { promptVersion, outputSchemaVersion, evaluationSchemaVersion };
     for (const [key, expected] of Object.entries(expectedVersions)) {
       if (versions[key] !== expected) {
         throw new Error(`Eval case ${testCase.id} has ${key} ${versions[key] ?? "missing"}; expected ${expected}.`);
       }
+    }
+  }
+}
+
+function validateDecisionExpectation(caseId, expectation) {
+  if (!expectation) return;
+  if (typeof expectation === "string") {
+    if (!contractEnums.decisions.includes(expectation)) {
+      throw new Error(`Eval case ${caseId} has invalid expected decision ${expectation}.`);
+    }
+    return;
+  }
+  const values = [
+    expectation.exact,
+    ...(Array.isArray(expectation.allowed) ? expectation.allowed : []),
+    ...(Array.isArray(expectation.disallowed) ? expectation.disallowed : [])
+  ].filter(Boolean);
+  for (const value of values) {
+    if (!contractEnums.decisions.includes(value)) {
+      throw new Error(`Eval case ${caseId} has invalid decision expectation ${value}.`);
     }
   }
 }

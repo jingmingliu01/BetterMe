@@ -1,8 +1,36 @@
 {
   "id": "ai-check-contract",
-  "schemaVersion": "checkpoint-decision-v2",
-  "promptVersion": "ai-check-prompt-v3",
-  "rubricVersion": "strictness-rubric-v1",
+  "outputSchemaVersion": "checkpoint-decision-v3",
+  "promptVersion": "ai-check-prompt-v4",
+  "evaluationSchemaVersion": "ai-check-evaluation-v2",
+  "current": {
+    "promptVersion": "ai-check-prompt-v4",
+    "outputSchemaVersion": "checkpoint-decision-v3",
+    "evaluationSchemaVersion": "ai-check-evaluation-v2"
+  },
+  "versionRegistry": {
+    "prompts": [
+      {
+        "version": "ai-check-prompt-v4",
+        "label": "AI Check Prompt v4",
+        "current": true
+      }
+    ],
+    "outputSchemas": [
+      {
+        "version": "checkpoint-decision-v3",
+        "label": "Checkpoint Decision v3",
+        "current": true
+      }
+    ],
+    "evaluationSchemas": [
+      {
+        "version": "ai-check-evaluation-v2",
+        "label": "AI Check Evaluation v2",
+        "current": true
+      }
+    ]
+  },
   "sessionPolicy": {
     "maxAssistantTurns": 5,
     "maxSessionSeconds": 600
@@ -216,14 +244,13 @@
     "output": {
       "title": "Model Output",
       "summary": "The JSON object the provider must return for every AI Check decision.",
-      "schemaSummary": "{ decision, userFacingMessage, decisionReasonCategory, unlockMinutes, aiCooldownSeconds, nextQuestion, scores: { repeatedReason, impulse, deliberateness }, memoryUpdate: { behaviorReasonCategory, patternNote } }",
+      "schemaSummary": "{ decision, userFacingMessage, decisionReasonCategory, unlockMinutes, aiCooldownSeconds, scores: { repeatedReason, impulse, deliberateness }, memoryUpdate: { behaviorReasonCategory, patternNote } }",
       "promptSchema": {
         "decision": "ALLOW|AI_COOLDOWN|ASK_MORE|BLOCK",
         "userFacingMessage": "string",
         "decisionReasonCategory": "repeated_excuse|clear_intention|high_risk_pattern|low_risk|insufficient_reason",
         "unlockMinutes": "number|null",
         "aiCooldownSeconds": "number|null",
-        "nextQuestion": "string|null",
         "scores": {
           "repeatedReason": "number",
           "impulse": "number",
@@ -251,11 +278,11 @@
           "type": "string",
           "required": true,
           "example": "What specific task do you need YouTube for, and when will you stop?",
-          "meaning": "The calm explanation shown to the user after the decision.",
-          "whyNecessary": "The user needs to understand the decision without seeing internal scoring or rubric labels.",
+          "meaning": "The calm explanation or follow-up question shown to the user after the decision.",
+          "whyNecessary": "The user needs to understand the decision or answer the next ASK_MORE question without seeing internal scoring or policy labels.",
           "productImpact": "Sets tone, trust, and clarity in the block page conversation.",
-          "validation": "Falls back to a generic ask-more message only when missing.",
-          "commonMistakes": "Shaming the user, overexplaining policy, or omitting the concrete next action."
+          "validation": "Must be non-empty. For ASK_MORE, it must be the concrete follow-up question that continues the same session.",
+          "commonMistakes": "Shaming the user, overexplaining policy, omitting the concrete next action, or putting the ASK_MORE question in a separate field."
         },
         {
           "path": "decisionReasonCategory",
@@ -291,18 +318,6 @@
           "productImpact": "Controls the in-chat cooldown period before the user can continue the AI Check.",
           "validation": "Required for AI_COOLDOWN and normalized to a sane strictness-derived range.",
           "commonMistakes": "Using legacy delay fields or returning cooldown seconds for non-cooldown decisions."
-        },
-        {
-          "path": "nextQuestion",
-          "type": "string | null",
-          "required": true,
-          "nullable": true,
-          "example": "What specific task do you need YouTube for, and when will you stop?",
-          "meaning": "The follow-up question when the decision is ASK_MORE.",
-          "whyNecessary": "ASK_MORE must collect missing intent, time limit, or exit-plan details.",
-          "productImpact": "Determines the next prompt shown in the AI Check conversation.",
-          "validation": "Required for ASK_MORE unless the session is already on the final turn.",
-          "commonMistakes": "Asking vague questions or using ASK_MORE when final-turn enforcement is required."
         },
         {
           "path": "scores.repeatedReason",
@@ -367,7 +382,6 @@
         "decisionReasonCategory": "insufficient_reason",
         "unlockMinutes": null,
         "aiCooldownSeconds": null,
-        "nextQuestion": "What specific task do you need YouTube for, and when will you stop?",
         "scores": {
           "repeatedReason": 20,
           "impulse": 62,
@@ -405,17 +419,17 @@
         },
         {
           "path": "eval.expectedOutput.decision",
-          "type": "ALLOW | AI_COOLDOWN | ASK_MORE | BLOCK",
+          "type": "ALLOW | AI_COOLDOWN | ASK_MORE | BLOCK | { exact?, allowed?, disallowed? }",
           "required": true,
           "example": "ASK_MORE",
-          "meaning": "The expected decision for this case.",
-          "whyNecessary": "Every eval case needs one primary pass/fail decision assertion.",
+          "meaning": "The expected decision constraint for this case.",
+          "whyNecessary": "Every eval case needs one primary pass/fail decision expectation.",
           "productImpact": "Determines the core regression result.",
-          "validation": "Must be a valid decision.",
+          "validation": "String values require exact match. Object values may set exact, allowed, and disallowed decision constraints.",
           "commonMistakes": "Using tags as a substitute for expected decision."
         },
         {
-          "path": "eval.mustAskAbout",
+          "path": "eval.expectedOutput.userFacingMessage.mustMention",
           "type": "string[]",
           "required": false,
           "example": ["time limit", "exit plan"],
@@ -426,7 +440,7 @@
           "commonMistakes": "Making this too specific to one exact wording."
         },
         {
-          "path": "eval.mustNotSay",
+          "path": "eval.expectedOutput.userFacingMessage.mustNotMention",
           "type": "string[]",
           "required": false,
           "example": ["You are weak"],
@@ -435,6 +449,61 @@
           "productImpact": "Prevents shame, moral judgment, or unsafe wording.",
           "validation": "Each phrase is matched case-insensitively against userFacingMessage.",
           "commonMistakes": "Using broad words that would fail harmless messages."
+        },
+        {
+          "path": "eval.expectedOutput.decisionReasonCategory",
+          "type": "repeated_excuse | clear_intention | high_risk_pattern | low_risk | insufficient_reason",
+          "required": false,
+          "example": "insufficient_reason",
+          "meaning": "Expected current-decision reason category.",
+          "whyNecessary": "Reason expectations catch cases where the decision is right but the model's explanation category is wrong.",
+          "productImpact": "Improves diagnosis of strictness and false-positive behavior.",
+          "validation": "When present, must exactly match decisionReasonCategory.",
+          "commonMistakes": "Using behavior-memory labels here instead of decision reason labels."
+        },
+        {
+          "path": "eval.expectedOutput.aiCooldownSeconds",
+          "type": "{ exact?: number|null, min?: number, max?: number }",
+          "required": false,
+          "example": { "min": 60, "max": 300 },
+          "meaning": "Expected AI cooldown duration constraint.",
+          "whyNecessary": "Cooldown decisions need duration expectations, not just decision labels.",
+          "productImpact": "Catches cooldown durations that are too weak or too harsh for the case.",
+          "validation": "Exact takes precedence when present; otherwise min and max bound the numeric value.",
+          "commonMistakes": "Expecting cooldown seconds for non-cooldown decisions."
+        },
+        {
+          "path": "eval.expectedOutput.scores",
+          "type": "{ repeatedReason?, impulse?, deliberateness? }",
+          "required": false,
+          "example": { "impulse": { "min": 50, "max": 90 } },
+          "meaning": "Expected score ranges by output score name.",
+          "whyNecessary": "Some cases need the model to get risk strength roughly right even if the decision passes.",
+          "productImpact": "Catches weak scoring that can hide borderline behavior.",
+          "validation": "Each configured score range checks min and max only for that score.",
+          "commonMistakes": "Setting ranges for every score when only one score is important."
+        },
+        {
+          "path": "eval.expectedOutput.memoryUpdate.behaviorReasonCategory",
+          "type": "stress | boredom | loneliness | escape | habit | intentional | other",
+          "required": false,
+          "example": "boredom",
+          "meaning": "Expected long-term behavior memory category.",
+          "whyNecessary": "Memory expectations catch cases where future pattern context would learn the wrong behavior label.",
+          "productImpact": "Protects repeated-pattern learning quality.",
+          "validation": "When present, must exactly match memoryUpdate.behaviorReasonCategory.",
+          "commonMistakes": "Forgetting memoryUpdate expectations when the bad case is about learned behavior."
+        },
+        {
+          "path": "eval.expectedOutput.memoryUpdate.patternNote",
+          "type": "{ exact?: string|null, mustMention?: string[], mustNotMention?: string[] }",
+          "required": false,
+          "example": { "mustMention": ["vague video breaks"] },
+          "meaning": "Expected memory note constraints.",
+          "whyNecessary": "Pattern notes should preserve useful behavior context without over-storing personal detail.",
+          "productImpact": "Improves future AI Check context quality.",
+          "validation": "Exact checks exact string or null; phrase checks are case-insensitive.",
+          "commonMistakes": "Requiring exact prose when topic coverage is enough."
         },
         {
           "path": "eval.tags",
@@ -468,10 +537,18 @@
         },
         "eval": {
           "expectedOutput": {
-            "decision": "ASK_MORE"
+            "decision": "ASK_MORE",
+            "userFacingMessage": {
+              "mustMention": ["time limit", "exit plan"],
+              "mustNotMention": ["You are weak"]
+            },
+            "scores": {
+              "impulse": { "min": 50, "max": 90 }
+            },
+            "memoryUpdate": {
+              "behaviorReasonCategory": "boredom"
+            }
           },
-          "mustAskAbout": ["time limit", "exit plan"],
-          "mustNotSay": ["You are weak"],
           "tags": ["under_ask", "video", "strictness"],
           "reviewerNote": "Model should ask for a bounded purpose before allowing."
         }

@@ -1,4 +1,4 @@
-import { AI_CHECK_CONTRACT } from "../shared/ai-check-contract";
+import { AI_CHECK_CURRENT_VERSIONS } from "../shared/ai-check-contract";
 import { AI_CHECK_SESSION_MAX_SECONDS, AI_COOLDOWN_POLICIES, STRICTNESS_UNLOCK_CAP_MINUTES } from "../shared/constants";
 import type {
   AICheckCaseInput,
@@ -77,9 +77,9 @@ export function buildRoundSnapshot(input: {
     unlockCapMinutes: STRICTNESS_UNLOCK_CAP_MINUTES[input.strictness],
     patternMemorySnapshot: input.patternMemorySnapshot.slice(0, 5),
     versions: {
-      promptVersion: AI_CHECK_CONTRACT.promptVersion,
-      schemaVersion: AI_CHECK_CONTRACT.schemaVersion,
-      rubricVersion: AI_CHECK_CONTRACT.rubricVersion
+      promptVersion: AI_CHECK_CURRENT_VERSIONS.promptVersion,
+      outputSchemaVersion: AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion,
+      evaluationSchemaVersion: AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion
     },
     provider: input.provider,
     createdAt: input.createdAt ?? new Date().toISOString()

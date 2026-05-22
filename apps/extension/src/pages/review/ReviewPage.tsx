@@ -3,8 +3,6 @@ import type { CSSProperties, ReactNode } from "react";
 import {
   Archive,
   BookOpenText,
-  ChevronDown,
-  ChevronRight,
   CheckCircle2,
   ClipboardList,
   FlaskConical,
@@ -21,14 +19,14 @@ import {
   AI_CHECK_CASE_SOURCES,
   AI_CHECK_CASE_STATUSES,
   AI_CHECK_COMMON_TAGS,
+  AI_CHECK_CURRENT_VERSIONS,
   AI_CHECK_DECISIONS,
-  AI_CHECK_EVALUATION_EXAMPLE,
   AI_CHECK_EVALUATION_FIELD_REFERENCE,
+  AI_CHECK_EVALUATION_SCHEMA_VERSIONS,
   AI_CHECK_INPUT_FIELD_REFERENCE,
-  AI_CHECK_OUTPUT_EXAMPLE,
   AI_CHECK_OUTPUT_FIELD_REFERENCE,
-  AI_CHECK_OUTPUT_PROMPT_SCHEMA,
-  AI_CHECK_OUTPUT_SCHEMA_SUMMARY,
+  AI_CHECK_OUTPUT_SCHEMA_VERSIONS,
+  AI_CHECK_PROMPT_VERSIONS,
   AI_CHECK_STRICTNESS_LEVELS
 } from "../../shared/ai-check-contract";
 import {
@@ -44,6 +42,7 @@ import { useAsyncState } from "../shared/useAsyncState";
 import type {
   AICheckCase,
   AICheckCaseStatus,
+  AICheckDecisionExpectation,
   AIDecision,
   AIPMReviewSession,
   BadCaseErrorType,
@@ -68,19 +67,9 @@ interface EvalFormState {
   expectedDecision: AIDecision;
   tags: string;
   reviewerNote: string;
-  mustAskAbout: string;
-  mustNotSay: string;
+  userFacingMustMention: string;
+  userFacingMustNotMention: string;
   archivedReason: string;
-}
-
-interface SchemaTreeNode {
-  name: string;
-  path: string;
-  type: string;
-  required: boolean;
-  nullable?: boolean;
-  field?: AICheckSchemaFieldReference;
-  children: SchemaTreeNode[];
 }
 
 interface SchemaManualSection {
@@ -119,11 +108,7 @@ interface PromptPreviewBlock {
   body: string;
   dynamic: boolean;
   sourceTitle?: string;
-}
-
-interface SchemaSelection {
-  node: SchemaTreeNode;
-  field?: AICheckSchemaFieldReference;
+  value?: unknown;
 }
 
 const ERROR_TYPES: Array<{ value: BadCaseErrorType; label: string }> = [
@@ -302,8 +287,8 @@ export function ReviewPage() {
         expectedDecision: evalForm.expectedDecision,
         tags: splitList(evalForm.tags),
         reviewerNote: evalForm.reviewerNote,
-        mustAskAbout: splitList(evalForm.mustAskAbout),
-        mustNotSay: splitList(evalForm.mustNotSay)
+        userFacingMustMention: splitList(evalForm.userFacingMustMention),
+        userFacingMustNotMention: splitList(evalForm.userFacingMustNotMention)
       };
       const saved = creatingEvalCase
         ? await sendMessage<AICheckCase>({
@@ -471,7 +456,7 @@ export function ReviewPage() {
                     </div>
                     <span>{evalCase.input.targetDisplay}</span>
                     <small>
-                      {formatDecision(evalCase.eval?.expectedOutput.decision ?? null)} · {evalCase.input.strictness}
+                      {formatDecision(getPrimaryExpectedDecision(evalCase.eval?.expectedOutput.decision))} · {evalCase.input.strictness}
                     </small>
                     <TagList tags={evalCase.eval?.tags ?? []} />
                   </button>
@@ -813,20 +798,20 @@ function EvalCaseDetail({
       </label>
       <div className="eval-form-grid">
         <label className="stack compact-stack">
-          <span>Must ask about</span>
+          <span>Message must mention</span>
           <input
             className="input"
-            value={form.mustAskAbout}
-            onChange={(event) => setForm((current) => ({ ...current, mustAskAbout: event.target.value }))}
+            value={form.userFacingMustMention}
+            onChange={(event) => setForm((current) => ({ ...current, userFacingMustMention: event.target.value }))}
             placeholder="time limit, exit plan"
           />
         </label>
         <label className="stack compact-stack">
-          <span>Must not say</span>
+          <span>Message must not mention</span>
           <input
             className="input"
-            value={form.mustNotSay}
-            onChange={(event) => setForm((current) => ({ ...current, mustNotSay: event.target.value }))}
+            value={form.userFacingMustNotMention}
+            onChange={(event) => setForm((current) => ({ ...current, userFacingMustNotMention: event.target.value }))}
             placeholder="You are weak"
           />
         </label>
@@ -871,6 +856,20 @@ function EvalCaseDetail({
 
 function SchemaReference() {
   const [activeTab, setActiveTab] = useState<SchemaManualTab>("messages");
+  const [selectedOutputSchemaVersion, setSelectedOutputSchemaVersion] = useState(
+    AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion
+  );
+  const [selectedEvaluationSchemaVersion, setSelectedEvaluationSchemaVersion] = useState(
+    AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion
+  );
+  const selectedOutputSchema =
+    AI_CHECK_OUTPUT_SCHEMA_VERSIONS.find((entry) => entry.version === selectedOutputSchemaVersion) ??
+    AI_CHECK_OUTPUT_SCHEMA_VERSIONS.find((entry) => entry.current) ??
+    AI_CHECK_OUTPUT_SCHEMA_VERSIONS[0];
+  const selectedEvaluationSchema =
+    AI_CHECK_EVALUATION_SCHEMA_VERSIONS.find((entry) => entry.version === selectedEvaluationSchemaVersion) ??
+    AI_CHECK_EVALUATION_SCHEMA_VERSIONS.find((entry) => entry.current) ??
+    AI_CHECK_EVALUATION_SCHEMA_VERSIONS[0];
 
   return (
     <section className="schema-reference stack">
@@ -883,9 +882,26 @@ function SchemaReference() {
           parser validation, and eval expectations.
         </p>
         <div className="contract-version-grid">
-          <VersionChip label="Prompt" value={AI_CHECK_CONTRACT.promptVersion} source="AI_CHECK_CONTRACT.promptVersion" />
-          <VersionChip label="Schema" value={AI_CHECK_CONTRACT.schemaVersion} source="AI_CHECK_CONTRACT.schemaVersion" />
-          <VersionChip label="Rubric" value={AI_CHECK_CONTRACT.rubricVersion} source="AI_CHECK_CONTRACT.rubricVersion" />
+          <VersionPicker
+            label="Prompt"
+            value={AI_CHECK_CURRENT_VERSIONS.promptVersion}
+            options={AI_CHECK_PROMPT_VERSIONS}
+            source="AI_CHECK_CONTRACT.current.promptVersion"
+          />
+          <VersionPicker
+            label="Output Schema"
+            value={selectedOutputSchema?.version ?? AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion}
+            options={AI_CHECK_OUTPUT_SCHEMA_VERSIONS}
+            source="AI_CHECK_CONTRACT.versionRegistry.outputSchemas"
+            onChange={setSelectedOutputSchemaVersion}
+          />
+          <VersionPicker
+            label="Evaluation Schema"
+            value={selectedEvaluationSchema?.version ?? AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion}
+            options={AI_CHECK_EVALUATION_SCHEMA_VERSIONS}
+            source="AI_CHECK_CONTRACT.versionRegistry.evaluationSchemas"
+            onChange={setSelectedEvaluationSchemaVersion}
+          />
           <VersionChip
             label="Session"
             value={`${AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns} turns / ${AI_CHECK_CONTRACT.sessionPolicy.maxSessionSeconds}s`}
@@ -912,29 +928,53 @@ function SchemaReference() {
       {activeTab === "output" && (
         <SchemaSectionReference
           kind="output"
-          section={{
-            title: AI_CHECK_CONTRACT.sections.output.title,
-            summary: AI_CHECK_CONTRACT.sections.output.summary,
-            fields: AI_CHECK_OUTPUT_FIELD_REFERENCE,
-            example: AI_CHECK_OUTPUT_EXAMPLE,
-            promptSchema: AI_CHECK_OUTPUT_PROMPT_SCHEMA,
-            schemaSummary: AI_CHECK_OUTPUT_SCHEMA_SUMMARY
-          }}
+          section={selectedOutputSchema?.section ?? AI_CHECK_CONTRACT.sections.output}
+          version={selectedOutputSchema?.version ?? AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion}
         />
       )}
       {activeTab === "evaluation" && (
         <SchemaSectionReference
           kind="evaluation"
-          section={{
-            title: AI_CHECK_CONTRACT.sections.evaluation.title,
-            summary: AI_CHECK_CONTRACT.sections.evaluation.summary,
-            fields: AI_CHECK_EVALUATION_FIELD_REFERENCE,
-            example: AI_CHECK_EVALUATION_EXAMPLE
-          }}
+          section={selectedEvaluationSchema?.section ?? AI_CHECK_CONTRACT.sections.evaluation}
+          version={selectedEvaluationSchema?.version ?? AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion}
         />
       )}
       {activeTab === "compare" && <SchemaCompareReference />}
     </section>
+  );
+}
+
+function VersionPicker({
+  label,
+  onChange,
+  options,
+  source,
+  value
+}: {
+  label: string;
+  onChange?: (value: string) => void;
+  options: Array<{ version: string; label: string; current?: boolean }>;
+  source: string;
+  value: string;
+}) {
+  return (
+    <label className="contract-version-chip contract-version-picker">
+      <span>{label}</span>
+      <select
+        aria-label={`${label} version`}
+        disabled={!onChange || options.length <= 1}
+        onChange={(event) => onChange?.(event.target.value)}
+        value={value}
+      >
+        {options.map((option) => (
+          <option key={option.version} value={option.version}>
+            {option.label}
+            {option.current ? " (current)" : ""}
+          </option>
+        ))}
+      </select>
+      <code>{source}</code>
+    </label>
   );
 }
 
@@ -948,32 +988,70 @@ function VersionChip({ label, source, value }: { label: string; source: string; 
   );
 }
 
-function SchemaSectionReference({ kind, section }: { kind: "input" | "output" | "evaluation"; section: SchemaManualSection }) {
-  const firstPath = useMemo(() => findFirstExampleFieldPath(section.example, section.fields) ?? section.fields[0]?.path ?? "", [section]);
-  const [selectedPath, setSelectedPath] = useState(firstPath);
-  const selectedField = useMemo(
-    () => section.fields.find((field) => field.path === selectedPath) ?? section.fields[0],
-    [section.fields, selectedPath]
+function SchemaSectionReference({
+  kind,
+  section,
+  version
+}: {
+  kind: "output" | "evaluation";
+  section: SchemaManualSection;
+  version: string;
+}) {
+  const schemaPreview = useMemo(() => buildSchemaPreview(kind, section), [kind, section]);
+  const firstPath = useMemo(
+    () => findFirstExampleFieldPath(section.example, section.fields) ?? section.fields[0]?.path ?? "",
+    [section.example, section.fields]
   );
+  const [selectedPath, setSelectedPath] = useState(firstPath);
 
   useEffect(() => {
     setSelectedPath(firstPath);
   }, [firstPath]);
 
   return (
-    <div className="provider-message-workspace">
-      <section className="panel provider-message-tree-panel">
+    <div className="schema-workspace schema-workspace-reference">
+      <section className="panel schema-tree-panel schema-visual-panel stack">
+        <div className="section-heading">
+          <span className="section-label">{formatSchemaManualTab(kind)} Schema</span>
+          <h2>{section.title}</h2>
+        </div>
+        <p className="muted">{section.summary}</p>
         <SchemaExampleViewer
+          badge={version}
+          descriptor="schema"
+          example={schemaPreview}
+          fields={section.fields}
+          label={section.title}
+          selectedPath={selectedPath}
+          onSelect={setSelectedPath}
+        />
+        {kind === "evaluation" && (
+          <div className="schema-guidance stack">
+            <StatusItem
+              label="Evaluation Case"
+              value="A saved eval fixture: model input, optional captured output, and expected-output checks."
+            />
+            <StatusItem
+              label="Regression Case"
+              value="An Evaluation Case promoted to the regression suite when status is regression and it is not archived."
+            />
+          </div>
+        )}
+      </section>
+
+      <section className="panel schema-example-panel stack">
+        <div className="section-heading">
+          <span className="section-label">{formatSchemaManualTab(kind)} Example</span>
+          <h2>{section.title}</h2>
+        </div>
+        <SchemaExampleViewer
+          descriptor="example"
           example={section.example}
           fields={section.fields}
           label={section.title}
-          selectedPath={selectedField?.path ?? selectedPath}
+          selectedPath={selectedPath}
           onSelect={setSelectedPath}
         />
-      </section>
-
-      <section className="panel provider-preview-panel schema-selection-panel stack">
-        {selectedField && <SchemaSelectionPreview kind={kind} section={section} field={selectedField} />}
       </section>
     </div>
   );
@@ -1005,20 +1083,23 @@ function EvaluationDefinition() {
     <div className="input-composition">
       <strong>Evaluation relationship</strong>
       <p className="muted">
-        Evaluation Case = input + optional captured output + eval assertions. Regression Case = Evaluation Case with
-        status regression and no archivedAt.
+        Evaluation Case stores one replayable model test. Regression Case is the subset promoted into the regression suite.
       </p>
     </div>
   );
 }
 
 function SchemaExampleViewer({
+  badge,
+  descriptor = "example",
   example,
   fields,
   label,
   onSelect,
   selectedPath
 }: {
+  badge?: string;
+  descriptor?: "example" | "schema";
   example: unknown;
   fields: AICheckSchemaFieldReference[];
   label: string;
@@ -1031,9 +1112,11 @@ function SchemaExampleViewer({
     <div className="provider-message-tree schema-example-viewer" aria-label={`${label} example`}>
       <div className="provider-code-line">
         <span className="provider-syntax-key">{label}</span>
-        <span> example</span>
+        {badge && <span className="json-token-badge"> {badge}</span>}
+        <span> {descriptor}</span>
       </div>
       <SchemaExampleValue
+        descriptor={descriptor}
         fieldMap={fieldMap}
         indent={0}
         onSelect={onSelect}
@@ -1047,6 +1130,7 @@ function SchemaExampleViewer({
 }
 
 function SchemaExampleValue({
+  descriptor,
   fieldMap,
   indent,
   onSelect,
@@ -1055,6 +1139,7 @@ function SchemaExampleValue({
   value,
   wrapped = true
 }: {
+  descriptor: "example" | "schema";
   fieldMap: Map<string, AICheckSchemaFieldReference>;
   indent: number;
   onSelect: (path: string) => void;
@@ -1066,9 +1151,10 @@ function SchemaExampleValue({
   if (Array.isArray(value)) {
     return (
       <>
-        {wrapped && <SchemaExampleLine indent={indent} text="[" />}
+        {wrapped && <SchemaExampleLine content={<JsonPunctuation>[</JsonPunctuation>} indent={indent} />}
         {value.map((item, index) => (
           <SchemaExampleValue
+            descriptor={descriptor}
             fieldMap={fieldMap}
             indent={wrapped ? indent + 1 : indent}
             key={`${path}-${index}`}
@@ -1078,7 +1164,7 @@ function SchemaExampleValue({
             value={item}
           />
         ))}
-        {wrapped && <SchemaExampleLine indent={indent} text="]" />}
+        {wrapped && <SchemaExampleLine content={<JsonPunctuation>]</JsonPunctuation>} indent={indent} />}
       </>
     );
   }
@@ -1087,7 +1173,7 @@ function SchemaExampleValue({
     const entries = Object.entries(value as Record<string, unknown>);
   return (
       <>
-        {wrapped && <SchemaExampleLine indent={indent} text="{" />}
+        {wrapped && <SchemaExampleLine content={<JsonPunctuation>{"{"}</JsonPunctuation>} indent={indent} />}
         {entries.map(([key, childValue], index) => {
           const childPath = path ? `${path}.${key}` : key;
           const field = fieldMap.get(childPath);
@@ -1099,14 +1185,21 @@ function SchemaExampleValue({
               {isComplex ? (
                 <>
                   <SchemaExampleLine
+                    content={
+                      <>
+                        <JsonKey name={key} />
+                        <JsonPunctuation>: </JsonPunctuation>
+                        <JsonPunctuation>{Array.isArray(childValue) ? "[" : "{"}</JsonPunctuation>
+                      </>
+                    }
                     field={field}
                     indent={indent + 1}
                     onSelect={onSelect}
                     path={childPath}
                     selected={selectedPath === childPath}
-                    text={`"${key}": ${Array.isArray(childValue) ? "[" : "{"}`}
                   />
                   <SchemaExampleValue
+                    descriptor={descriptor}
                     fieldMap={fieldMap}
                     indent={indent + 2}
                     onSelect={onSelect}
@@ -1115,53 +1208,68 @@ function SchemaExampleValue({
                     value={childValue}
                     wrapped={false}
                   />
-                  <SchemaExampleLine indent={indent + 1} text={`${Array.isArray(childValue) ? "]" : "}"}${suffix}`} />
+                  <SchemaExampleLine
+                    content={
+                      <>
+                        <JsonPunctuation>{Array.isArray(childValue) ? "]" : "}"}</JsonPunctuation>
+                        {suffix && <JsonPunctuation>{suffix}</JsonPunctuation>}
+                      </>
+                    }
+                    indent={indent + 1}
+                  />
                 </>
               ) : (
                 <SchemaExampleLine
+                  content={
+                    <>
+                      <JsonKey name={key} />
+                      <JsonPunctuation>: </JsonPunctuation>
+                      <JsonScalarToken descriptor={descriptor} value={childValue} />
+                      {suffix && <JsonPunctuation>{suffix}</JsonPunctuation>}
+                    </>
+                  }
                   field={field}
                   indent={indent + 1}
                   onSelect={onSelect}
                   path={childPath}
                   selected={selectedPath === childPath}
-                  text={`"${key}": ${formatExampleScalar(childValue)}${suffix}`}
                 />
               )}
             </div>
           );
         })}
-        {wrapped && <SchemaExampleLine indent={indent} text="}" />}
+        {wrapped && <SchemaExampleLine content={<JsonPunctuation>{"}"}</JsonPunctuation>} indent={indent} />}
       </>
     );
   }
 
-  return <SchemaExampleLine indent={indent} text={formatExampleScalar(value)} />;
+  return <SchemaExampleLine content={<JsonScalarToken descriptor={descriptor} value={value} />} indent={indent} />;
 }
 
 function SchemaExampleLine({
+  content,
   field,
   indent,
   onSelect,
   path,
-  selected,
-  text
+  selected
 }: {
+  content: ReactNode;
   field?: AICheckSchemaFieldReference;
   indent: number;
   onSelect?: (path: string) => void;
   path?: string;
   selected?: boolean;
-  text: string;
 }) {
-  const content = (
+  const lineContent = (
     <>
       <span className="schema-example-indent" style={{ "--schema-example-depth": indent } as CSSProperties} />
-      <span>{text}</span>
+      <span className="json-line-content">{content}</span>
     </>
   );
 
   if (!field || !path || !onSelect) {
-    return <span className="provider-code-line schema-example-code-line">{content}</span>;
+    return <span className="provider-code-line schema-example-code-line">{lineContent}</span>;
   }
 
   return (
@@ -1173,64 +1281,60 @@ function SchemaExampleLine({
       title={field.meaning}
       type="button"
     >
-      {content}
+      {lineContent}
     </button>
   );
 }
 
-function SchemaSelectionPreview({
-  field,
-  kind,
-  section
-}: {
-  field: AICheckSchemaFieldReference;
-  kind: "input" | "output" | "evaluation";
-  section: SchemaManualSection;
-}) {
+function JsonKey({ name }: { name: string }) {
   return (
-    <div className="provider-preview-content">
-      <div className="section-heading">
-        <span className="section-label">Selected Field</span>
-        <h2>{field.path.split(".").at(-1) ?? field.path}</h2>
-      </div>
-      <div className="provider-preview-meta" aria-label="Selected schema field metadata">
-        <span>{field.path}</span>
-        <span>{field.type}</span>
-        <span>{field.required ? "required" : "optional"}</span>
-        {field.nullable && <span>nullable</span>}
-      </div>
-
-      <div className="provider-preview-sections schema-field-preview-sections">
-        <PromptPreviewBlockView block={{ body: field.meaning, dynamic: false, tagName: "meaning" }} />
-        <PromptPreviewBlockView block={{ body: field.whyNecessary, dynamic: false, tagName: "why_necessary" }} />
-        <PromptPreviewBlockView block={{ body: field.productImpact, dynamic: false, tagName: "product_impact" }} />
-        <PromptPreviewBlockView block={{ body: field.validation, dynamic: false, tagName: "validation" }} />
-        <PromptPreviewBlockView block={{ body: field.commonMistakes, dynamic: false, tagName: "common_mistakes" }} />
-        {field.example !== undefined && (
-          <PromptPreviewBlockView
-            block={{ body: JSON.stringify(field.example, null, 2), dynamic: true, tagName: "example_value" }}
-          />
-        )}
-      </div>
-
-      {kind === "output" && (
-        <div className="schema-guidance stack">
-          <StatusItem label="Schema summary" value={section.schemaSummary ?? ""} />
-          <details>
-            <summary>Prompt-facing schema</summary>
-            <pre className="code schema-example-code">{JSON.stringify(section.promptSchema, null, 2)}</pre>
-          </details>
-        </div>
-      )}
-
-      {kind === "evaluation" && (
-        <div className="schema-guidance stack">
-          <StatusItem label="Evaluation Case" value="input + optional captured output + eval assertions" />
-          <StatusItem label="Regression Case" value="status = regression and archivedAt is empty" />
-        </div>
-      )}
-    </div>
+    <>
+      <JsonPunctuation>"</JsonPunctuation>
+      <span className="json-token-key">{name}</span>
+      <JsonPunctuation>"</JsonPunctuation>
+    </>
   );
+}
+
+function JsonScalarToken({ descriptor, value }: { descriptor: "example" | "schema"; value: unknown }) {
+  if (typeof value === "string") {
+    const displayValue = descriptor === "schema" ? formatSchemaTypeLabel(value) : value;
+    return (
+      <>
+        <JsonPunctuation>"</JsonPunctuation>
+        <span className={descriptor === "schema" ? "json-token-schema-type" : "json-token-string"}>
+          {displayValue}
+        </span>
+        <JsonPunctuation>"</JsonPunctuation>
+      </>
+    );
+  }
+
+  if (typeof value === "number") {
+    return <span className="json-token-number">{value}</span>;
+  }
+
+  if (typeof value === "boolean") {
+    return <span className="json-token-literal">{String(value)}</span>;
+  }
+
+  if (value === null) {
+    return <span className="json-token-null">null</span>;
+  }
+
+  if (value === undefined) {
+    return <span className="json-token-literal">undefined</span>;
+  }
+
+  return <span className="json-token-string">{JSON.stringify(value)}</span>;
+}
+
+function JsonPunctuation({ children }: { children: ReactNode }) {
+  return <span className="json-token-punctuation">{children}</span>;
+}
+
+function formatSchemaTypeLabel(value: string): string {
+  return value.replace(/\s*\|\s*/g, " | ");
 }
 
 function ProviderMessagesReference({ focus }: { focus: ProviderMessageFocus }) {
@@ -1423,7 +1527,7 @@ function PromptPreviewBlockView({ block }: { block: PromptPreviewBlock }) {
           <span>{block.boundaryText ?? `<${block.tagName}>`}</span>
         </div>
       ) : null}
-      {block.body ? <pre className="provider-preview-section-body">{block.body}</pre> : null}
+      {block.body ? <PromptPreviewBlockBody block={block} /> : null}
       {block.tagName && block.body ? (
         <div className="provider-preview-section-tag provider-preview-section-close">
           <span>{`</${block.tagName}>`}</span>
@@ -1443,8 +1547,25 @@ function buildPromptPreviewBlock(part: PromptPart, index: number): PromptPreview
     boundaryText: boundaryMatch ? text : undefined,
     body: wrapperMatch?.[2] ?? (boundaryMatch ? "" : part.text),
     dynamic: Boolean(part.dynamic),
-    sourceTitle: (part.sourcePaths ?? [`prompt part ${index + 1}`]).join("\n")
+    sourceTitle: (part.sourcePaths ?? [`prompt part ${index + 1}`]).join("\n"),
+    value: part.value
   };
+}
+
+function PromptPreviewBlockBody({ block }: { block: PromptPreviewBlock }) {
+  if (Array.isArray(block.value) && block.value.every((item) => typeof item === "string")) {
+    return (
+      <div className="provider-preview-section-body provider-preview-token-list">
+        {block.value.map((item) => (
+          <span className="provider-contract-token" key={item}>
+            {item}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  return <pre className="provider-preview-section-body">{block.body}</pre>;
 }
 
 function SchemaCompareReference() {
@@ -1671,165 +1792,28 @@ function findFirstExampleFieldPath(example: unknown, fields: AICheckSchemaFieldR
   return visit(example, "");
 }
 
-function formatExampleScalar(value: unknown): string {
-  if (value === undefined) return "undefined";
-  return JSON.stringify(value) ?? "undefined";
-}
-
-function findSchemaSelection(nodes: SchemaTreeNode[], path: string): SchemaSelection | null {
-  for (const node of nodes) {
-    if (node.path === path) return { node, field: node.field };
-    const childSelection = findSchemaSelection(node.children, path);
-    if (childSelection) return childSelection;
+function buildSchemaPreview(kind: "output" | "evaluation", section: SchemaManualSection): unknown {
+  if (kind === "output" && section.promptSchema !== undefined) {
+    return section.promptSchema;
   }
-  return null;
-}
 
-function findFirstSchemaSelection(nodes: SchemaTreeNode[]): SchemaSelection | null {
-  for (const node of nodes) {
-    if (node.field) return { node, field: node.field };
-    const childSelection = findFirstSchemaSelection(node.children);
-    if (childSelection) return childSelection;
-    return { node };
-  }
-  return null;
-}
-
-function getExampleAtPath(example: unknown, path: string): unknown {
-  return path.split(".").reduce<unknown>((current, part) => {
-    if (current && typeof current === "object" && part in current) {
-      return (current as Record<string, unknown>)[part];
-    }
-    return undefined;
-  }, example);
-}
-
-function SchemaTreeItem({
-  depth,
-  node,
-  onSelect,
-  selectedPath
-}: {
-  depth: number;
-  node: SchemaTreeNode;
-  onSelect: (path: string) => void;
-  selectedPath: string;
-}) {
-  const defaultOpen = node.children.length > 0;
-  const field = node.field;
-  const detailsId = `schema-field-${node.path.replaceAll(".", "-")}`;
-  const selected = selectedPath === node.path;
-
-  return (
-    <details className={selected ? "schema-tree-item schema-tree-item-selected" : "schema-tree-item"} open={defaultOpen}>
-      <summary
-        className="schema-tree-summary"
-        aria-controls={detailsId}
-        aria-selected={selected}
-        onClick={() => onSelect(node.path)}
-        onFocus={() => onSelect(node.path)}
-      >
-        <span className="schema-tree-indent" style={{ "--schema-depth": depth } as CSSProperties} />
-        <span className="schema-disclosure" aria-hidden="true">
-          <ChevronRight className="schema-chevron-closed" size={14} />
-          <ChevronDown className="schema-chevron-open" size={14} />
-        </span>
-        <span className="schema-key">{node.name}</span>
-        <span className={node.required ? "status-pill status-pill-regression" : "status-pill status-pill-ready"}>
-          {node.required ? "Required" : "Optional"}
-        </span>
-        {node.nullable && <span className="status-pill status-pill-archived">Nullable</span>}
-        <span className="schema-type">{node.type}</span>
-        <span className="schema-summary-text">{field?.meaning ?? "Nested object in the AI Check structured output."}</span>
-      </summary>
-
-      <div className="schema-tree-body" id={detailsId}>
-        {field && (
-          <dl className="schema-field-details">
-            <div>
-              <dt>Why necessary</dt>
-              <dd>{field.whyNecessary}</dd>
-            </div>
-            <div>
-              <dt>Product impact</dt>
-              <dd>{field.productImpact}</dd>
-            </div>
-            <div>
-              <dt>Validation</dt>
-              <dd>{field.validation}</dd>
-            </div>
-            <div>
-              <dt>Common mistakes</dt>
-              <dd>{field.commonMistakes}</dd>
-            </div>
-            {field.example !== undefined && (
-              <div>
-                <dt>Example</dt>
-                <dd>
-                  <code>{JSON.stringify(field.example)}</code>
-                </dd>
-              </div>
-            )}
-          </dl>
-        )}
-        {node.children.length > 0 && (
-          <div className="schema-tree-children">
-            {node.children.map((child) => (
-              <SchemaTreeItem
-                depth={depth + 1}
-                key={child.path}
-                node={child}
-                selectedPath={selectedPath}
-                onSelect={onSelect}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </details>
-  );
-}
-
-function buildSchemaTree(fields: AICheckSchemaFieldReference[]): SchemaTreeNode[] {
-  const roots: SchemaTreeNode[] = [];
-  const nodes = new Map<string, SchemaTreeNode>();
-
-  for (const field of fields) {
+  const root: Record<string, unknown> = {};
+  for (const field of section.fields) {
     const parts = field.path.split(".");
-    let parentChildren = roots;
-    let currentPath = "";
-
-    for (let index = 0; index < parts.length; index += 1) {
-      const name = parts[index];
-      currentPath = currentPath ? `${currentPath}.${name}` : name;
+    let current = root;
+    for (const [index, part] of parts.entries()) {
       const isLeaf = index === parts.length - 1;
-      let node = nodes.get(currentPath);
-
-      if (!node) {
-        node = {
-          name,
-          path: currentPath,
-          type: isLeaf ? field.type : "object",
-          required: true,
-          nullable: false,
-          children: []
-        };
-        nodes.set(currentPath, node);
-        parentChildren.push(node);
-      }
-
       if (isLeaf) {
-        node.field = field;
-        node.type = field.type;
-        node.required = field.required;
-        node.nullable = field.nullable ?? field.type.includes("null");
+        current[part] = field.type;
+        continue;
       }
-
-      parentChildren = node.children;
+      if (!current[part] || typeof current[part] !== "object" || Array.isArray(current[part])) {
+        current[part] = {};
+      }
+      current = current[part] as Record<string, unknown>;
     }
   }
-
-  return roots;
+  return root;
 }
 
 function AreaButton({
@@ -1883,8 +1867,8 @@ function emptyEvalForm(): EvalFormState {
     expectedDecision: "ASK_MORE",
     tags: "",
     reviewerNote: "",
-    mustAskAbout: "",
-    mustNotSay: "",
+    userFacingMustMention: "",
+    userFacingMustNotMention: "",
     archivedReason: ""
   };
 }
@@ -1898,11 +1882,11 @@ function formFromEvalCase(evalCase: AICheckCase): EvalFormState {
     targetDisplay: evalCase.input.targetDisplay,
     strictness: evalCase.input.strictness,
     userMessage: firstUserMessage,
-    expectedDecision: evalCase.eval?.expectedOutput.decision ?? "ASK_MORE",
+    expectedDecision: getPrimaryExpectedDecision(evalCase.eval?.expectedOutput.decision) ?? "ASK_MORE",
     tags: joinList(evalCase.eval?.tags),
     reviewerNote: evalCase.eval?.reviewerNote ?? "",
-    mustAskAbout: joinList(evalCase.eval?.mustAskAbout),
-    mustNotSay: joinList(evalCase.eval?.mustNotSay),
+    userFacingMustMention: joinList(evalCase.eval?.expectedOutput.userFacingMessage?.mustMention),
+    userFacingMustNotMention: joinList(evalCase.eval?.expectedOutput.userFacingMessage?.mustNotMention),
     archivedReason: evalCase.archivedReason ?? ""
   };
 }
@@ -1913,6 +1897,12 @@ function splitList(value: string): string[] {
 
 function joinList(values: string[] | undefined): string {
   return values?.join(", ") ?? "";
+}
+
+function getPrimaryExpectedDecision(expectation: AICheckDecisionExpectation | undefined): AIDecision | null {
+  if (!expectation) return null;
+  if (typeof expectation === "string") return expectation;
+  return expectation.exact ?? expectation.allowed?.[0] ?? null;
 }
 
 function caseMatchesSet(evalCase: AICheckCase, caseSet: (typeof CASE_SETS)[number]): boolean {

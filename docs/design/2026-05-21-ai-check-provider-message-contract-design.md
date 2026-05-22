@@ -63,7 +63,7 @@ The round is similar to one game instance. Values captured at round start should
 The message contract should maximize stable prompt prefix:
 
 ```text
-System Prompt              stable across rounds until prompt/schema/rubric changes
+System Prompt              stable across rounds until prompt/output-schema/evaluation-schema changes
 Round Context              stable inside the current round
 Append-only Conversation   stable prefix; new messages append after prior messages
 Turn Context               changes every turn, placed last
@@ -146,7 +146,7 @@ The static contract prompt contains:
 
 - BetterMe role and safety/tone rules.
 - decision policy.
-- category rubric.
+- category mapping rules.
 - output schema summary.
 - enum values.
 - complete output example.
@@ -166,8 +166,8 @@ It should be generated from contract references where possible:
 - `AI_CHECK_CONTRACT.enums`
 - `AI_CHECK_CONTRACT.sections.output`
 - `AI_CHECK_CONTRACT.promptVersion`
-- `AI_CHECK_CONTRACT.schemaVersion`
-- `AI_CHECK_CONTRACT.rubricVersion`
+- `AI_CHECK_CONTRACT.outputSchemaVersion`
+- `AI_CHECK_CONTRACT.evaluationSchemaVersion`
 
 ### Trusted Round Context
 
@@ -208,7 +208,7 @@ none yet
 </trusted_round_context>
 ```
 
-Prompt/schema/rubric versions remain in session and eval metadata, not in provider decision context.
+Prompt, output schema, and evaluation schema versions remain in session and eval metadata, not in provider decision context.
 
 Literal version values should not be duplicated in docs or code outside the contract.
 
@@ -267,8 +267,8 @@ interface AICheckRoundSnapshot {
   patternMemorySnapshot: PatternMemory[];
   versions: {
     promptVersion: string;
-    schemaVersion: string;
-    rubricVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
   };
   provider?: {
     id: ProviderId;

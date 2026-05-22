@@ -269,23 +269,19 @@ try {
   await queueProviderResponses(serviceWorker, [
     buildProviderDecision({
       decision: "ASK_MORE",
-      userFacingMessage: "What exact task will you complete there?",
-      nextQuestion: "What exact task will you complete there?"
+      userFacingMessage: "What exact task will you complete there?"
     }),
     buildProviderDecision({
       decision: "ASK_MORE",
-      userFacingMessage: "How long should that take?",
-      nextQuestion: "How long should that take?"
+      userFacingMessage: "How long should that take?"
     }),
     buildProviderDecision({
       decision: "ASK_MORE",
-      userFacingMessage: "What will make you leave?",
-      nextQuestion: "What will make you leave?"
+      userFacingMessage: "What will make you leave?"
     }),
     buildProviderDecision({
       decision: "ASK_MORE",
-      userFacingMessage: "Why does this need to happen now?",
-      nextQuestion: "Why does this need to happen now?"
+      userFacingMessage: "Why does this need to happen now?"
     }),
     buildProviderDecision({
       decision: "AI_COOLDOWN",
@@ -571,7 +567,6 @@ function buildProviderDecision(overrides) {
     decisionReasonCategory: "insufficient_reason",
     unlockMinutes: null,
     aiCooldownSeconds: null,
-    nextQuestion: null,
     scores: {
       repeatedReason: 20,
       impulse: 55,

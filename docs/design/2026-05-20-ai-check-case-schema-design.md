@@ -32,8 +32,8 @@ interface AICheckCase {
   source: "authored_eval" | "real_session" | "bad_case_review";
   versions: {
     promptVersion: string;
-    schemaVersion: string;
-    rubricVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
   };
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
@@ -61,12 +61,13 @@ interface AICheckCase {
 Evaluation Cases carry three independent version markers:
 
 - `promptVersion`: the runtime AI Check prompt/message assembly used for provider calls.
-- `schemaVersion`: the structured input/output/evaluation contract used by the parser and fixtures.
-- `rubricVersion`: the PM/eval pass-fail standard for decision quality, strictness, score ranges, and tag semantics.
+- `outputSchemaVersion`: the model output contract used by the parser and provider-output fixtures.
+- `evaluationSchemaVersion`: the Evaluation Case assertion contract used by PM Review and the eval runner.
 
-The current schema version is `checkpoint-decision-v2`.
+The current output schema version is `checkpoint-decision-v3`.
+The current evaluation schema version is `ai-check-evaluation-v2`.
 
-Default eval runs should use only active cases whose `promptVersion`, `schemaVersion`, and `rubricVersion` match the current contract. Legacy cases may be retained for reference, but they should be archived or run only through an explicit legacy mode.
+Default eval runs should use only active cases whose `promptVersion`, `outputSchemaVersion`, and `evaluationSchemaVersion` match the current contract. Legacy cases may be retained for reference, but they should be archived or run only through an explicit legacy mode.
 
 ## Single-Source Rules
 
@@ -74,7 +75,7 @@ The canonical AI Check contract is `apps/extension/src/shared/ai-check-contract.
 
 It owns:
 
-- current prompt, schema, and rubric version ids.
+- current prompt, output schema, and evaluation schema version ids.
 - session policy such as `maxAssistantTurns` and `maxSessionSeconds`.
 - enum values for decisions, reason categories, strictness levels, case statuses, case sources, and bad-case error types.
 - PM Review shared tags and built-in case sets.
@@ -108,9 +109,9 @@ Behavior reason category explains the user's underlying pattern for future memor
 
 Runtime, stored decisions, eval cases, and docs use `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`.
 
-## Mapping Rubric
+## Mapping Rules
 
-The mapping rubric must be visible in both docs and the LLM system prompt.
+The decision mapping rules must be visible in both docs and the LLM system prompt.
 
 - Intentional behavior with a specific purpose, time boundary, and exit plan usually maps to `clear_intention` and `ALLOW`.
 - Boredom, stress, escape, loneliness, or habit without a time boundary usually maps to `insufficient_reason` and `ASK_MORE` or `AI_COOLDOWN`.
@@ -136,13 +137,10 @@ Validation behavior:
 The following fields must not be included in model-visible input:
 
 - `eval.expectedOutput`
-- `eval.allowedDecisions`
-- `eval.disallowedDecisions`
-- `eval.expectedScoreRanges`
-- `eval.mustAskAbout`
-- `eval.mustNotSay`
 - `eval.tags`
 - `eval.reviewerNote`
+
+`eval.expectedOutput` is an output-shaped evaluation mirror. Expectations for decision, user-facing message, cooldown duration, scores, and memory update live under the output field they evaluate.
 
 These fields are not notes only. They are machine-checkable assertions for the eval runner.
 
@@ -153,8 +151,9 @@ The hard migration removes legacy flat eval case support.
 Current rules:
 
 - The eval runner only accepts `{ input, output?, eval }` cases.
-- Default eval runs reject cases whose prompt/schema/rubric versions do not match the current contract unless legacy mode is explicitly requested.
+- Default eval runs reject cases whose prompt/output-schema/evaluation-schema versions do not match the current contract unless legacy mode is explicitly requested.
 - Built-in fixtures are stored in the unified shape.
 - New bad-case conversions write the unified shape.
 - IndexedDB upgrade to version 6 clears old AI Check, review, and eval history stores instead of migrating legacy local history.
 - Provider output uses `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`; old `reasoningCategory`, `memoryUpdate.reasonCategory`, `DELAY`, and `delaySeconds` are not part of the current contract.
+- Provider output uses `userFacingMessage` for every user-visible decision message, including the follow-up question for `ASK_MORE`; the old separate `nextQuestion` field is not part of the current contract.

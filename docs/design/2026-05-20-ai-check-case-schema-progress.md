@@ -17,7 +17,7 @@ The hard migration to the unified case schema is implemented.
 - Added explicit `DecisionReasonCategory` and `BehaviorReasonCategory` aliases.
 - Added unified `AICheckCase` shape with `input`, optional `output`, and optional `eval`.
 - Removed the legacy `AICheckEvalCase` type.
-- Updated the runtime system prompt with category-family meaning, mapping rubric, and independent 0-100 score contract.
+- Updated the runtime system prompt with category-family meaning, mapping rules, and independent 0-100 score contract.
 - Added parser validation for missing, non-finite, or out-of-range model scores.
 - Added one provider repair retry for schema-validation failures.
 - Updated `eval:ai-check` to accept only unified `{ input, output?, eval }` cases.
@@ -26,13 +26,14 @@ The hard migration to the unified case schema is implemented.
 - Renamed runtime provider output fields to `decisionReasonCategory` and `memoryUpdate.behaviorReasonCategory`.
 - Removed old `DELAY` / `delaySeconds` provider-output compatibility.
 - Bumped IndexedDB to version 6 and clear old AI Check, review, and eval history stores on upgrade.
-- Marked the current unified schema as `checkpoint-decision-v2` after the earlier schema was fully cleaned and migrated.
+- Previously marked the cleaned unified schema as `checkpoint-decision-v2`.
+- Marked the current unified schema as `checkpoint-decision-v3` after removing the redundant `nextQuestion` provider-output field.
 - Added contract-owned session policy for `maxAssistantTurns` and `maxSessionSeconds`.
 - Moved PM Review case statuses, case sources, bad-case error types, common tags, and built-in case sets into the shared AI Check contract.
 - Moved provider metadata into `apps/extension/src/shared/provider-config.json`.
 - Updated provider-mode evals to reuse the runtime AI Check message builder instead of a separate eval-only prompt.
 - Tightened provider output parsing so required fields must exist before normalization/validation succeeds.
-- Updated built-in fixtures to the current prompt/schema/rubric versions and current session policy.
+- Updated built-in fixtures to the current prompt/output-schema/evaluation-schema versions and current session policy.
 
 ## Validation Status
 

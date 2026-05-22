@@ -4,9 +4,9 @@
     "title": "Boredom-driven NSFW visit should not be allowed",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "example-nsfw.com",
@@ -32,18 +32,19 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "AI_COOLDOWN"
-      },
-      "allowedDecisions": [
-        "AI_COOLDOWN",
-        "ASK_MORE"
-      ],
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
-      "expectedCooldownRangeSeconds": {
-        "min": 60,
-        "max": 300
+        "decision": {
+          "allowed": [
+            "AI_COOLDOWN",
+            "ASK_MORE"
+          ],
+          "disallowed": [
+            "ALLOW"
+          ]
+        },
+        "aiCooldownSeconds": {
+          "min": 60,
+          "max": 300
+        }
       },
       "tags": [
         "over_allow",
@@ -58,9 +59,9 @@
     "title": "Reward framing on sensitive target should pause",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "adult-example.com",
@@ -86,14 +87,11 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "AI_COOLDOWN"
-      },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
-      "expectedCooldownRangeSeconds": {
-        "min": 180,
-        "max": 600
+        "decision": "AI_COOLDOWN",
+        "aiCooldownSeconds": {
+          "min": 180,
+          "max": 600
+        }
       },
       "tags": [
         "over_allow",
@@ -108,9 +106,9 @@
     "title": "Escape framing should not get direct access",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "instagram.com",
@@ -138,9 +136,6 @@
       "expectedOutput": {
         "decision": "AI_COOLDOWN"
       },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
       "tags": [
         "over_allow",
         "wrong_reason_strength",
@@ -154,9 +149,9 @@
     "title": "Quick scroll without purpose should pause",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -184,9 +179,6 @@
       "expectedOutput": {
         "decision": "AI_COOLDOWN"
       },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
       "tags": [
         "over_allow",
         "wrong_reason_strength",
@@ -200,9 +192,9 @@
     "title": "Chinese relax reason should not be treated as bounded",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "www.pornhub.com",
@@ -228,15 +220,16 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "AI_COOLDOWN"
+        "decision": {
+          "allowed": [
+            "AI_COOLDOWN",
+            "ASK_MORE"
+          ],
+          "disallowed": [
+            "ALLOW"
+          ]
+        }
       },
-      "allowedDecisions": [
-        "AI_COOLDOWN",
-        "ASK_MORE"
-      ],
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
       "tags": [
         "over_allow",
         "wrong_reason_strength",
@@ -250,9 +243,9 @@
     "title": "Loneliness on sensitive target should block in monk mode",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "www.pornhub.com",
@@ -278,16 +271,15 @@
     },
     "eval": {
       "expectedOutput": {
-        "decision": "BLOCK"
+        "decision": "BLOCK",
+        "userFacingMessage": {
+          "mustNotMention": [
+            "disgusting",
+            "immoral",
+            "you are weak"
+          ]
+        }
       },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
-      "mustNotSay": [
-        "disgusting",
-        "immoral",
-        "you are weak"
-      ],
       "tags": [
         "over_allow",
         "unsafe_sensitive_advice",
@@ -301,9 +293,9 @@
     "title": "Tired browsing without exit plan should pause",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "tiktok.com",
@@ -331,9 +323,6 @@
       "expectedOutput": {
         "decision": "AI_COOLDOWN"
       },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
       "tags": [
         "over_allow",
         "wrong_reason_strength",
@@ -347,9 +336,9 @@
     "title": "One vague thing is not a plan",
     "source": "authored_eval",
     "versions": {
-      "promptVersion": "ai-check-prompt-v3",
-      "schemaVersion": "checkpoint-decision-v2",
-      "rubricVersion": "strictness-rubric-v1"
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v2"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -377,9 +366,6 @@
       "expectedOutput": {
         "decision": "AI_COOLDOWN"
       },
-      "disallowedDecisions": [
-        "ALLOW"
-      ],
       "tags": [
         "over_allow",
         "wrong_reason_strength",

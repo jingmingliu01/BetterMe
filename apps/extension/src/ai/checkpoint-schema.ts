@@ -51,7 +51,6 @@ export function parseCheckpointDecision(raw: string, sessionId: string): Checkpo
   );
   const unlockMinutes = requireKey(parsed, "unlockMinutes");
   const aiCooldownSeconds = requireKey(parsed, "aiCooldownSeconds");
-  const nextQuestion = requireKey(parsed, "nextQuestion");
 
   const scores = requireObject(requireKey(parsed, "scores"), "scores");
   const memoryUpdate = requireObject(requireKey(parsed, "memoryUpdate"), "memoryUpdate");
@@ -68,7 +67,6 @@ export function parseCheckpointDecision(raw: string, sessionId: string): Checkpo
     decisionReasonCategory,
     unlockMinutes: typeof unlockMinutes === "number" ? unlockMinutes : null,
     aiCooldownSeconds: typeof aiCooldownSeconds === "number" ? aiCooldownSeconds : null,
-    nextQuestion: asNullableString(nextQuestion),
     scores: {
       repeatedReason: readScore(scores.repeatedReason, "repeatedReason"),
       impulse: readScore(scores.impulse, "impulse"),
@@ -158,7 +156,6 @@ export function createFallbackDecision(sessionId: string, message: string): Chec
     decisionReasonCategory: "insufficient_reason",
     unlockMinutes: null,
     aiCooldownSeconds: null,
-    nextQuestion: message,
     scores: {
       repeatedReason: 0,
       impulse: 60,
@@ -202,8 +199,8 @@ export function validateDecisionConstraints(
     if (options.isFinalTurn) {
       throw new Error("ASK_MORE is not allowed on the final AI Check turn.");
     }
-    if (!decision.nextQuestion?.trim()) {
-      throw new Error("ASK_MORE decision requires nextQuestion.");
+    if (!decision.userFacingMessage.trim()) {
+      throw new Error("ASK_MORE decision requires a userFacingMessage question.");
     }
   }
 }

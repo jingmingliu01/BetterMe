@@ -12,7 +12,7 @@ Rule: when this document changes, check the design and issues documents for requ
 
 The AI Check session state-machine foundation is implemented.
 
-The current product now has derived AI readiness, send-first UX, typed provider errors, AI-specific message timeout, stricter decision validation, AI cooldown continuation, hold replay, PM review conversion, and local eval coverage.
+The current product now has derived AI readiness, send-first UX, typed provider errors, AI-specific message timeout, stricter decision validation, AI cooldown continuation, hold replay, PM review conversion, simplified ASK_MORE messaging, and local eval coverage.
 
 Current product direction: there is no paywall or license unlock surface. AI Check availability depends on local provider configuration and access state.
 
@@ -31,6 +31,7 @@ Current product direction: there is no paywall or license unlock surface. AI Che
 - JSON parsing with enum validation for decision categories.
 - Tolerant normalization for non-critical provider category labels so a valid decision is not rejected only because `decisionReasonCategory` wording differs.
 - Decision-specific validation constraints for `ALLOW`, `AI_COOLDOWN`, and `ASK_MORE`.
+- `ASK_MORE` uses `userFacingMessage` as the follow-up assistant question instead of a separate provider-output field.
 - Strictness-derived AI cooldown ranges with light normalization for small provider mistakes.
 - Final-turn validation: `ASK_MORE` is rejected on the final assistant turn.
 - AI cooldown session fields, countdown state, blocked-send event logging, and same-session recovery after the timer.
@@ -154,6 +155,12 @@ Additional current validation:
   - `npm --workspace apps/extension run test:ai-check`
   - `npm --workspace apps/extension run typecheck`
   - `npm --workspace apps/extension run build`
+
+2026-05-21:
+
+- Removed the redundant `nextQuestion` provider-output field from the AI Check decision contract.
+- `ASK_MORE` continuation now appends `userFacingMessage` as the assistant follow-up question.
+- Design and issues docs were checked and updated because the state-machine semantics changed from a separate follow-up field to one user-visible message field.
   - `npm --workspace apps/extension run test:e2e`
 
 2026-05-18:

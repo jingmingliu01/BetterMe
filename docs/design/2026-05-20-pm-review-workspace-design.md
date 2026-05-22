@@ -22,7 +22,7 @@ real History Case
   -> PM converts it into an Evaluation Case
   -> PM edits assertions, tags, and status
   -> Evaluation Case becomes a Regression Case
-  -> prompt/schema/rubric changes run against regression cases
+  -> prompt/output-schema/evaluation-schema changes run against regression cases
   -> failed regression cases return to PM Review
 ```
 
@@ -67,8 +67,8 @@ interface AICheckCase {
   source: "authored_eval" | "real_session" | "bad_case_review";
   versions: {
     promptVersion: string;
-    schemaVersion: string;
-    rubricVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
   };
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
@@ -104,7 +104,7 @@ Left column:
 - strictness filters.
 - expected decision filters.
 - status filters.
-- schema/prompt/rubric version filters.
+- output-schema/prompt/evaluation-schema version filters.
 - text search.
 
 Middle column:
@@ -180,8 +180,8 @@ interface AICheckCaseSet {
     strictness?: StrictnessLevel[];
     expectedDecisions?: AIDecision[];
     promptVersions?: string[];
-    schemaVersions?: string[];
-    rubricVersions?: string[];
+    outputSchemaVersions?: string[];
+    evaluationSchemaVersions?: string[];
     includeArchived?: boolean;
   };
   createdAt: string;
@@ -214,7 +214,7 @@ The canonical AI Check source is `apps/extension/src/shared/ai-check-contract.js
 
 The contract owns:
 
-- prompt, schema, and rubric version identifiers.
+- prompt, output schema, and evaluation schema version identifiers.
 - AI Check session policy.
 - enum values used by prompt, parser, UI controls, and evals.
 - Input, Output, and Evaluation field references.
@@ -226,9 +226,12 @@ Provider base URLs, default models, model allowlists, and eval env-key names liv
 The UI must not hardcode version values. Version chips, version filters, case metadata defaults, and contract manual display must read from the typed contract wrapper:
 
 ```ts
-AI_CHECK_CONTRACT.promptVersion
-AI_CHECK_CONTRACT.schemaVersion
-AI_CHECK_CONTRACT.rubricVersion
+AI_CHECK_CONTRACT.current.promptVersion
+AI_CHECK_CONTRACT.current.outputSchemaVersion
+AI_CHECK_CONTRACT.current.evaluationSchemaVersion
+AI_CHECK_CONTRACT.versionRegistry.prompts
+AI_CHECK_CONTRACT.versionRegistry.outputSchemas
+AI_CHECK_CONTRACT.versionRegistry.evaluationSchemas
 AI_CHECK_CONTRACT.sessionPolicy.maxAssistantTurns
 AI_CHECK_CONTRACT.sessionPolicy.maxSessionSeconds
 ```
@@ -294,7 +297,7 @@ It should not show the older detailed source inspector by default. Detailed mean
 
 ### Provider Messages Tab
 
-The Provider Messages tab should display the current generated static System Prompt for a representative preview input, plus round context, sample conversation messages, and turn context inside one provider request tree. It should also display the prompt version from `AI_CHECK_CONTRACT.promptVersion` in the top version strip.
+The Provider Messages tab should display the current generated static System Prompt for a representative preview input, plus round context, sample conversation messages, and turn context inside one provider request tree. It should also display the prompt version from `AI_CHECK_CONTRACT.current.promptVersion` in the top version strip.
 
 The preview must come from the runtime prompt builder, not from a PM Review-only duplicated prompt string.
 
@@ -332,6 +335,8 @@ Runtime provider calls continue to use `buildSystemPrompt(input)`. PM Review use
 
 Dynamic prompt parts should be lightly highlighted in the prompt preview. Hovering or focusing a highlighted part can expose the source reference path.
 
+Contract enum prompt blocks should render enum values as individual highlighted tokens rather than plain comma-separated text. This makes it clear that values such as `ALLOW`, `ASK_MORE`, `repeated_excuse`, and `boredom` come from the shared contract instead of free-form prose.
+
 Expected highlighted dynamic sources include:
 
 - `strictness` from the preview/runtime input.
@@ -356,17 +361,19 @@ Turn Context should focus the final user-role trusted block. It explains the cur
 
 ### Output and Evaluation Tabs
 
-Output and Evaluation use the same left-selects-right-preview interaction pattern as Provider Messages:
+Output and Evaluation use a schema-left, example-right contract reference layout:
 
 ```text
-Example JSON viewer | Selected field explanation
+Schema JSON viewer | Example JSON viewer
 ```
 
-The left side should render the current contract example in the same dark, code-oriented style as Provider Messages. Fields that map to `AI_CHECK_CONTRACT.sections.output.fields` or `AI_CHECK_CONTRACT.sections.evaluation.fields` are selectable. Clicking or focusing a selectable example line updates the right-side preview. The preview shows the selected path, type, required/nullable metadata, meaning, why it is necessary, product impact, validation behavior, common review mistakes, and example value when available.
+The left side should render the selected version's schema as a dark, code-oriented JSON viewer. It should match the visual density, spacing, and monospace treatment of the example viewer instead of using a card/tree inspector. Schema and example viewers should use lightweight JSON token highlighting for keys, strings, numbers, null/literals, punctuation, and schema type values.
+
+The right side should render the selected version's complete contract example in the same dark, code-oriented style as Provider Messages. Clicking or focusing a selectable example line can keep the corresponding schema path highlighted when the schema line maps to a known field.
 
 ### Output Tab
 
-The Output tab should render `AI_CHECK_CONTRACT.sections.output.example` as the selectable left-side example and use `AI_CHECK_CONTRACT.sections.output.fields` as the source of selected-field explanations.
+The Output tab should render the output schema JSON on the left and `AI_CHECK_CONTRACT.sections.output.example` on the right.
 
 It should also show the prompt-facing output schema from `AI_CHECK_CONTRACT.sections.output.promptSchema` and the concise schema summary from `AI_CHECK_CONTRACT.sections.output.schemaSummary`.
 
@@ -374,12 +381,12 @@ This tab explains the model response contract and how parser validation turns th
 
 ### Evaluation Tab
 
-The Evaluation tab should render `AI_CHECK_CONTRACT.sections.evaluation.example` as the selectable left-side example and use `AI_CHECK_CONTRACT.sections.evaluation.fields` as the source of selected-field explanations.
+The Evaluation tab should render the evaluation schema JSON on the left and `AI_CHECK_CONTRACT.sections.evaluation.example` on the right.
 
 It should explicitly explain:
 
 ```text
-Evaluation Case = input + optional captured output + eval assertions
+Evaluation Case = input + optional captured output + eval expectations
 Regression Case = Evaluation Case where status = regression and archivedAt is empty
 ```
 
@@ -399,8 +406,8 @@ The first version should use path-level comparison rather than a complex semanti
 Path                         Input   Output   Evaluation
 targetDisplay                yes     no       inside input
 decision                     no      yes      expectedOutput.decision
-scores.impulse               no      yes      no
-eval.mustAskAbout            no      no       yes
+scores.impulse               no      yes      expectedOutput.scores.impulse
+memoryUpdate.behaviorReasonCategory no yes    expectedOutput.memoryUpdate.behaviorReasonCategory
 ```
 
 The comparison should be derived from the contract section field paths, not from a manually maintained table.

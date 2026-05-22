@@ -111,7 +111,7 @@ Expected behavior:
 - Schema Reference is generated from the shared AI Check contract.
 - The descriptor covers meaning, necessity, product impact, validation, and common mistakes.
 - Schema Reference updates are required whenever the structured output schema changes.
-- Prompt, schema, and rubric version displays are rendered from contract reference fields, not duplicated literals.
+- Prompt, output schema, and evaluation schema version displays are rendered from contract current/version registry fields, not duplicated literals.
 - `AGENTS.md` records the schema-sync rule.
 
 Resolution:
@@ -120,6 +120,7 @@ Resolution:
 - The descriptor covers the required schema fields, validation, product impact, and common mistakes.
 - The UI renders the descriptor as an expandable JSON-shaped tree with a complete example output instead of a flat card list.
 - Prompt builder, parser enum values, eval runner provider schema text, version constants, examples, and PM Review reference now derive from the shared contract.
+- PM Review Contract Manual version controls now read from `AI_CHECK_CONTRACT.current` and `AI_CHECK_CONTRACT.versionRegistry`.
 - PM Review statuses, source options, bad-case error types, common tags, built-in case sets, and AI Check session policy now derive from the shared contract.
 - Provider metadata derives from `apps/extension/src/shared/provider-config.json`.
 - `AGENTS.md` now requires schema changes to start from `ai-check-contract.json`, then update parser constraints, TypeScript types, eval assertions, tests, and linked docs in the same change.
@@ -139,7 +140,7 @@ Expected behavior:
 - Schema Reference behaves as an AI Check Contract Manual.
 - The manual shows the correct runtime flow: contract and runtime context feed the System Prompt builder, then the provider request includes System Prompt, current target, pattern memory, and user-visible messages.
 - The manual has internal tabs for Provider Messages, Output, Evaluation, and Compare.
-- Provider Messages renders the `messages[]` tree; Output and Evaluation tabs render selectable examples from `AI_CHECK_CONTRACT.sections` with selected-field explanation panels.
+- Provider Messages renders the `messages[]` tree; Output and Evaluation tabs render schema JSON on the left and the complete example on the right.
 - Compare is generated from contract section field paths and shows which paths appear in Input, Output, and Evaluation.
 
 Resolution:
@@ -147,7 +148,7 @@ Resolution:
 - Schema Reference now has internal tabs for Provider Messages, Output, Evaluation, and Compare.
 - Provider Messages renders the same `messages[]` tree with a focused preview panel for the selected section.
 - The preview panel renders generated prompt/context content as section blocks, preserving original line breaks and keeping visual wrapping from looking like missing structure.
-- Output and Evaluation tabs render contract examples in the same dark code style as Provider Messages; clicking or focusing a mapped example field updates a focused preview panel with field metadata, meaning, validation, product impact, common mistakes, and examples.
+- Output and Evaluation tabs render contract schema JSON on the left and complete examples in the same dark code style as Provider Messages on the right.
 - The top of the manual shows version references. The old multi-card runtime flow was removed because the provider message tree now carries the main orientation job.
 - Compare is generated from contract section field paths.
 
@@ -226,7 +227,7 @@ Resolution:
 - Eval runner normalizes missing status to `ready`.
 - Eval runner excludes archived cases by default.
 - Eval runner supports status and tag filters such as `--status=regression` and `--tag=unsafe_sensitive_advice`.
-- Eval runner rejects prompt/schema/rubric version mismatches by default and allows explicit legacy runs with `--include-legacy`.
+- Eval runner rejects prompt/output-schema/evaluation-schema version mismatches by default and allows explicit legacy runs with `--include-legacy`.
 
 Remaining:
 

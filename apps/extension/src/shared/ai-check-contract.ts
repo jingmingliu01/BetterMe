@@ -18,11 +18,37 @@ interface AICheckContractSection {
   promptSchema?: unknown;
 }
 
+interface AICheckCurrentVersions {
+  promptVersion: string;
+  outputSchemaVersion: string;
+  evaluationSchemaVersion: string;
+}
+
+interface AICheckVersionRegistryEntry {
+  version: string;
+  label: string;
+  current?: boolean;
+  section?: AICheckContractSection;
+}
+
+export interface AICheckResolvedVersionEntry {
+  version: string;
+  label: string;
+  current: boolean;
+  section: AICheckContractSection;
+}
+
 interface AICheckContract {
   id: string;
-  schemaVersion: string;
+  outputSchemaVersion: string;
   promptVersion: string;
-  rubricVersion: string;
+  evaluationSchemaVersion: string;
+  current: AICheckCurrentVersions;
+  versionRegistry: {
+    prompts: Array<Omit<AICheckVersionRegistryEntry, "section">>;
+    outputSchemas: AICheckVersionRegistryEntry[];
+    evaluationSchemas: AICheckVersionRegistryEntry[];
+  };
   sessionPolicy: {
     maxAssistantTurns: number;
     maxSessionSeconds: number;
@@ -60,6 +86,8 @@ interface AICheckContract {
 
 export const AI_CHECK_CONTRACT = rawContract as AICheckContract;
 
+export const AI_CHECK_CURRENT_VERSIONS = AI_CHECK_CONTRACT.current;
+
 export const AI_CHECK_DECISIONS = AI_CHECK_CONTRACT.enums.decisions;
 export const AI_CHECK_DECISION_REASON_CATEGORIES = AI_CHECK_CONTRACT.enums.decisionReasonCategories;
 export const AI_CHECK_BEHAVIOR_REASON_CATEGORIES = AI_CHECK_CONTRACT.enums.behaviorReasonCategories;
@@ -81,3 +109,48 @@ export const AI_CHECK_EVALUATION_EXAMPLE = AI_CHECK_CONTRACT.sections.evaluation
 
 export const AI_CHECK_OUTPUT_SCHEMA_SUMMARY = AI_CHECK_CONTRACT.sections.output.schemaSummary;
 export const AI_CHECK_OUTPUT_PROMPT_SCHEMA = AI_CHECK_CONTRACT.sections.output.promptSchema;
+
+function resolveSchemaRegistry(
+  entries: AICheckVersionRegistryEntry[],
+  currentVersion: string,
+  currentSection: AICheckContractSection
+): AICheckResolvedVersionEntry[] {
+  const resolved = entries.map((entry) => ({
+    version: entry.version,
+    label: entry.label,
+    current: entry.current ?? entry.version === currentVersion,
+    section: entry.section ?? currentSection
+  }));
+
+  if (resolved.some((entry) => entry.version === currentVersion)) {
+    return resolved;
+  }
+
+  return [
+    {
+      version: currentVersion,
+      label: currentVersion,
+      current: true,
+      section: currentSection
+    },
+    ...resolved
+  ];
+}
+
+export const AI_CHECK_PROMPT_VERSIONS = AI_CHECK_CONTRACT.versionRegistry.prompts.map((entry) => ({
+  version: entry.version,
+  label: entry.label,
+  current: entry.current ?? entry.version === AI_CHECK_CURRENT_VERSIONS.promptVersion
+}));
+
+export const AI_CHECK_OUTPUT_SCHEMA_VERSIONS = resolveSchemaRegistry(
+  AI_CHECK_CONTRACT.versionRegistry.outputSchemas,
+  AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion,
+  AI_CHECK_CONTRACT.sections.output
+);
+
+export const AI_CHECK_EVALUATION_SCHEMA_VERSIONS = resolveSchemaRegistry(
+  AI_CHECK_CONTRACT.versionRegistry.evaluationSchemas,
+  AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion,
+  AI_CHECK_CONTRACT.sections.evaluation
+);

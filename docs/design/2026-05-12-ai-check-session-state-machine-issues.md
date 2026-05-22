@@ -285,7 +285,7 @@ Current risk:
 
 Expected behavior:
 
-- `ASK_MORE` appends `nextQuestion`.
+- `ASK_MORE` appends `userFacingMessage` as the follow-up question.
 - The same session remains active.
 - Turn count increments.
 - User can answer without creating a new session.
