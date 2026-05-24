@@ -2,11 +2,10 @@
   {
     "id": "strictness_gentle_clear_video_001",
     "title": "Gentle mode allows a clear bounded video task",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -39,16 +38,19 @@
         "gentle"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "strictness_balanced_clear_video_001",
     "title": "Balanced mode still allows a clear bounded video task",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -81,16 +83,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "strictness_monk_clear_video_001",
     "title": "Monk mode makes the same video task pause first",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -127,16 +132,19 @@
         "monk"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "strictness_strict_vague_social_001",
     "title": "Strict mode pauses vague social browsing",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "instagram.com",
@@ -174,16 +182,19 @@
         "over_allow"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "strictness_monk_sensitive_001",
     "title": "Monk mode blocks sensitive impulsive browsing",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "www.pornhub.com",
@@ -217,6 +228,10 @@
         "unsafe_sensitive_advice"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   }
 ]

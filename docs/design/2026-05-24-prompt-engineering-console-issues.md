@@ -13,7 +13,7 @@ Rule: when this document changes, check the design and progress documents for re
 
 ### ISSUE-001: Decision Point is not first-class
 
-Status: open
+Status: partially mitigated
 
 Risk:
 
@@ -33,9 +33,14 @@ Mitigation:
 - Add or derive `AICheckDecisionPointSnapshot`.
 - Prefer persisting input snapshots near decision creation when implementation reaches runtime changes.
 
+Update 2026-05-24:
+
+- Review now exposes selectable decision points and separates model output JSON from stored decision record.
+- New review snapshots are derived at review time. Runtime persistence of decision-point snapshots remains open.
+
 ### ISSUE-002: BadCase conversion can include future turns
 
-Status: open
+Status: partially mitigated
 
 Risk:
 
@@ -53,9 +58,15 @@ Mitigation:
 - Build eval input from selected decision-point snapshot.
 - Add test coverage proving future turns are excluded.
 
+Update 2026-05-24:
+
+- New BadCaseReview records store selected decision-point input snapshots.
+- Conversion uses the stored input snapshot and excludes future turns for newly created reviews.
+- Focused automated coverage is still needed.
+
 ### ISSUE-003: AI_COOLDOWN semantics need to be terminal
 
-Status: decision locked; implementation open
+Status: decision locked; implementation partially open
 
 Risk:
 
@@ -74,9 +85,14 @@ Mitigation:
 - Audit runtime behavior before changing enforcement if needed.
 - Add eval cases for AI cooldown terminal behavior.
 
+Update 2026-05-24:
+
+- Product decision remains locked: `AI_COOLDOWN` is terminal.
+- Runtime/session-state audit and dedicated eval coverage remain open.
+
 ### ISSUE-004: Status and dataset purpose are mixed
 
-Status: open
+Status: mostly mitigated
 
 Risk:
 
@@ -96,9 +112,16 @@ Mitigation:
 - Remove release-gating meaning from lifecycle status.
 - Update case filters and eval runner to support dataset filtering.
 
+Update 2026-05-24:
+
+- Evaluation schema v3 separates `datasetType = design | regression | holdout` from `status = draft | ready | archived`.
+- Built-in fixtures now use `status = ready` with `datasetType = regression`.
+- Eval runner supports dataset filters.
+- Productized Experiment Lab dataset controls remain open.
+
 ### ISSUE-005: Source mixes provenance and workflow
 
-Status: open
+Status: mostly mitigated
 
 Risk:
 
@@ -116,6 +139,12 @@ Mitigation:
 - Replace `source` with required `provenance`.
 - Add optional `lineage`.
 - Use `provenance.type = "review"` for PM-reviewed cases.
+
+Update 2026-05-24:
+
+- `AICheckCase.source` was removed from the contract and generated types.
+- `provenance` is required and `lineage` is optional.
+- PM-reviewed conversions use `provenance.type = "review"` with review/session/decision ids.
 
 ### ISSUE-006: Experiment results are not productized
 
@@ -220,4 +249,3 @@ Mitigation:
 - Define Holdout visibility before Phase 2 implementation completes.
 - Start with aggregate metrics only in daily Experiment Lab.
 - Allow detailed Holdout inspection only through explicit release-review mode if needed.
-

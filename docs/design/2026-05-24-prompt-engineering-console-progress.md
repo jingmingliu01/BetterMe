@@ -11,9 +11,9 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-Planning fixed. No implementation changes have been made for this design topic yet.
+Phase 1 and Phase 2 foundation work is partially implemented in the AI Check contract, review-store conversion path, PM Review UI, eval fixtures, and eval runner.
 
-This document set captures the final high-level Prompt Engineering Console plan after product review and sub-agent cross-review. It should be used as the scaffold for future implementation.
+This document set remains the scaffold for the larger Prompt Engineering Console implementation. The current code change does not yet implement Experiment Lab run history, release-gate UI, Candidate Prompt A/B, or Textual Gradient.
 
 ## Product Decisions Locked
 
@@ -29,24 +29,24 @@ This document set captures the final high-level Prompt Engineering Console plan 
 
 - Local PM Review page at `review.html`.
 - History Cases area listing recent AI Check sessions.
-- Current History detail shows transcript, latest decision JSON, strictness, actual decision, and turn count.
+- Current History detail shows transcript, selectable decision points, strictness, actual decision, turn count, model output JSON, and stored decision record.
 - Bad-case marking with expected decision, error types, and reviewer note.
-- Bad-case conversion into an Evaluation Case.
-- `AICheckCase` schema with `input`, optional `output`, `eval`, `status`, and archive metadata.
+- Bad-case conversion into an Evaluation Case from the selected decision point.
+- `AICheckCase` schema with `input`, optional `output`, `eval`, lifecycle `status`, `datasetType`, `provenance`, optional `lineage`, and archive metadata.
 - Built-in eval fixtures under `apps/extension/evals/ai-check-cases`.
-- Local `eval:ai-check` runner with status/tag filtering and provider-mode reuse of runtime provider messages.
+- Local `eval:ai-check` runner with status/tag/dataset filtering and provider-mode reuse of runtime provider messages.
 - `evalRuns` and `evalResults` IndexedDB stores exist, but are not wired into UI or CLI run history.
 - Contract-derived Schema Reference / Contract Manual exists for provider messages, output, and evaluation.
 
 ## Confirmed Gaps
 
-- Decision Point is not yet a first-class persisted object.
-- Review UI selects the latest decision, not an arbitrary decision point.
-- BadCaseReview currently stores whole-session messages, which can include future turns relative to a selected failed decision.
-- Conversion to eval currently derives `assistantTurnCount` from all assistant messages and fixes `isFinalTurn` to false.
-- Conversion reloads current pattern memory instead of using original round snapshot memory.
+- Decision Point is not yet a dedicated persisted store object; it is currently derived from session messages, decisions, and round snapshot data.
+- Review UI can select an arbitrary decision point in the current session.
+- New BadCaseReview records store a selected decision-point input snapshot that excludes future turns.
+- Conversion to eval uses the stored input snapshot when present and preserves captured model output.
+- New conversion uses original round snapshot pattern memory instead of reloading current pattern memory.
 - Built-in fixture cases and local editable eval cases are not unified in the UI.
-- Dataset split does not exist; `status = regression` currently mixes lifecycle and release-gating purpose.
+- Dataset split exists in the contract and fixtures; holdout visibility rules and Experiment Lab controls are still not productized.
 - Experiment Run exists only as CLI output, not as a persisted product object.
 - Release Gate exists only as convention, not as product workflow.
 
@@ -54,7 +54,7 @@ This document set captures the final high-level Prompt Engineering Console plan 
 
 ### Phase 1: Decision-Point Review Foundation
 
-Status: not started
+Status: partially implemented
 
 Scope:
 
@@ -66,9 +66,22 @@ Scope:
 - Preserve actual output in converted eval case.
 - Treat `AI_COOLDOWN` as terminal in docs, eval semantics, and product messaging.
 
+Implemented now:
+
+- History/Review shows a decision-point selector.
+- PM bad-case review can target the selected decision.
+- New bad-case snapshots exclude future turns from replayable eval input.
+- Converted eval cases preserve captured model output when a source decision exists.
+
+Still remaining:
+
+- Persist a dedicated decision-point snapshot at runtime instead of deriving it during review.
+- Add focused automated coverage for future-turn exclusion.
+- Audit runtime/session-state wording for terminal `AI_COOLDOWN` semantics.
+
 ### Phase 2: Ideal Case Model and Dataset Split
 
-Status: not started
+Status: partially implemented
 
 Scope:
 
@@ -78,6 +91,19 @@ Scope:
 - Separate lifecycle `status` from dataset membership.
 - Reclassify existing fixtures into design/regression/holdout according to PM intent.
 - Define holdout limited-visibility behavior.
+
+Implemented now:
+
+- Evaluation schema version moved to `ai-check-evaluation-v3`.
+- `datasetType`, `provenance`, and optional `lineage` are in the contract and generated types.
+- `source` case semantics are removed from `AICheckCase`.
+- Existing built-in fixtures are reclassified as `status = ready` and `datasetType = regression`.
+- Eval runner accepts dataset filters.
+
+Still remaining:
+
+- Define holdout limited-visibility behavior in the product.
+- Expose dataset controls in the future Experiment Lab UI.
 
 ### Phase 3: Experiment Lab First Slice
 
@@ -106,19 +132,15 @@ Scope:
 
 ## Validation Status
 
-Planning validation performed:
+Implementation validation performed:
 
-- Reviewed current PM Review information architecture.
-- Reviewed `AICheckCase`, `BadCaseReview`, `CheckpointDecision`, and eval runner boundaries.
-- Cross-reviewed plan with product, data-model, eval-runner, and runtime/turn-level perspectives.
-- Confirmed no code changes were made in this planning step.
+- `npm --workspace apps/extension run check:ai-check-contract` passed.
+- `npm --workspace apps/extension run typecheck` passed.
+- `npm --workspace apps/extension run eval:ai-check` passed with 42/42 cases.
 
 Pending implementation validation:
 
-- `npm --workspace apps/extension run check:ai-check-contract`
-- `npm --workspace apps/extension run typecheck`
 - `npm --workspace apps/extension run test:ai-check`
-- `npm --workspace apps/extension run eval:ai-check`
 - `npm --workspace apps/extension run test:e2e`
 - Browser smoke check for Review/Case/Experiment UI slices.
 
@@ -130,6 +152,14 @@ Pending implementation validation:
 - Locked product decisions from review: no legacy data constraint, one eval case per decision point, future turns excluded, `AI_COOLDOWN` terminal, dataset type independent from status, Candidate Prompt A/B and Textual Gradient deferred to second Experiment Lab step.
 - Older PM Review docs were checked for structure and current implementation status. They were not edited because this document set defines the future scaffold and no implementation status changed in the existing PM Review workspace.
 
+2026-05-24 implementation update:
+
+- Began Phase 1 and Phase 2 implementation.
+- Added decision-point selection and selected-decision bad-case conversion in PM Review.
+- Updated AI Check evaluation schema to v3 with dataset/provenance/lineage model.
+- Reclassified built-in eval fixtures to ready regression dataset cases.
+- Issues document was updated because issue status changed. Design document was checked; its product direction and phase structure still apply.
+
 ## Update Checklist
 
 When this progress doc changes, check:
@@ -138,4 +168,3 @@ When this progress doc changes, check:
 - Issues doc: should risks or blockers be added, closed, or reprioritized?
 - PM Review workspace docs: did implementation status change in the existing workspace?
 - AI Check contract docs: did schema/source/version rules change?
-

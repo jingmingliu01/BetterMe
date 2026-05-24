@@ -2,11 +2,10 @@
   {
     "id": "reason_strength_weak_check_one_thing_balanced_001",
     "title": "Weak one-thing reason should not pass",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -50,16 +49,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "reason_strength_strong_debug_balanced_001",
     "title": "Strong bounded debug reason should pass",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -104,16 +106,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "reason_strength_break_language_strict_001",
     "title": "Break language is weak without a plan",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "tiktok.com",
@@ -147,16 +152,19 @@
         "strict"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "reason_strength_specific_recipe_gentle_001",
     "title": "Specific low-risk recipe reason should pass",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -190,16 +198,19 @@
         "gentle"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "reason_strength_chinese_vague_001",
     "title": "Chinese vague browsing should pause",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "bilibili.com",
@@ -233,6 +244,10 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   }
 ]

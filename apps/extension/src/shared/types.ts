@@ -1,7 +1,10 @@
 import type {
   AICheckCase,
+  AICheckCaseInput,
+  AICheckDatasetType,
   AICheckCaseStatus,
   AICheckExpectedOutput,
+  AICheckSeverity,
   AICheckScores,
   AIDecision,
   BadCaseErrorType,
@@ -15,8 +18,10 @@ export type {
   AICheckCaseEval,
   AICheckCaseInput,
   AICheckCaseOutput,
-  AICheckCaseSource,
+  AICheckCaseLineage,
+  AICheckCaseProvenance,
   AICheckCaseStatus,
+  AICheckDatasetType,
   AICheckContract,
   AICheckContractSection,
   AICheckCurrentVersions,
@@ -30,6 +35,7 @@ export type {
   AICheckResolvedVersionEntry,
   AICheckSchemaFieldReference,
   AICheckScoreName,
+  AICheckSeverity,
   AICheckScores,
   AICheckTextExpectation,
   AIDecision,
@@ -243,9 +249,14 @@ export interface BadCaseReview {
   id: string;
   sourceSessionId: string;
   sourceDecisionId: string | null;
+  selectedAssistantMessageId?: string | null;
+  triggeringUserMessageId?: string | null;
+  decisionOrdinal?: number;
   targetDisplay: string;
   strictness: StrictnessLevel | null;
   messages: AICheckMessage[];
+  inputSnapshot?: AICheckCaseInput;
+  output?: AICheckCase["output"];
   actualDecision: AIDecision | null;
   expectedDecision: AIDecision | null;
   errorTypes: BadCaseErrorType[];
@@ -261,6 +272,7 @@ export interface AICheckCaseSet {
   description: string;
   filters: {
     statuses?: AICheckCaseStatus[];
+    datasetTypes?: AICheckDatasetType[];
     tags?: string[];
     strictness?: StrictnessLevel[];
     expectedDecisions?: AIDecision[];
@@ -277,6 +289,7 @@ export interface AIPMReviewSession {
   session: AICheckSession;
   messages: AICheckMessage[];
   decisions: CheckpointDecision[];
+  badCases?: BadCaseReview[];
   badCase: BadCaseReview | null;
 }
 
@@ -379,7 +392,8 @@ export type ExtensionMessage =
 
 export interface CreateEvalCaseInput {
   title: string;
-  source?: AICheckCase["source"];
+  datasetType?: AICheckDatasetType;
+  severity?: AICheckSeverity;
   status?: AICheckCaseStatus;
   targetDisplay: string;
   strictness: StrictnessLevel;
@@ -394,6 +408,8 @@ export interface CreateEvalCaseInput {
 export interface UpdateEvalCaseInput {
   id: string;
   title?: string;
+  datasetType?: AICheckDatasetType;
+  severity?: AICheckSeverity;
   status?: AICheckCaseStatus;
   targetDisplay?: string;
   strictness?: StrictnessLevel;

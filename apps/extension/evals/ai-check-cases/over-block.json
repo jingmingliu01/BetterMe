@@ -2,11 +2,10 @@
   {
     "id": "over_block_work_tutorial_gentle_001",
     "title": "Bounded work tutorial should be allowed in gentle mode",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -41,16 +40,19 @@
         "gentle"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "over_block_stackoverflow_answer_balanced_001",
     "title": "Specific programming answer should be allowed",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "stackoverflow.com",
@@ -84,16 +86,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "over_block_reddit_debug_balanced_001",
     "title": "Bounded Reddit debugging search should be allowed",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -127,16 +132,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "over_block_recipe_video_gentle_001",
     "title": "Low-risk recipe video with time box should be allowed",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -170,16 +178,19 @@
         "gentle"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "over_block_chinese_work_balanced_001",
     "title": "Chinese bounded work reason should be allowed",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "zhihu.com",
@@ -214,16 +225,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "over_block_doctor_appointment_strict_001",
     "title": "Important bounded appointment task should be allowed even in strict mode",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "facebook.com",
@@ -257,6 +271,10 @@
         "strict"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   }
 ]

@@ -29,8 +29,14 @@ export type StrictnessLevel = (typeof AI_CHECK_STRICTNESS_LEVELS)[number];
 ${literalArray("AI_CHECK_CASE_STATUSES", contract.enums.caseStatuses)}
 export type AICheckCaseStatus = (typeof AI_CHECK_CASE_STATUSES)[number];
 
-${literalArray("AI_CHECK_CASE_SOURCES", contract.enums.caseSources)}
-export type AICheckCaseSource = (typeof AI_CHECK_CASE_SOURCES)[number];
+${literalArray("AI_CHECK_DATASET_TYPES", contract.enums.datasetTypes)}
+export type AICheckDatasetType = (typeof AI_CHECK_DATASET_TYPES)[number];
+
+${literalArray("AI_CHECK_PROVENANCE_TYPES", contract.enums.provenanceTypes)}
+export type AICheckProvenanceType = (typeof AI_CHECK_PROVENANCE_TYPES)[number];
+
+${literalArray("AI_CHECK_SEVERITY_LEVELS", contract.enums.severityLevels)}
+export type AICheckSeverity = (typeof AI_CHECK_SEVERITY_LEVELS)[number];
 
 ${literalArray("AI_CHECK_BAD_CASE_ERROR_TYPE_VALUES", contract.enums.badCaseErrorTypes)}
 export type BadCaseErrorType = (typeof AI_CHECK_BAD_CASE_ERROR_TYPE_VALUES)[number];
@@ -114,7 +120,9 @@ export interface AICheckContract {
     behaviorReasonCategories: BehaviorReasonCategory[];
     strictnessLevels: StrictnessLevel[];
     caseStatuses: AICheckCaseStatus[];
-    caseSources: AICheckCaseSource[];
+    datasetTypes: AICheckDatasetType[];
+    provenanceTypes: AICheckProvenanceType[];
+    severityLevels: AICheckSeverity[];
     badCaseErrorTypes: BadCaseErrorType[];
   };
   schemas: {
@@ -136,6 +144,7 @@ export interface AICheckContract {
       name: string;
       description: string;
       statuses: AICheckCaseStatus[];
+      datasetTypes?: AICheckDatasetType[];
       tags?: string[];
       includeArchived?: boolean;
     }>;
@@ -260,15 +269,30 @@ export interface AICheckCaseEval {
   reviewerNote?: string;
 }
 
+export type AICheckCaseProvenance =
+  | { type: "authored"; author?: string }
+  | { type: "session"; sessionId?: string; decisionId?: string }
+  | { type: "review"; reviewId?: string; sessionId?: string; decisionId?: string };
+
+export interface AICheckCaseLineage {
+  parentCaseId?: string;
+  supersedesCaseIds?: string[];
+  splitFromCaseId?: string;
+  mergedFromCaseIds?: string[];
+}
+
 export interface AICheckCase {
   id: string;
   title: string;
-  source: AICheckCaseSource;
+  datasetType: AICheckDatasetType;
+  provenance: AICheckCaseProvenance;
+  lineage?: AICheckCaseLineage;
   versions: AICheckCurrentVersions;
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
   eval?: AICheckCaseEval;
   status: AICheckCaseStatus;
+  severity?: AICheckSeverity;
   archivedAt?: string;
   archivedReason?: string;
   createdAt?: string;

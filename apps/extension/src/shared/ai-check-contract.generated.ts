@@ -15,11 +15,17 @@ export type BehaviorReasonCategory = (typeof AI_CHECK_BEHAVIOR_REASON_CATEGORIES
 export const AI_CHECK_STRICTNESS_LEVELS = ["gentle","balanced","strict","monk"] as const;
 export type StrictnessLevel = (typeof AI_CHECK_STRICTNESS_LEVELS)[number];
 
-export const AI_CHECK_CASE_STATUSES = ["draft","ready","regression","archived"] as const;
+export const AI_CHECK_CASE_STATUSES = ["draft","ready","archived"] as const;
 export type AICheckCaseStatus = (typeof AI_CHECK_CASE_STATUSES)[number];
 
-export const AI_CHECK_CASE_SOURCES = ["authored_eval","real_session","bad_case_review"] as const;
-export type AICheckCaseSource = (typeof AI_CHECK_CASE_SOURCES)[number];
+export const AI_CHECK_DATASET_TYPES = ["design","regression","holdout"] as const;
+export type AICheckDatasetType = (typeof AI_CHECK_DATASET_TYPES)[number];
+
+export const AI_CHECK_PROVENANCE_TYPES = ["authored","session","review"] as const;
+export type AICheckProvenanceType = (typeof AI_CHECK_PROVENANCE_TYPES)[number];
+
+export const AI_CHECK_SEVERITY_LEVELS = ["low","medium","high","critical"] as const;
+export type AICheckSeverity = (typeof AI_CHECK_SEVERITY_LEVELS)[number];
 
 export const AI_CHECK_BAD_CASE_ERROR_TYPE_VALUES = ["over_allow","over_block","under_ask","unnecessary_ask","wrong_reason_strength","wrong_strictness_application","wrong_cooldown_duration","unsafe_sensitive_advice","bad_tone","schema_or_format_failure"] as const;
 export type BadCaseErrorType = (typeof AI_CHECK_BAD_CASE_ERROR_TYPE_VALUES)[number];
@@ -103,7 +109,9 @@ export interface AICheckContract {
     behaviorReasonCategories: BehaviorReasonCategory[];
     strictnessLevels: StrictnessLevel[];
     caseStatuses: AICheckCaseStatus[];
-    caseSources: AICheckCaseSource[];
+    datasetTypes: AICheckDatasetType[];
+    provenanceTypes: AICheckProvenanceType[];
+    severityLevels: AICheckSeverity[];
     badCaseErrorTypes: BadCaseErrorType[];
   };
   schemas: {
@@ -125,6 +133,7 @@ export interface AICheckContract {
       name: string;
       description: string;
       statuses: AICheckCaseStatus[];
+      datasetTypes?: AICheckDatasetType[];
       tags?: string[];
       includeArchived?: boolean;
     }>;
@@ -249,15 +258,30 @@ export interface AICheckCaseEval {
   reviewerNote?: string;
 }
 
+export type AICheckCaseProvenance =
+  | { type: "authored"; author?: string }
+  | { type: "session"; sessionId?: string; decisionId?: string }
+  | { type: "review"; reviewId?: string; sessionId?: string; decisionId?: string };
+
+export interface AICheckCaseLineage {
+  parentCaseId?: string;
+  supersedesCaseIds?: string[];
+  splitFromCaseId?: string;
+  mergedFromCaseIds?: string[];
+}
+
 export interface AICheckCase {
   id: string;
   title: string;
-  source: AICheckCaseSource;
+  datasetType: AICheckDatasetType;
+  provenance: AICheckCaseProvenance;
+  lineage?: AICheckCaseLineage;
   versions: AICheckCurrentVersions;
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
   eval?: AICheckCaseEval;
   status: AICheckCaseStatus;
+  severity?: AICheckSeverity;
   archivedAt?: string;
   archivedReason?: string;
   createdAt?: string;
@@ -580,17 +604,6 @@ const GENERATED_SECTIONS = {
         "commonMistakes": "Using a title that only describes the domain but not the expected behavior."
       },
       {
-        "path": "source",
-        "type": "authored_eval | real_session | bad_case_review",
-        "required": true,
-        "example": "authored_eval",
-        "meaning": "Where the case came from.",
-        "whyNecessary": "PM Review needs to distinguish hand-authored fixtures from converted history cases.",
-        "productImpact": "Helps prioritize cleanup and understand evidence quality.",
-        "validation": "Must be one of the known case source values.",
-        "commonMistakes": "Treating converted bad cases as authored evals before PM cleanup."
-      },
-      {
         "path": "versions.promptVersion",
         "type": "string",
         "required": true,
@@ -616,7 +629,7 @@ const GENERATED_SECTIONS = {
         "path": "versions.evaluationSchemaVersion",
         "type": "string",
         "required": true,
-        "example": "ai-check-evaluation-v2",
+        "example": "ai-check-evaluation-v3",
         "meaning": "Evaluation schema version used to interpret eval expectations.",
         "whyNecessary": "EvaluationRunner semantics are versioned separately from model output parsing.",
         "productImpact": "Keeps PM-authored expectations comparable across prompt and model changes.",
@@ -836,14 +849,14 @@ const GENERATED_SECTIONS = {
       },
       {
         "path": "status",
-        "type": "draft | ready | regression | archived",
+        "type": "draft | ready | archived",
         "required": true,
-        "example": "regression",
+        "example": "ready",
         "meaning": "PM Review lifecycle status for the case.",
-        "whyNecessary": "Default eval runs and PM queues need to know whether a case is active, release-gating, or archived.",
-        "productImpact": "Controls which cases appear in active, draft, regression, and archive views.",
-        "validation": "Must be one of the known case statuses.",
-        "commonMistakes": "Using regression for unfinished cases or hard-deleting stale cases instead of archiving."
+        "whyNecessary": "PM queues need to know whether a case is still being edited, ready to run, or archived.",
+        "productImpact": "Controls active, draft, and archive views without encoding dataset purpose.",
+        "validation": "Must be draft, ready, or archived.",
+        "commonMistakes": "Using status to represent regression or holdout membership instead of datasetType."
       },
       {
         "path": "archivedAt",
@@ -864,16 +877,117 @@ const GENERATED_SECTIONS = {
         "productImpact": "Reduces duplicate case re-creation and preserves decision context.",
         "validation": "Optional free text.",
         "commonMistakes": "Archiving without explaining what replaced or invalidated the case."
+      },
+      {
+        "path": "datasetType",
+        "type": "design | regression | holdout",
+        "required": true,
+        "example": "regression",
+        "meaning": "How this case is used in prompt-engineering experiments.",
+        "whyNecessary": "Evaluation needs to separate design coverage, release-gating regressions, and holdout checks from lifecycle status.",
+        "productImpact": "Drives Case Library grouping, experiment filters, and release-gate selection.",
+        "validation": "Must be design, regression, or holdout.",
+        "commonMistakes": "Using lifecycle status such as ready or archived to mean release-gating purpose."
+      },
+      {
+        "path": "provenance.type",
+        "type": "authored | session | review",
+        "required": true,
+        "example": "authored",
+        "meaning": "The origin category for this evaluation case.",
+        "whyNecessary": "PM Review needs to distinguish authored cases, direct session-derived cases, and PM-reviewed cases without treating review workflow as lifecycle state.",
+        "productImpact": "Keeps evidence and creation path clear in Case Library and experiments.",
+        "validation": "Must be authored, session, or review.",
+        "commonMistakes": "Using provenance as a readiness or dataset label."
+      },
+      {
+        "path": "provenance.author",
+        "type": "string",
+        "required": false,
+        "meaning": "Optional author label for a hand-authored case.",
+        "whyNecessary": "Authored design and regression cases may need PM or developer attribution.",
+        "productImpact": "Improves accountability during case cleanup.",
+        "validation": "Optional string used only when provenance.type is authored.",
+        "commonMistakes": "Using author to encode tags or ownership workflow."
+      },
+      {
+        "path": "provenance.sessionId",
+        "type": "string",
+        "required": false,
+        "meaning": "Original AI Check session id when the case came from a real session or review.",
+        "whyNecessary": "Real-session cases must remain traceable to source behavior.",
+        "productImpact": "Allows Review and Case Library to link back to the observed decision context.",
+        "validation": "Required for session and review provenance.",
+        "commonMistakes": "Dropping session id when converting a bad case to eval."
+      },
+      {
+        "path": "provenance.decisionId",
+        "type": "string",
+        "required": false,
+        "meaning": "Original decision id for the selected decision point.",
+        "whyNecessary": "Turn-level evals need to identify the exact model decision that was reviewed.",
+        "productImpact": "Prevents whole-session confusion when a middle turn was wrong.",
+        "validation": "Required for session and review provenance.",
+        "commonMistakes": "Pointing to the final decision when the reviewed failure happened earlier."
+      },
+      {
+        "path": "provenance.reviewId",
+        "type": "string",
+        "required": false,
+        "meaning": "PM review record id when the case was created from a BadCaseReview.",
+        "whyNecessary": "The eval case should trace back to the reviewer judgment without making review a source enum.",
+        "productImpact": "Preserves review rationale and audit trail.",
+        "validation": "Required when provenance.type is review.",
+        "commonMistakes": "Using bad_case_review as a source value instead of a review provenance reference."
+      },
+      {
+        "path": "lineage.parentCaseId",
+        "type": "string",
+        "required": false,
+        "meaning": "Optional parent case id when this case was derived from another case.",
+        "whyNecessary": "Case cleanup may split or refine prior cases while preserving ancestry.",
+        "productImpact": "Helps PMs understand why similar cases exist.",
+        "validation": "Optional string.",
+        "commonMistakes": "Using lineage to duplicate session or review provenance."
+      },
+      {
+        "path": "lineage.supersedesCaseIds",
+        "type": "string[]",
+        "required": false,
+        "meaning": "Optional case ids that this case replaces.",
+        "whyNecessary": "Broader or cleaner cases can retire older cases without losing traceability.",
+        "productImpact": "Supports archive decisions and duplicate cleanup.",
+        "validation": "Optional array of case ids.",
+        "commonMistakes": "Hard-deleting replaced cases instead of archiving them."
+      },
+      {
+        "path": "lineage.splitFromCaseId",
+        "type": "string",
+        "required": false,
+        "meaning": "Optional source case id when this case was split out from a broader case.",
+        "whyNecessary": "PMs may split overloaded cases into focused decision-point tests.",
+        "productImpact": "Keeps case refactors understandable.",
+        "validation": "Optional string.",
+        "commonMistakes": "Using one broad case for unrelated failure modes."
+      },
+      {
+        "path": "lineage.mergedFromCaseIds",
+        "type": "string[]",
+        "required": false,
+        "meaning": "Optional case ids merged into this case.",
+        "whyNecessary": "Duplicate case cleanup should preserve ancestry.",
+        "productImpact": "Reduces suite noise while keeping traceability.",
+        "validation": "Optional array of case ids.",
+        "commonMistakes": "Archiving duplicates without recording the replacement."
       }
     ],
     "example": {
       "id": "under_ask_youtube_strict_001",
       "title": "Vague YouTube break should ask for a boundary",
-      "source": "authored_eval",
       "versions": {
         "promptVersion": "ai-check-prompt-v4",
         "outputSchemaVersion": "checkpoint-decision-v3",
-        "evaluationSchemaVersion": "ai-check-evaluation-v2"
+        "evaluationSchemaVersion": "ai-check-evaluation-v3"
       },
       "input": {
         "targetDisplay": "youtube.com",
@@ -921,7 +1035,11 @@ const GENERATED_SECTIONS = {
         ],
         "reviewerNote": "Model should ask for a bounded purpose before allowing."
       },
-      "status": "regression"
+      "status": "ready",
+      "datasetType": "regression",
+      "provenance": {
+        "type": "authored"
+      }
     }
   }
 } as const;

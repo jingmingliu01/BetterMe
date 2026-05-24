@@ -2,11 +2,10 @@
   {
     "id": "under_ask_missing_time_reddit_strict_001",
     "title": "Programming reason without time boundary should ask more",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -46,16 +45,19 @@
         "strict"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "under_ask_work_need_vague_balanced_001",
     "title": "Work need is too vague without task detail",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -95,16 +97,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "under_ask_research_missing_exit_balanced_001",
     "title": "Research reason needs an exit plan",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "twitter.com",
@@ -144,16 +149,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "under_ask_chinese_work_missing_time_001",
     "title": "Chinese work task without time should ask more",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "bilibili.com",
@@ -193,16 +201,19 @@
         "strict"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "under_ask_homework_missing_time_001",
     "title": "Homework task needs duration and exit",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -242,16 +253,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "under_ask_recipe_missing_time_001",
     "title": "Low-risk task still needs a time box",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -291,16 +305,19 @@
         "strict"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "unnecessary_ask_clear_tutorial_gentle_001",
     "title": "Clear tutorial plan should not be questioned again",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -334,16 +351,19 @@
         "gentle"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "unnecessary_ask_clear_answer_balanced_001",
     "title": "Clear answer lookup should be allowed",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "stackoverflow.com",
@@ -377,16 +397,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "unnecessary_ask_clear_chinese_balanced_001",
     "title": "Clear Chinese task should not be over-questioned",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "zhihu.com",
@@ -420,16 +443,19 @@
         "balanced"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "unnecessary_ask_appointment_strict_001",
     "title": "Clear important appointment task should not be questioned",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "facebook.com",
@@ -463,6 +489,10 @@
         "strict"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   }
 ]

@@ -1,8 +1,9 @@
-import { listPatternMemory } from "./pattern-memory";
 import { AI_CHECK_CURRENT_VERSIONS, AI_CHECK_SESSION_POLICY } from "../shared/ai-check-contract";
 import { createId, nowIso } from "../shared/id";
 import type {
   AICheckCase,
+  AICheckCaseInput,
+  AICheckCaseOutput,
   AICheckExpectedOutput,
   AICheckEvalResult,
   AICheckEvalRun,
@@ -44,10 +45,9 @@ export async function listReviewSessions(): Promise<AIPMReviewSession[]> {
       const sessionDecisions = decisions
         .filter((decision) => decision.sessionId === session.id)
         .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
-      const badCase =
-        badCases
-          .filter((item) => item.sourceSessionId === session.id)
-          .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null;
+      const sessionBadCases = badCases
+        .filter((item) => item.sourceSessionId === session.id)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
       return {
         session: {
           ...session,
@@ -55,7 +55,8 @@ export async function listReviewSessions(): Promise<AIPMReviewSession[]> {
         },
         messages: sessionMessages,
         decisions: sessionDecisions,
-        badCase
+        badCases: sessionBadCases,
+        badCase: sessionBadCases[0] ?? null
       };
     });
 }
@@ -86,14 +87,20 @@ export async function createBadCaseReview(input: {
     (input.decisionId ? sessionDecisions.find((item) => item.id === input.decisionId) : null) ??
     sessionDecisions.at(-1) ??
     null;
+  const snapshot = buildDecisionPointSnapshot(session, sessionMessages, sessionDecisions, decision);
   const now = nowIso();
   const review: BadCaseReview = {
     id: createId("badcase"),
     sourceSessionId: session.id,
     sourceDecisionId: decision?.id ?? null,
+    selectedAssistantMessageId: snapshot.selectedAssistantMessageId,
+    triggeringUserMessageId: snapshot.triggeringUserMessageId,
+    decisionOrdinal: snapshot.decisionOrdinal,
     targetDisplay: session.targetDisplay,
     strictness: session.strictness ?? getStrictnessFromEvents(session.id, behaviorEvents),
-    messages: sessionMessages,
+    messages: snapshot.messages,
+    inputSnapshot: snapshot.input,
+    output: decision ? buildCapturedOutput(session, decision) : undefined,
     actualDecision: decision?.decision ?? session.finalDecision ?? null,
     expectedDecision: input.expectedDecision ?? null,
     errorTypes: input.errorTypes,
@@ -139,36 +146,26 @@ export async function convertBadCaseToEvalCase(input: { badCaseId: string; title
   const evalCase: AICheckCase = {
     id: createId("eval"),
     title: input.title?.trim() || buildEvalTitle(badCase),
-    source: "bad_case_review",
+    datasetType: "regression",
+    provenance: {
+      type: "review",
+      reviewId: badCase.id,
+      sessionId: badCase.sourceSessionId,
+      ...(badCase.sourceDecisionId ? { decisionId: badCase.sourceDecisionId } : {})
+    },
     versions: {
       promptVersion: AI_CHECK_PROMPT_VERSION,
       outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
       evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION
     },
-    input: {
-      targetDisplay: badCase.targetDisplay,
-      strictness,
-      sessionContext: {
-        assistantTurnCount: Math.max(0, badCase.messages.filter((message) => message.role === "assistant").length - 1),
-        maxAssistantTurns: AI_CHECK_SESSION_POLICY.maxAssistantTurns,
-        isFinalTurn: false
-      },
-      messages: badCase.messages
-        .filter((message) => message.role !== "system")
-        .map((message) => ({
-          role: message.role,
-          content: message.content,
-          source: message.source
-        })),
-      patternMemorySnapshot: (await listPatternMemory(badCase.targetDisplay)).map((memory) => ({
-        targetDisplay: memory.targetDisplay,
-        behaviorReasonCategory: memory.behaviorReasonCategory,
-        repeatedCount: memory.repeatedCount,
-        lastUserReason: memory.lastUserReason,
-        guidance: memory.guidance,
-        updatedAt: memory.updatedAt
-      }))
-    },
+    input:
+      badCase.inputSnapshot ??
+      buildFallbackCaseInput({
+        targetDisplay: badCase.targetDisplay,
+        strictness,
+        messages: badCase.messages
+      }),
+    output: badCase.output,
     eval: {
       expectedOutput: {
         decision: badCase.expectedDecision
@@ -205,7 +202,10 @@ export async function createEvalCase(input: CreateEvalCaseInput): Promise<AIChec
   const evalCase = normalizeStoredEvalCase({
     id: createId("eval"),
     title: input.title.trim() || "Untitled evaluation case",
-    source: input.source ?? "authored_eval",
+    datasetType: input.datasetType ?? "design",
+    provenance: {
+      type: "authored"
+    },
     versions: {
       promptVersion: AI_CHECK_PROMPT_VERSION,
       outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
@@ -236,6 +236,7 @@ export async function createEvalCase(input: CreateEvalCaseInput): Promise<AIChec
       tags: cleanList(input.tags),
       reviewerNote: input.reviewerNote?.trim() || undefined
     },
+    severity: input.severity,
     status: input.status ?? "draft",
     createdAt: now,
     updatedAt: now
@@ -271,6 +272,8 @@ export async function updateEvalCase(input: UpdateEvalCaseInput): Promise<AIChec
   const next: AICheckCase = normalizeStoredEvalCase({
     ...current,
     title: input.title !== undefined ? input.title.trim() || current.title : current.title,
+    datasetType: input.datasetType ?? current.datasetType,
+    severity: input.severity ?? current.severity,
     status: input.status ?? current.status,
     input: {
       ...current.input,
@@ -328,6 +331,106 @@ export async function saveEvalRun(run: AICheckEvalRun): Promise<void> {
 
 export async function saveEvalResult(result: AICheckEvalResult): Promise<void> {
   await putRecord("evalResults", result);
+}
+
+function buildDecisionPointSnapshot(
+  session: AICheckSession,
+  messages: AICheckMessage[],
+  decisions: CheckpointDecision[],
+  decision: CheckpointDecision | null
+): {
+  decisionOrdinal?: number;
+  selectedAssistantMessageId?: string | null;
+  triggeringUserMessageId?: string | null;
+  messages: AICheckMessage[];
+  input: AICheckCaseInput;
+} {
+  const sortedMessages = [...messages].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const sortedDecisions = [...decisions].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const decisionOrdinal = decision ? sortedDecisions.findIndex((item) => item.id === decision.id) + 1 : undefined;
+  const llmAssistantMessages = sortedMessages.filter((message) => message.role === "assistant" && message.source === "llm");
+  const selectedAssistant =
+    decisionOrdinal && decisionOrdinal > 0 ? llmAssistantMessages[decisionOrdinal - 1] ?? null : null;
+  const visibleMessages = selectedAssistant
+    ? sortedMessages.filter((message) => message.createdAt < selectedAssistant.createdAt)
+    : sortedMessages;
+  const triggeringUser = [...visibleMessages].reverse().find((message) => message.role === "user") ?? null;
+  const assistantTurnCount = Math.max(0, (decisionOrdinal ?? session.assistantTurnCount) - 1);
+  const maxAssistantTurns = session.roundSnapshot?.maxAssistantTurns ?? session.maxAssistantTurns;
+  const input: AICheckCaseInput = {
+    targetDisplay: session.targetDisplay,
+    strictness: session.roundSnapshot?.strictness ?? session.strictness ?? "balanced",
+    sessionContext: {
+      assistantTurnCount,
+      maxAssistantTurns,
+      isFinalTurn: assistantTurnCount + 1 >= maxAssistantTurns
+    },
+    messages: visibleMessages
+      .filter((message) => message.role !== "system")
+      .map((message) => ({
+        role: message.role,
+        content: message.content,
+        source: message.source
+      })),
+    patternMemorySnapshot: (session.roundSnapshot?.patternMemorySnapshot ?? []).map((memory) => ({
+      id: memory.id,
+      targetDisplay: memory.targetDisplay,
+      behaviorReasonCategory: memory.behaviorReasonCategory,
+      repeatedCount: memory.repeatedCount,
+      lastUserReason: memory.lastUserReason,
+      guidance: memory.guidance,
+      updatedAt: memory.updatedAt
+    }))
+  };
+  return {
+    decisionOrdinal,
+    selectedAssistantMessageId: selectedAssistant?.id ?? null,
+    triggeringUserMessageId: triggeringUser?.id ?? null,
+    messages: visibleMessages,
+    input
+  };
+}
+
+function buildCapturedOutput(session: AICheckSession, decision: CheckpointDecision): AICheckCaseOutput {
+  return {
+    provider: session.roundSnapshot?.provider?.id,
+    model: session.roundSnapshot?.provider?.model,
+    rawProvider: decision.rawProvider,
+    parsed: {
+      decision: decision.decision,
+      userFacingMessage: decision.userFacingMessage,
+      decisionReasonCategory: decision.decisionReasonCategory,
+      unlockMinutes: decision.unlockMinutes,
+      aiCooldownSeconds: decision.aiCooldownSeconds,
+      ...(decision.aiCooldownNormalization ? { aiCooldownNormalization: decision.aiCooldownNormalization } : {}),
+      scores: decision.scores,
+      memoryUpdate: decision.memoryUpdate
+    }
+  };
+}
+
+function buildFallbackCaseInput(input: {
+  targetDisplay: string;
+  strictness: StrictnessLevel;
+  messages: AICheckMessage[];
+}): AICheckCaseInput {
+  return {
+    targetDisplay: input.targetDisplay,
+    strictness: input.strictness,
+    sessionContext: {
+      assistantTurnCount: Math.max(0, input.messages.filter((message) => message.role === "assistant").length - 1),
+      maxAssistantTurns: AI_CHECK_SESSION_POLICY.maxAssistantTurns,
+      isFinalTurn: false
+    },
+    messages: input.messages
+      .filter((message) => message.role !== "system")
+      .map((message) => ({
+        role: message.role,
+        content: message.content,
+        source: message.source
+      })),
+    patternMemorySnapshot: []
+  };
 }
 
 function getStrictnessFromEvents(sessionId: string, events: BehaviorEvent[]): StrictnessLevel | null {

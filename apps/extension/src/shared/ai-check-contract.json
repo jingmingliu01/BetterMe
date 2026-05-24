@@ -2,11 +2,11 @@
   "id": "ai-check-contract",
   "outputSchemaVersion": "checkpoint-decision-v3",
   "promptVersion": "ai-check-prompt-v4",
-  "evaluationSchemaVersion": "ai-check-evaluation-v2",
+  "evaluationSchemaVersion": "ai-check-evaluation-v3",
   "current": {
     "promptVersion": "ai-check-prompt-v4",
     "outputSchemaVersion": "checkpoint-decision-v3",
-    "evaluationSchemaVersion": "ai-check-evaluation-v2"
+    "evaluationSchemaVersion": "ai-check-evaluation-v3"
   },
   "versionRegistry": {
     "prompts": [
@@ -27,6 +27,11 @@
       {
         "version": "ai-check-evaluation-v2",
         "label": "AI Check Evaluation v2",
+        "current": false
+      },
+      {
+        "version": "ai-check-evaluation-v3",
+        "label": "AI Check Evaluation v3",
         "current": true
       }
     ]
@@ -67,13 +72,7 @@
     "caseStatuses": [
       "draft",
       "ready",
-      "regression",
       "archived"
-    ],
-    "caseSources": [
-      "authored_eval",
-      "real_session",
-      "bad_case_review"
     ],
     "badCaseErrorTypes": [
       "over_allow",
@@ -86,6 +85,22 @@
       "unsafe_sensitive_advice",
       "bad_tone",
       "schema_or_format_failure"
+    ],
+    "datasetTypes": [
+      "design",
+      "regression",
+      "holdout"
+    ],
+    "provenanceTypes": [
+      "authored",
+      "session",
+      "review"
+    ],
+    "severityLevels": [
+      "low",
+      "medium",
+      "high",
+      "critical"
     ]
   },
   "pmReview": {
@@ -148,24 +163,31 @@
       "video",
       "nsfw",
       "zh",
-      "strictness"
+      "strictness",
+      "final_turn",
+      "repeated_pattern",
+      "cooldown_duration",
+      "unlock_cap",
+      "ask_more_threshold"
     ],
     "caseSets": [
       {
         "id": "active",
         "name": "All Active Cases",
-        "description": "Draft, ready, and regression cases that are not archived.",
+        "description": "Draft and ready cases that are not archived.",
         "statuses": [
           "draft",
-          "ready",
-          "regression"
+          "ready"
         ]
       },
       {
         "id": "regression",
-        "name": "Regression Suite",
-        "description": "Release-gating cases.",
+        "name": "Regression Dataset",
+        "description": "Release-gating ready cases.",
         "statuses": [
+          "ready"
+        ],
+        "datasetTypes": [
           "regression"
         ]
       },
@@ -183,8 +205,7 @@
         "description": "NSFW and unsafe-sensitive cases.",
         "statuses": [
           "draft",
-          "ready",
-          "regression"
+          "ready"
         ],
         "tags": [
           "nsfw",
@@ -197,8 +218,7 @@
         "description": "Cases focused on strictness behavior.",
         "statuses": [
           "draft",
-          "ready",
-          "regression"
+          "ready"
         ],
         "tags": [
           "strictness",
@@ -354,13 +374,6 @@
           "validation": "Must be non-empty.",
           "commonMistakes": "Using a title that only describes the domain but not the expected behavior."
         },
-        "source": {
-          "meaning": "Where the case came from.",
-          "whyNecessary": "PM Review needs to distinguish hand-authored fixtures from converted history cases.",
-          "productImpact": "Helps prioritize cleanup and understand evidence quality.",
-          "validation": "Must be one of the known case source values.",
-          "commonMistakes": "Treating converted bad cases as authored evals before PM cleanup."
-        },
         "versions.promptVersion": {
           "meaning": "Prompt version this case targets.",
           "whyNecessary": "Eval runs need to know whether a case belongs to the current prompt contract or a legacy run.",
@@ -468,10 +481,10 @@
         },
         "status": {
           "meaning": "PM Review lifecycle status for the case.",
-          "whyNecessary": "Default eval runs and PM queues need to know whether a case is active, release-gating, or archived.",
-          "productImpact": "Controls which cases appear in active, draft, regression, and archive views.",
-          "validation": "Must be one of the known case statuses.",
-          "commonMistakes": "Using regression for unfinished cases or hard-deleting stale cases instead of archiving."
+          "whyNecessary": "PM queues need to know whether a case is still being edited, ready to run, or archived.",
+          "productImpact": "Controls active, draft, and archive views without encoding dataset purpose.",
+          "validation": "Must be draft, ready, or archived.",
+          "commonMistakes": "Using status to represent regression or holdout membership instead of datasetType."
         },
         "archivedAt": {
           "meaning": "Archive timestamp when the case has been retired.",
@@ -486,6 +499,76 @@
           "productImpact": "Reduces duplicate case re-creation and preserves decision context.",
           "validation": "Optional free text.",
           "commonMistakes": "Archiving without explaining what replaced or invalidated the case."
+        },
+        "datasetType": {
+          "meaning": "How this case is used in prompt-engineering experiments.",
+          "whyNecessary": "Evaluation needs to separate design coverage, release-gating regressions, and holdout checks from lifecycle status.",
+          "productImpact": "Drives Case Library grouping, experiment filters, and release-gate selection.",
+          "validation": "Must be design, regression, or holdout.",
+          "commonMistakes": "Using lifecycle status such as ready or archived to mean release-gating purpose."
+        },
+        "provenance.type": {
+          "meaning": "The origin category for this evaluation case.",
+          "whyNecessary": "PM Review needs to distinguish authored cases, direct session-derived cases, and PM-reviewed cases without treating review workflow as lifecycle state.",
+          "productImpact": "Keeps evidence and creation path clear in Case Library and experiments.",
+          "validation": "Must be authored, session, or review.",
+          "commonMistakes": "Using provenance as a readiness or dataset label."
+        },
+        "provenance.author": {
+          "meaning": "Optional author label for a hand-authored case.",
+          "whyNecessary": "Authored design and regression cases may need PM or developer attribution.",
+          "productImpact": "Improves accountability during case cleanup.",
+          "validation": "Optional string used only when provenance.type is authored.",
+          "commonMistakes": "Using author to encode tags or ownership workflow."
+        },
+        "provenance.sessionId": {
+          "meaning": "Original AI Check session id when the case came from a real session or review.",
+          "whyNecessary": "Real-session cases must remain traceable to source behavior.",
+          "productImpact": "Allows Review and Case Library to link back to the observed decision context.",
+          "validation": "Required for session and review provenance.",
+          "commonMistakes": "Dropping session id when converting a bad case to eval."
+        },
+        "provenance.decisionId": {
+          "meaning": "Original decision id for the selected decision point.",
+          "whyNecessary": "Turn-level evals need to identify the exact model decision that was reviewed.",
+          "productImpact": "Prevents whole-session confusion when a middle turn was wrong.",
+          "validation": "Required for session and review provenance.",
+          "commonMistakes": "Pointing to the final decision when the reviewed failure happened earlier."
+        },
+        "provenance.reviewId": {
+          "meaning": "PM review record id when the case was created from a BadCaseReview.",
+          "whyNecessary": "The eval case should trace back to the reviewer judgment without making review a source enum.",
+          "productImpact": "Preserves review rationale and audit trail.",
+          "validation": "Required when provenance.type is review.",
+          "commonMistakes": "Using bad_case_review as a source value instead of a review provenance reference."
+        },
+        "lineage.parentCaseId": {
+          "meaning": "Optional parent case id when this case was derived from another case.",
+          "whyNecessary": "Case cleanup may split or refine prior cases while preserving ancestry.",
+          "productImpact": "Helps PMs understand why similar cases exist.",
+          "validation": "Optional string.",
+          "commonMistakes": "Using lineage to duplicate session or review provenance."
+        },
+        "lineage.supersedesCaseIds": {
+          "meaning": "Optional case ids that this case replaces.",
+          "whyNecessary": "Broader or cleaner cases can retire older cases without losing traceability.",
+          "productImpact": "Supports archive decisions and duplicate cleanup.",
+          "validation": "Optional array of case ids.",
+          "commonMistakes": "Hard-deleting replaced cases instead of archiving them."
+        },
+        "lineage.splitFromCaseId": {
+          "meaning": "Optional source case id when this case was split out from a broader case.",
+          "whyNecessary": "PMs may split overloaded cases into focused decision-point tests.",
+          "productImpact": "Keeps case refactors understandable.",
+          "validation": "Optional string.",
+          "commonMistakes": "Using one broad case for unrelated failure modes."
+        },
+        "lineage.mergedFromCaseIds": {
+          "meaning": "Optional case ids merged into this case.",
+          "whyNecessary": "Duplicate case cleanup should preserve ancestry.",
+          "productImpact": "Reduces suite noise while keeping traceability.",
+          "validation": "Optional array of case ids.",
+          "commonMistakes": "Archiving duplicates without recording the replacement."
         }
       }
     }
@@ -532,11 +615,10 @@
     "evaluation": {
       "id": "under_ask_youtube_strict_001",
       "title": "Vague YouTube break should ask for a boundary",
-      "source": "authored_eval",
       "versions": {
         "promptVersion": "ai-check-prompt-v4",
         "outputSchemaVersion": "checkpoint-decision-v3",
-        "evaluationSchemaVersion": "ai-check-evaluation-v2"
+        "evaluationSchemaVersion": "ai-check-evaluation-v3"
       },
       "input": {
         "targetDisplay": "youtube.com",
@@ -584,7 +666,11 @@
         ],
         "reviewerNote": "Model should ask for a bounded purpose before allowing."
       },
-      "status": "regression"
+      "status": "ready",
+      "datasetType": "regression",
+      "provenance": {
+        "type": "authored"
+      }
     }
   },
   "schemas": {
@@ -784,11 +870,6 @@
         },
         "title": {
           "type": "string",
-          "required": true
-        },
-        "source": {
-          "type": "enum",
-          "enum": "caseSources",
           "required": true
         },
         "versions": {
@@ -993,6 +1074,68 @@
         "updatedAt": {
           "type": "string",
           "required": false
+        },
+        "datasetType": {
+          "type": "enum",
+          "enum": "datasetTypes",
+          "required": true
+        },
+        "provenance": {
+          "type": "object",
+          "required": true,
+          "fields": {
+            "type": {
+              "type": "enum",
+              "enum": "provenanceTypes",
+              "required": true
+            },
+            "author": {
+              "type": "string",
+              "required": false
+            },
+            "sessionId": {
+              "type": "string",
+              "required": false
+            },
+            "decisionId": {
+              "type": "string",
+              "required": false
+            },
+            "reviewId": {
+              "type": "string",
+              "required": false
+            }
+          }
+        },
+        "lineage": {
+          "type": "object",
+          "required": false,
+          "fields": {
+            "parentCaseId": {
+              "type": "string",
+              "required": false
+            },
+            "supersedesCaseIds": {
+              "type": "array",
+              "required": false,
+              "item": {
+                "type": "string",
+                "required": true
+              }
+            },
+            "splitFromCaseId": {
+              "type": "string",
+              "required": false
+            },
+            "mergedFromCaseIds": {
+              "type": "array",
+              "required": false,
+              "item": {
+                "type": "string",
+                "required": true
+              }
+            }
+          }
         }
       }
     }

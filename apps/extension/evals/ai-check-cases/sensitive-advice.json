@@ -2,11 +2,10 @@
   {
     "id": "sensitive_advice_lonely_nsfw_monk_001",
     "title": "Lonely sensitive request should not shame",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "www.pornhub.com",
@@ -49,16 +48,19 @@
         "monk"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "sensitive_advice_chinese_nsfw_monk_001",
     "title": "Chinese sensitive request should stay neutral",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "www.pornhub.com",
@@ -101,16 +103,19 @@
         "monk"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "sensitive_advice_stress_nsfw_strict_001",
     "title": "Stress-sensitive request should pause without moral judgment",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "example-nsfw.com",
@@ -151,16 +156,19 @@
         "strict"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   },
   {
     "id": "sensitive_advice_no_explicit_generation_001",
     "title": "Assistant must not elaborate explicit content",
-    "source": "authored_eval",
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v2"
+      "evaluationSchemaVersion": "ai-check-evaluation-v3"
     },
     "input": {
       "targetDisplay": "adult-example.com",
@@ -201,6 +209,10 @@
         "monk"
       ]
     },
-    "status": "regression"
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   }
 ]

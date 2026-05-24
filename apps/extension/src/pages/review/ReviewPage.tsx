@@ -16,10 +16,10 @@ import {
   AI_CHECK_CONTRACT,
   AI_CHECK_BAD_CASE_ERROR_TYPES,
   AI_CHECK_CASE_SETS,
-  AI_CHECK_CASE_SOURCES,
   AI_CHECK_CASE_STATUSES,
   AI_CHECK_COMMON_TAGS,
   AI_CHECK_CURRENT_VERSIONS,
+  AI_CHECK_DATASET_TYPES,
   AI_CHECK_DECISIONS,
   AI_CHECK_EVALUATION_SCHEMA_VERSIONS,
   AI_CHECK_OUTPUT_SCHEMA_VERSIONS,
@@ -56,7 +56,7 @@ type SchemaManualTab = "messages" | "output" | "evaluation";
 
 interface EvalFormState {
   title: string;
-  source: AICheckCase["source"];
+  datasetType: AICheckCase["datasetType"];
   status: AICheckCaseStatus;
   targetDisplay: string;
   strictness: StrictnessLevel;
@@ -107,6 +107,7 @@ const ERROR_TYPES: Array<{ value: BadCaseErrorType; label: string }> = [
 const COMMON_TAGS = AI_CHECK_COMMON_TAGS;
 
 const EVAL_STATUSES = AI_CHECK_CASE_STATUSES;
+const DATASET_TYPES = AI_CHECK_DATASET_TYPES;
 const CASE_SETS = AI_CHECK_CASE_SETS;
 
 export function ReviewPage() {
@@ -126,6 +127,7 @@ export function ReviewPage() {
   } = useAsyncState(loadEvalCases);
   const [area, setArea] = useState<ReviewArea>("history");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
   const [expectedDecision, setExpectedDecision] = useState<AIDecision | "">("");
   const [errorTypes, setErrorTypes] = useState<BadCaseErrorType[]>([]);
   const [reviewerNote, setReviewerNote] = useState("");
@@ -145,6 +147,11 @@ export function ReviewPage() {
     [selectedSessionId, sessions]
   );
   const latestDecision = selectedSession?.decisions.at(-1) ?? null;
+  const selectedDecision =
+    selectedSession?.decisions.find((decision) => decision.id === selectedDecisionId) ?? latestDecision;
+  const selectedBadCase =
+    selectedSession?.badCases?.find((badCase) => badCase.sourceDecisionId === selectedDecision?.id) ??
+    (selectedSession?.badCase?.sourceDecisionId === selectedDecision?.id ? selectedSession.badCase : null);
 
   const availableTags = useMemo(() => {
     const tags = new Set(COMMON_TAGS);
@@ -188,10 +195,14 @@ export function ReviewPage() {
   useEffect(() => {
     if (!selectedSession) return;
     setSelectedSessionId(selectedSession.session.id);
-    setExpectedDecision(selectedSession.badCase?.expectedDecision ?? "");
-    setErrorTypes(selectedSession.badCase?.errorTypes ?? []);
-    setReviewerNote(selectedSession.badCase?.reviewerNote ?? "");
-  }, [selectedSession?.session.id]);
+    setSelectedDecisionId(selectedSession.badCase?.sourceDecisionId ?? selectedSession.decisions.at(-1)?.id ?? null);
+  }, [selectedSession?.session.id, selectedSession?.badCase?.sourceDecisionId]);
+
+  useEffect(() => {
+    setExpectedDecision(selectedBadCase?.expectedDecision ?? "");
+    setErrorTypes(selectedBadCase?.errorTypes ?? []);
+    setReviewerNote(selectedBadCase?.reviewerNote ?? "");
+  }, [selectedBadCase?.id, selectedDecision?.id]);
 
   useEffect(() => {
     if (creatingEvalCase) {
@@ -216,11 +227,11 @@ export function ReviewPage() {
         errorTypes,
         reviewerNote
       };
-      const badCase = selectedSession.badCase
+      const badCase = selectedBadCase
         ? await sendMessage<BadCaseReview>({
             type: "review/updateBadCase",
             payload: {
-              id: selectedSession.badCase.id,
+              id: selectedBadCase.id,
               ...payload
             }
           })
@@ -228,7 +239,7 @@ export function ReviewPage() {
             type: "review/createBadCase",
             payload: {
               sessionId: selectedSession.session.id,
-              decisionId: latestDecision?.id ?? null,
+              decisionId: selectedDecision?.id ?? null,
               ...payload
             }
           });
@@ -242,13 +253,13 @@ export function ReviewPage() {
   }
 
   async function convertToEvalCase() {
-    if (!selectedSession?.badCase) return;
+    if (!selectedBadCase) return;
     setSaving(true);
     setStatus(null);
     try {
       const evalCase = await sendMessage<AICheckCase>({
         type: "review/convertBadCaseToEval",
-        payload: { badCaseId: selectedSession.badCase.id }
+        payload: { badCaseId: selectedBadCase.id }
       });
       setStatus(`Created eval case ${evalCase.id}.`);
       setArea("eval");
@@ -276,16 +287,14 @@ export function ReviewPage() {
         expectedDecision: evalForm.expectedDecision,
         tags: splitList(evalForm.tags),
         reviewerNote: evalForm.reviewerNote,
+        datasetType: evalForm.datasetType,
         userFacingMustMention: splitList(evalForm.userFacingMustMention),
         userFacingMustNotMention: splitList(evalForm.userFacingMustNotMention)
       };
       const saved = creatingEvalCase
         ? await sendMessage<AICheckCase>({
             type: "review/createEvalCase",
-            payload: {
-              ...base,
-              source: evalForm.source
-            } satisfies CreateEvalCaseInput
+            payload: base satisfies CreateEvalCaseInput
           })
         : await sendMessage<AICheckCase>({
             type: "review/updateEvalCase",
@@ -297,7 +306,7 @@ export function ReviewPage() {
       setStatus(`Saved eval case ${saved.id}.`);
       setCreatingEvalCase(false);
       setSelectedEvalCaseId(saved.id);
-      setSelectedSetId(saved.status === "regression" ? "regression" : saved.status === "draft" ? "draft" : "active");
+      setSelectedSetId(saved.datasetType === "regression" ? "regression" : saved.status === "draft" ? "draft" : "active");
       await refreshEvalCases();
     } catch (saveError) {
       setStatus(saveError instanceof Error ? saveError.message : "Could not save eval case.");
@@ -346,7 +355,9 @@ export function ReviewPage() {
         <HistoryCases
           errorTypes={errorTypes}
           expectedDecision={expectedDecision}
-          latestDecision={latestDecision?.decision ?? selectedSession?.session.finalDecision ?? null}
+          selectedBadCase={selectedBadCase}
+          selectedDecisionId={selectedDecision?.id ?? null}
+          setSelectedDecisionId={setSelectedDecisionId}
           reviewerNote={reviewerNote}
           saving={saving}
           selected={selectedSession}
@@ -455,7 +466,8 @@ export function ReviewPage() {
                     </div>
                     <span>{evalCase.input.targetDisplay}</span>
                     <small>
-                      {formatDecision(getPrimaryExpectedDecision(evalCase.eval?.expectedOutput.decision))} · {evalCase.input.strictness}
+                      {formatDecision(getPrimaryExpectedDecision(evalCase.eval?.expectedOutput.decision))} · {evalCase.input.strictness} ·{" "}
+                      {formatTag(evalCase.datasetType)}
                     </small>
                     <TagList tags={evalCase.eval?.tags ?? []} />
                   </button>
@@ -488,14 +500,16 @@ export function ReviewPage() {
 function HistoryCases({
   errorTypes,
   expectedDecision,
-  latestDecision,
   reviewerNote,
   saving,
   selected,
+  selectedBadCase,
+  selectedDecisionId,
   sessionsLoading,
   sessions,
   setErrorTypes,
   setExpectedDecision,
+  setSelectedDecisionId,
   setReviewerNote,
   setSelectedSessionId,
   onConvert,
@@ -504,20 +518,25 @@ function HistoryCases({
 }: {
   errorTypes: BadCaseErrorType[];
   expectedDecision: AIDecision | "";
-  latestDecision: AIDecision | null;
   reviewerNote: string;
   saving: boolean;
   selected: AIPMReviewSession | null;
+  selectedBadCase: BadCaseReview | null;
+  selectedDecisionId: string | null;
   sessionsLoading: boolean;
   sessions: AIPMReviewSession[];
   setErrorTypes: (value: BadCaseErrorType[] | ((current: BadCaseErrorType[]) => BadCaseErrorType[])) => void;
   setExpectedDecision: (value: AIDecision | "") => void;
+  setSelectedDecisionId: (value: string) => void;
   setReviewerNote: (value: string) => void;
   setSelectedSessionId: (value: string) => void;
   onConvert: () => void;
   onRefresh: () => void;
   onSave: () => void;
 }) {
+  const selectedDecision =
+    selected?.decisions.find((decision) => decision.id === selectedDecisionId) ?? selected?.decisions.at(-1) ?? null;
+
   return (
     <section className="review-layout">
       <aside className="panel review-session-list stack">
@@ -570,10 +589,27 @@ function HistoryCases({
               </div>
               <div className="status-list review-status-list">
                 <StatusItem label="Strictness" value={selected.session.strictness ?? "unknown"} />
-                <StatusItem label="Actual" value={formatDecision(latestDecision)} />
+                <StatusItem label="Actual" value={formatDecision(selectedDecision?.decision ?? null)} />
                 <StatusItem label="Turns" value={`${selected.session.assistantTurnCount}/${selected.session.maxAssistantTurns}`} />
               </div>
             </div>
+
+            {selected.decisions.length > 0 && (
+              <div className="stack compact-stack">
+                <span className="section-label">Decision points</span>
+                <div className="row wrap-row">
+                  {selected.decisions.map((decision, index) => (
+                    <button
+                      className={decision.id === selectedDecision?.id ? "btn btn-primary" : "btn"}
+                      key={decision.id}
+                      onClick={() => setSelectedDecisionId(decision.id)}
+                    >
+                      Turn {index + 1}: {formatDecision(decision.decision)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="review-transcript" aria-label="AI Check transcript">
               {selected.messages.map((message) => (
@@ -583,17 +619,25 @@ function HistoryCases({
               ))}
             </div>
 
-            {selected.decisions.at(-1) && (
-              <details className="review-json">
-                <summary>Decision JSON</summary>
-                <pre className="code">{JSON.stringify(selected.decisions.at(-1), null, 2)}</pre>
-              </details>
+            {selectedDecision && (
+              <>
+                {selectedDecision.rawProvider && (
+                  <details className="review-json">
+                    <summary>Model Output JSON</summary>
+                    <pre className="code">{formatProviderJson(selectedDecision.rawProvider)}</pre>
+                  </details>
+                )}
+                <details className="review-json">
+                  <summary>Stored Decision Record</summary>
+                  <pre className="code">{JSON.stringify(selectedDecision, null, 2)}</pre>
+                </details>
+              </>
             )}
 
             <div className="review-form stack">
               <div className="section-heading">
                 <span className="section-label">PM judgment</span>
-                <h2>{selected.badCase ? "Update bad case" : "Mark as bad case"}</h2>
+                <h2>{selectedBadCase ? "Update bad case" : "Mark as bad case"}</h2>
               </div>
               <label className="stack">
                 <span>Expected decision</span>
@@ -645,11 +689,11 @@ function HistoryCases({
                 </button>
                 <button
                   className="btn"
-                  disabled={saving || !selected.badCase || Boolean(selected.badCase.convertedEvalCaseId)}
+                  disabled={saving || !selectedBadCase || Boolean(selectedBadCase.convertedEvalCaseId)}
                   onClick={onConvert}
                 >
-                  {selected.badCase?.convertedEvalCaseId ? <CheckCircle2 size={16} /> : <FlaskConical size={16} />}
-                  {selected.badCase?.convertedEvalCaseId ? "Eval Case Created" : "Convert to Eval Case"}
+                  {selectedBadCase?.convertedEvalCaseId ? <CheckCircle2 size={16} /> : <FlaskConical size={16} />}
+                  {selectedBadCase?.convertedEvalCaseId ? "Eval Case Created" : "Convert to Eval Case"}
                 </button>
               </div>
             </div>
@@ -730,16 +774,17 @@ function EvalCaseDetail({
           </select>
         </label>
         <label className="stack compact-stack">
-          <span>Source</span>
+          <span>Dataset</span>
           <select
             className="select"
-            value={form.source}
-            disabled={!creating}
-            onChange={(event) => setForm((current) => ({ ...current, source: event.target.value as AICheckCase["source"] }))}
+            value={form.datasetType}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, datasetType: event.target.value as AICheckCase["datasetType"] }))
+            }
           >
-            {AI_CHECK_CASE_SOURCES.map((source) => (
-              <option key={source} value={source}>
-                {formatTag(source)}
+            {DATASET_TYPES.map((datasetType) => (
+              <option key={datasetType} value={datasetType}>
+                {formatTag(datasetType)}
               </option>
             ))}
           </select>
@@ -1045,8 +1090,8 @@ function SchemaSectionReference({
               value="A saved eval fixture: model input, optional captured output, and expected-output checks."
             />
             <StatusItem
-              label="Regression Case"
-              value="An Evaluation Case promoted to the regression suite when status is regression and it is not archived."
+              label="Regression Dataset"
+              value="Ready Evaluation Cases with datasetType = regression are used for release-gating checks."
             />
           </div>
         )}
@@ -1096,7 +1141,7 @@ function EvaluationDefinition() {
     <div className="input-composition">
       <strong>Evaluation relationship</strong>
       <p className="muted">
-        Evaluation Case stores one replayable model test. Regression Case is the subset promoted into the regression suite.
+        Evaluation Case stores one replayable model test. Dataset type controls whether it is design, regression, or holdout.
       </p>
     </div>
   );
@@ -1766,7 +1811,7 @@ function TagList({ tags }: { tags: string[] }) {
 function emptyEvalForm(): EvalFormState {
   return {
     title: "",
-    source: "authored_eval",
+    datasetType: "design",
     status: "draft",
     targetDisplay: "",
     strictness: "balanced",
@@ -1784,7 +1829,7 @@ function formFromEvalCase(evalCase: AICheckCase): EvalFormState {
   const firstUserMessage = evalCase.input.messages.find((message) => message.role === "user")?.content ?? "";
   return {
     title: evalCase.title,
-    source: evalCase.source,
+    datasetType: evalCase.datasetType,
     status: evalCase.status,
     targetDisplay: evalCase.input.targetDisplay,
     strictness: evalCase.input.strictness,
@@ -1815,6 +1860,7 @@ function getPrimaryExpectedDecision(expectation: AICheckDecisionExpectation | un
 function caseMatchesSet(evalCase: AICheckCase, caseSet: (typeof CASE_SETS)[number]): boolean {
   if (!caseSet.includeArchived && evalCase.status === "archived") return false;
   if (!caseSet.statuses.includes(evalCase.status)) return false;
+  if (caseSet.datasetTypes?.length && !caseSet.datasetTypes.includes(evalCase.datasetType)) return false;
   if (caseSet.tags?.length) {
     const tags = new Set(evalCase.eval?.tags ?? []);
     return caseSet.tags.some((tag) => tags.has(tag));
@@ -1837,6 +1883,14 @@ function formatStatus(status: AICheckCaseStatus): string {
 
 function formatTag(tag: string): string {
   return tag.replaceAll("_", " ");
+}
+
+function formatProviderJson(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
 }
 
 function formatDate(value: string): string {

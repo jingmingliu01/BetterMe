@@ -155,7 +155,7 @@ Dataset type answers: how should this case be used in prompt engineering?
 - `regression`: prior failures and release-gating cases that must not regress.
 - `holdout`: hidden or limited-visibility cases used for final generalization checks.
 
-Current `status = "regression"` can be replaced by `datasetType = "regression"` when implementation begins. Because legacy data is not a constraint, this can be a direct model cleanup instead of a compatibility migration.
+Implementation has started with `status = "regression"` replaced by `datasetType = "regression"` in the evaluation schema and built-in fixtures. Because legacy data is not a constraint, this remains a direct model cleanup instead of a compatibility migration.
 
 ### Provenance and Lineage
 
@@ -486,4 +486,3 @@ Specific regression tests:
 - converted case must preserve actual output.
 - final-turn case must not allow `ASK_MORE`.
 - `AI_COOLDOWN` is treated as terminal in release-gating eval semantics.
-

@@ -501,12 +501,16 @@ async function loadRuntimeModules() {
 
 function filterCases(cases, args) {
   const requestedStatuses = splitArg(args.status ?? args.statuses);
+  const requestedDatasets = splitArg(args.dataset ?? args.datasets);
   const requestedTags = splitArg(args.tag ?? args.tags);
   return cases.filter((testCase) => {
     if (!args["include-archived"] && testCase.status === "archived") {
       return false;
     }
     if (requestedStatuses.length > 0 && !requestedStatuses.includes(testCase.status)) {
+      return false;
+    }
+    if (requestedDatasets.length > 0 && !requestedDatasets.includes(testCase.datasetType)) {
       return false;
     }
     if (requestedTags.length > 0) {
@@ -531,9 +535,11 @@ function splitArg(value) {
 function describeCaseFilter(args) {
   const parts = [];
   const statuses = splitArg(args.status ?? args.statuses);
+  const datasets = splitArg(args.dataset ?? args.datasets);
   const tags = splitArg(args.tag ?? args.tags);
   parts.push(args["include-archived"] ? "including archived" : "active only");
   if (statuses.length > 0) parts.push(`status=${statuses.join(",")}`);
+  if (datasets.length > 0) parts.push(`dataset=${datasets.join(",")}`);
   if (tags.length > 0) parts.push(`tag=${tags.join(",")}`);
   return parts.join("; ");
 }
