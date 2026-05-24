@@ -279,6 +279,7 @@ export interface BadCaseReview {
   id: string;
   sourceSessionId: string;
   sourceDecisionId: string | null;
+  snapshotSource?: "persisted" | "derived";
   selectedAssistantMessageId?: string | null;
   triggeringUserMessageId?: string | null;
   decisionOrdinal?: number;
@@ -319,6 +320,7 @@ export interface AIPMReviewSession {
   session: AICheckSession;
   messages: AICheckMessage[];
   decisions: CheckpointDecision[];
+  decisionPointSources?: Record<string, "persisted" | "derived">;
   badCases?: BadCaseReview[];
   badCase: BadCaseReview | null;
 }

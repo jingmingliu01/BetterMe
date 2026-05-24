@@ -427,7 +427,7 @@ Promotion is a separate audited step. A candidate can become the active local Pr
 
 ### Contract Reference
 
-Contract Reference continues the current Schema Reference role, but the name should communicate that it covers the whole Prompt Program contract.
+Contract Reference replaces the former Schema Reference label so the area communicates that it covers the whole Prompt Program contract.
 
 It should show:
 

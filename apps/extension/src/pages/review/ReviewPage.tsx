@@ -873,7 +873,7 @@ export function ReviewPage() {
   }
 
   return (
-    <AppShell title="AI PM Review" subtitle="Review history, curate evaluation cases, and keep the schema contract visible.">
+    <AppShell title="AI PM Review" subtitle="Review history, curate evaluation cases, and keep the Prompt Program contract visible.">
       {(sessionError ||
         evalError ||
         evalRunError ||
@@ -904,7 +904,7 @@ export function ReviewPage() {
         <AreaButton active={area === "history"} icon={<History size={16} />} label="History Cases" onClick={() => setArea("history")} />
         <AreaButton active={area === "eval"} icon={<FlaskConical size={16} />} label="Evaluation Cases" onClick={() => setArea("eval")} />
         <AreaButton active={area === "experiment"} icon={<BarChart3 size={16} />} label="Experiment Lab" onClick={() => setArea("experiment")} />
-        <AreaButton active={area === "schema"} icon={<BookOpenText size={16} />} label="Schema Reference" onClick={() => setArea("schema")} />
+        <AreaButton active={area === "schema"} icon={<BookOpenText size={16} />} label="Contract Reference" onClick={() => setArea("schema")} />
       </nav>
 
       {area === "history" && (
@@ -2257,6 +2257,7 @@ function HistoryCases({
 }) {
   const selectedDecision =
     selected?.decisions.find((decision) => decision.id === selectedDecisionId) ?? selected?.decisions.at(-1) ?? null;
+  const selectedDecisionPointSource = selectedDecision ? selected?.decisionPointSources?.[selectedDecision.id] ?? "derived" : null;
 
   return (
     <section className="review-layout">
@@ -2312,6 +2313,7 @@ function HistoryCases({
                 <StatusItem label="Strictness" value={selected.session.strictness ?? "unknown"} />
                 <StatusItem label="Actual" value={formatDecision(selectedDecision?.decision ?? null)} />
                 <StatusItem label="Turns" value={`${selected.session.assistantTurnCount}/${selected.session.maxAssistantTurns}`} />
+                <StatusItem label="Snapshot Source" value={formatSnapshotSource(selectedDecisionPointSource)} />
               </div>
             </div>
 
@@ -3954,6 +3956,12 @@ function formatPercent(value: number): string {
 function formatDecision(decision: AIDecision | null): string {
   if (!decision) return "No decision";
   return decision === "AI_COOLDOWN" ? "AI Cooldown" : decision.replace("_", " ");
+}
+
+function formatSnapshotSource(source: "persisted" | "derived" | null | undefined): string {
+  if (source === "persisted") return "Runtime";
+  if (source === "derived") return "Derived";
+  return "unknown";
 }
 
 function formatStatus(status: AICheckCaseStatus): string {

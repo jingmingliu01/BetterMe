@@ -13,7 +13,7 @@ Rule: when this document changes, check the design and progress documents for re
 
 ### ISSUE-001: Decision Point is not first-class
 
-Status: mostly mitigated
+Status: mitigated
 
 Risk:
 
@@ -38,7 +38,7 @@ Update 2026-05-24:
 - Review now exposes selectable decision points and separates model output JSON from stored decision record.
 - Runtime now persists decision-point snapshots when provider decisions are created.
 - Review falls back to deterministic derivation for older sessions.
-- Remaining polish is making persisted-vs-derived snapshot source visible in the UI if needed.
+- Review now shows whether the selected decision point uses a runtime-persisted snapshot or a deterministic derived fallback.
 
 ### ISSUE-002: BadCase conversion can include future turns
 
@@ -240,7 +240,7 @@ Update 2026-05-24:
 - It can also generate Prompt Program Suggestions across prompt patch, rubric, and schema categories.
 - Prompt Program Suggestions are read-only PM artifacts; they do not mutate the active prompt, AI Check contract, rubric, schema, release decisions, or promotion state.
 - PM can accept or reject individual suggestion items. Accepted items are tracked as contract-first implementation inputs, while applying them still requires explicit contract/code/docs changes.
-- Schema Reference surfaces accepted suggestions as a contract-first backlog with reminders for contract source, generated references, eval assertions or fixtures, and linked docs.
+- Contract Reference surfaces accepted suggestions as a contract-first backlog with reminders for contract source, generated references, eval assertions or fixtures, and linked docs.
 - PM can create a `ContractChangePlan` from an accepted suggestion so the implementation target, required surfaces, and source suggestion item are tracked before any source-code contract change starts.
 - Holdout visibility rules from Experiment Lab still apply because candidate comparison is built from standard tuning/release-review eval runs.
 - Promotion requires the comparison recommendation to be `promote_candidate`, zero regressed cases, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
@@ -256,9 +256,10 @@ Update 2026-05-24:
 - The backlog is intentionally non-mutating; stale-contract risk is still handled by requiring explicit `ai-check-contract.json` changes and validation before any suggestion is considered applied.
 - Accepted suggestions can now become `ContractChangePlan` artifacts. This reduces handoff loss, but does not close stale-contract risk because the actual source contract still changes only through a normal code/doc implementation slice.
 - Contract Change Plans can now move to ready, applied, or rejected. Applied plans require an implementation note and record current prompt/output/evaluation versions, but this remains handoff evidence rather than automatic source verification.
-- Prompt Program decision policy and scoring rules now live under `ai-check-contract.json.promptProgram`, are generated into TypeScript constants, feed the provider system prompt, and render in Schema Reference.
+- Prompt Program decision policy and scoring rules now live under `ai-check-contract.json.promptProgram`, are generated into TypeScript constants, feed the provider system prompt, and render in Contract Reference.
 - Evaluation schema v4 now captures input evidence expectations for explicit duration and return-task plans, with checks in both shared and CLI eval runners.
 - PM Review now exposes expected input evidence controls while authoring or editing Evaluation Cases.
+- PM Review now labels the top-level generated contract surface as Contract Reference instead of Schema Reference.
 
 Risk:
 

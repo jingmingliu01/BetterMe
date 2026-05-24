@@ -11,7 +11,7 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-Phase 1, Phase 2, and the first Phase 3 Experiment Lab slice are partially implemented in the AI Check contract, review-store conversion path, PM Review UI, eval fixtures, eval runner, local run/result stores, and CLI run artifact import/export path.
+Phase 1 is implemented. Phase 2, the first Phase 3 Experiment Lab slice, and the first Phase 4 Candidate Prompt/Textual Gradient slice are implemented enough to support the current Prompt Engineering Console workflow, with future contract-change application work intentionally left as explicit code/doc implementation slices.
 
 This document set remains the scaffold for the larger Prompt Engineering Console implementation. Candidate Prompt A/B, Textual Gradient, and a guarded local promotion flow now have a first Phase 4 implementation.
 
@@ -37,11 +37,12 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 - Built-in eval fixtures are visible in Case Library as read-only default cases; local edits/archives are stored as local overrides.
 - Local `eval:ai-check` runner with status/tag/dataset filtering and provider-mode reuse of runtime provider messages.
 - Experiment Lab can run the current Prompt Program in mock mode, persist `evalRuns`/`evalResults`, show metrics, failures, run history, and release gate summary.
-- Contract-derived Schema Reference / Contract Manual exists for provider messages, output, and evaluation.
+- Contract Reference / Contract Manual exists for provider messages, Prompt Program policy, output, and evaluation.
 
 ## Confirmed Gaps
 
 - Decision Point snapshots are persisted at runtime in `aiCheckDecisionPoints` and can still be derived from session history as fallback.
+- History review shows whether the selected decision point is using the runtime-persisted snapshot or a derived fallback.
 - Review UI can select an arbitrary decision point in the current session.
 - New BadCaseReview records prefer the persisted selected decision-point input snapshot and exclude future turns.
 - Conversion to eval uses the stored input snapshot when present and preserves captured model output.
@@ -55,7 +56,7 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 
 ### Phase 1: Decision-Point Review Foundation
 
-Status: partially implemented
+Status: implemented
 
 Scope:
 
@@ -78,7 +79,7 @@ Implemented now:
 
 Still remaining:
 
-- Add visual affordance for persisted-vs-derived decision-point source if reviewers need that distinction.
+- None for the implemented decision-point review foundation.
 
 ### Phase 2: Ideal Case Model and Dataset Split
 
@@ -158,10 +159,10 @@ Implemented now:
 - PM can generate a new draft Prompt Candidate from Textual Gradient using a saved BYOK provider.
 - PM can generate read-only Prompt Program Suggestions from Textual Gradient using a saved BYOK provider; suggestions are categorized as prompt patch, rubric, or schema and are persisted in `promptProgramSuggestions`.
 - PM can accept or reject individual Prompt Program Suggestion items. Accepted items are tracked as contract-first implementation inputs and do not mutate the active prompt, schema, rubric, release decision, or promotion state.
-- Schema Reference shows accepted Prompt Program Suggestions as a contract-first backlog with reminders to update `ai-check-contract.json`, generated references, eval assertions or fixtures, and linked docs.
+- Contract Reference shows accepted Prompt Program Suggestions as a contract-first backlog with reminders to update `ai-check-contract.json`, generated references, eval assertions or fixtures, and linked docs.
 - PM can create `ContractChangePlan` artifacts from accepted suggestions. Plans record prompt/rubric/schema/evaluation targets and required implementation surfaces without mutating the runtime prompt or source contract.
 - PM can move Contract Change Plans through `draft`, `ready`, `applied`, or `rejected`; `applied` requires an implementation note and records the current prompt/output/evaluation versions.
-- `ai-check-contract.json` now owns the Prompt Program rubric under `promptProgram`. Generated constants feed both the provider system prompt and Schema Reference's Prompt Program tab.
+- `ai-check-contract.json` now owns the Prompt Program rubric under `promptProgram`. Generated constants feed both the provider system prompt and Contract Reference's Prompt Program tab.
 - Evaluation schema v4 adds `eval.expectedInputEvidence` for duration and return-plan evidence; the shared eval engine and CLI runner now check those assertions against case input messages.
 - PM Review's Evaluation Case editor can author and edit expected input evidence with explicit duration and return-plan controls.
 - PM can create named Experiment Workspaces and link selected runs, Candidate Prompt comparisons, Prompt Program Suggestions, release decisions, and promotions into one reviewable artifact set.
@@ -188,6 +189,7 @@ Implementation validation performed:
 - `test:ai-check` includes focused coverage that selecting turn 2 excludes turn 3+ from replayable eval input.
 - `test:e2e` includes Holdout visibility coverage: tuning mode hides Holdout failure details, release review mode reveals the failure summary.
 - `test:e2e` includes provider-mode Experiment Lab coverage: saved BYOK provider, runtime provider messages, BYOK run metadata, and one focused passing provider run.
+- `test:e2e` includes decision-point snapshot source coverage (`SNAPSHOT_SOURCE_UI_OK true`): History review shows the selected decision point as Runtime when the persisted runtime snapshot is available.
 - `test:e2e` includes Release Decision coverage: approving a passing provider-mode run persists an approved decision with the run id and gate status.
 - CLI `eval:ai-check -- --output=...` writes the shared run artifact; shape validation confirmed the artifact has one run and 42 linked results.
 - `test:e2e` includes Eval Run artifact import coverage: Experiment Lab imports a run artifact and persists matching `evalRuns`/`evalResults` records.
@@ -195,10 +197,10 @@ Implementation validation performed:
 - `test:e2e` includes Textual Gradient candidate generation coverage: Experiment Lab asks a BYOK provider for a draft candidate, sends Textual Gradient context, and persists the generated Prompt Candidate.
 - `test:e2e` includes Prompt Program Suggestions coverage: Experiment Lab asks a BYOK provider for prompt patch/rubric/schema suggestions from Textual Gradient and persists them in `promptProgramSuggestions`.
 - `test:e2e` includes Prompt Program Suggestion review coverage: PM Review accepts and rejects individual suggestion items and persists review state for the contract-first handoff.
-- `test:e2e` includes Contract-first backlog coverage (`PROMPT_PROGRAM_BACKLOG_OK true`): accepted Prompt Program Suggestions appear in Schema Reference with contract-source guidance.
-- `test:e2e` includes Prompt Program Contract Reference coverage (`PROMPT_PROGRAM_CONTRACT_REFERENCE_OK true`): Schema Reference shows contract-backed decision policy and scoring rules from `AI_CHECK_CONTRACT.promptProgram`.
+- `test:e2e` includes Contract-first backlog coverage (`PROMPT_PROGRAM_BACKLOG_OK true`): accepted Prompt Program Suggestions appear in Contract Reference with contract-source guidance.
+- `test:e2e` includes Prompt Program Contract Reference coverage (`PROMPT_PROGRAM_CONTRACT_REFERENCE_OK true`): Contract Reference shows contract-backed decision policy and scoring rules from `AI_CHECK_CONTRACT.promptProgram`.
 - `test:e2e` includes expected input evidence authoring coverage (`EXPECTED_INPUT_EVIDENCE_AUTHORING_OK true`): authored eval cases persist duration and return-plan evidence expectations.
-- `test:e2e` includes Contract Change Plan coverage (`CONTRACT_CHANGE_PLAN_OK true`): Schema Reference creates a non-mutating plan from an accepted suggestion, persists its targets and required implementation surfaces, then records ready/applied lifecycle state with implementation note and contract versions.
+- `test:e2e` includes Contract Change Plan coverage (`CONTRACT_CHANGE_PLAN_OK true`): Contract Reference creates a non-mutating plan from an accepted suggestion, persists its targets and required implementation surfaces, then records ready/applied lifecycle state with implementation note and contract versions.
 - `test:e2e` includes Experiment Workspace coverage (`EXPERIMENT_WORKSPACE_OK true`): PM Review creates a named workspace, adds an explicit candidate arm, and links run, comparison, and suggestion artifacts.
 - `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
 
@@ -299,20 +301,20 @@ Pending implementation validation:
 
 2026-05-24 Contract-first backlog update:
 
-- Schema Reference now shows accepted Prompt Program Suggestions as a contract-first backlog.
+- Contract Reference now shows accepted Prompt Program Suggestions as a contract-first backlog.
 - The backlog surfaces source comparison ids and reminds implementers to update `ai-check-contract.json`, generated contract references, eval assertions or fixtures, and linked docs.
 - Issues document was updated because accepted suggestions now have a visible contract-work queue. Design document was updated to include the backlog in Contract Reference.
 
 2026-05-24 Contract Change Plan update:
 
-- Schema Reference now lets PM create a `ContractChangePlan` from an accepted Prompt Program Suggestion.
+- Contract Reference now lets PM create a `ContractChangePlan` from an accepted Prompt Program Suggestion.
 - Plans are persisted in `contractChangePlans`, linked back to the accepted suggestion item, and display target areas plus required implementation surfaces in the Contract-first backlog.
 - Plans are intentionally non-mutating: applying a suggestion still requires an explicit code/doc change beginning with `apps/extension/src/shared/ai-check-contract.json`.
 - Issues document was updated because the stale-contract risk now has a tracked plan artifact. Design document was updated to define the artifact boundary and status semantics.
 
 2026-05-24 Contract Change Plan lifecycle update:
 
-- Schema Reference now lets PM mark a Contract Change Plan as ready, applied, or rejected.
+- Contract Reference now lets PM mark a Contract Change Plan as ready, applied, or rejected.
 - Applied plans require an implementation note and store the current prompt, output schema, and evaluation schema versions as handoff evidence.
 - Issues document was updated because applied status now has explicit evidence fields, while remaining intentionally unable to mutate or verify source-code changes by itself.
 
@@ -321,7 +323,7 @@ Pending implementation validation:
 - `ai-check-contract.json` now includes `promptProgram.decisionPolicyRules` and `promptProgram.scoringRules`.
 - `generate-ai-check-contract.mjs` exports those rules as generated TypeScript constants.
 - `prompt.ts` injects decision policy and scoring rules from generated contract constants instead of hard-coded prompt text.
-- Schema Reference has a Prompt Program tab that shows the same contract-backed decision policy and scoring rules.
+- Contract Reference has a Prompt Program tab that shows the same contract-backed decision policy and scoring rules.
 - Issues document was updated because Contract Reference now covers the prompt rubric/policy surface directly.
 
 2026-05-24 Evaluation input evidence schema update:
@@ -338,6 +340,13 @@ Pending implementation validation:
 - `review-store` persists expected input evidence during case creation/update and preserves it during stored-case normalization.
 - Evaluation Case editor exposes explicit duration and return-plan evidence expectations as Ignore/Yes/No controls.
 - E2E now verifies authored eval cases persist expected input evidence.
+
+2026-05-24 Contract Reference and snapshot-source polish:
+
+- PM Review top-level navigation now uses `Contract Reference`, matching the Prompt Engineering Console area model.
+- History review exposes the selected decision point's snapshot source as `Runtime` for persisted runtime snapshots or `Derived` for deterministic fallback snapshots.
+- Bad-case reviews now store the snapshot source used at review time.
+- E2E now verifies the Runtime snapshot source affordance before converting a reviewed decision point.
 
 2026-05-24 Experiment Workspace update:
 

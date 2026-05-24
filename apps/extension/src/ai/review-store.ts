@@ -61,10 +61,11 @@ export const AI_CHECK_OUTPUT_SCHEMA_VERSION = AI_CHECK_CURRENT_VERSIONS.outputSc
 export const AI_CHECK_EVALUATION_SCHEMA_VERSION = AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion;
 
 export async function listReviewSessions(): Promise<AIPMReviewSession[]> {
-  const [sessions, messages, decisions, badCases, behaviorEvents] = await Promise.all([
+  const [sessions, messages, decisions, decisionPoints, badCases, behaviorEvents] = await Promise.all([
     getAllRecords<AICheckSession>("aiCheckSessions"),
     getAllRecords<AICheckMessage>("aiCheckMessages"),
     getAllRecords<CheckpointDecision>("checkpointDecisions"),
+    getAllRecords<AICheckDecisionPointSnapshot>("aiCheckDecisionPoints"),
     getAllRecords<BadCaseReview>("badCaseReviews"),
     getAllRecords<BehaviorEvent>("behaviorEvents")
   ]);
@@ -82,6 +83,9 @@ export async function listReviewSessions(): Promise<AIPMReviewSession[]> {
       const sessionBadCases = badCases
         .filter((item) => item.sourceSessionId === session.id)
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+      const persistedDecisionPointIds = new Set(
+        decisionPoints.filter((item) => item.sessionId === session.id).map((item) => item.decisionId)
+      );
       return {
         session: {
           ...session,
@@ -89,6 +93,9 @@ export async function listReviewSessions(): Promise<AIPMReviewSession[]> {
         },
         messages: sessionMessages,
         decisions: sessionDecisions,
+        decisionPointSources: Object.fromEntries(
+          sessionDecisions.map((decision) => [decision.id, persistedDecisionPointIds.has(decision.id) ? "persisted" : "derived"])
+        ),
         badCases: sessionBadCases,
         badCase: sessionBadCases[0] ?? null
       };
@@ -134,6 +141,7 @@ export async function createBadCaseReview(input: {
     id: createId("badcase"),
     sourceSessionId: session.id,
     sourceDecisionId: decision?.id ?? null,
+    snapshotSource: persistedSnapshot ? "persisted" : "derived",
     selectedAssistantMessageId: persistedSnapshot?.selectedAssistantMessageId ?? snapshot.selectedAssistantMessageId,
     triggeringUserMessageId: persistedSnapshot?.triggeringUserMessageId ?? snapshot.triggeringUserMessageId,
     decisionOrdinal: snapshot.decisionOrdinal,

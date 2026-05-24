@@ -422,6 +422,9 @@ try {
   await page.goto(`chrome-extension://${extensionId}/review.html`);
   await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: /example.edu/ }).click();
+  await page.getByText("Snapshot Source").waitFor({ timeout: 3_000 });
+  await page.getByText("Runtime").waitFor({ timeout: 3_000 });
+  console.log("SNAPSHOT_SOURCE_UI_OK true");
   await page.getByLabel("Expected decision").selectOption("AI_COOLDOWN");
   await page.getByLabel("Over block").check();
   await page
@@ -763,7 +766,7 @@ try {
   ) {
     throw new Error(`Prompt Program suggestion review state was not persisted: ${JSON.stringify(reviewedSuggestion)}`);
   }
-  await page.getByRole("button", { name: "Schema Reference" }).click();
+  await page.getByRole("button", { name: "Contract Reference" }).click();
   await page.getByText("Contract-first backlog").waitFor({ timeout: 5_000 });
   await page.getByText("1 accepted suggestions").waitFor({ timeout: 5_000 });
   await page.getByText("Bounded break rubric").waitFor({ timeout: 5_000 });
