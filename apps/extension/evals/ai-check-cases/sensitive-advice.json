@@ -5,7 +5,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "www.pornhub.com",
@@ -60,7 +60,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "www.pornhub.com",
@@ -115,7 +115,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "example-nsfw.com",
@@ -168,7 +168,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "adult-example.com",

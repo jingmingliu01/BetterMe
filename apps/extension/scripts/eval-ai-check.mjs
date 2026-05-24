@@ -129,6 +129,7 @@ async function runCase(testCase, runConfig) {
       checkNumberRangeExpectation(`scores.${scoreName}`, score, range, failureReasons);
     }
   }
+  failureReasons.push(...evaluateExpectedInputEvidence(testCase));
 
   return {
     id: createId("evalresult"),
@@ -140,6 +141,29 @@ async function runCase(testCase, runConfig) {
     failureReasons,
     rawProvider: actual.rawProvider ?? JSON.stringify(actual, null, 2),
     createdAt: ""
+  };
+}
+
+function evaluateExpectedInputEvidence(testCase) {
+  const expected = testCase.eval?.expectedInputEvidence;
+  if (!expected) return [];
+  const evidence = deriveInputEvidence(testCase.input.messages ?? []);
+  const failureReasons = [];
+  checkExactExpectation("inputEvidence.hasExplicitDuration", evidence.hasExplicitDuration, expected.hasExplicitDuration, failureReasons);
+  checkExactExpectation("inputEvidence.hasReturnPlan", evidence.hasReturnPlan, expected.hasReturnPlan, failureReasons);
+  return failureReasons;
+}
+
+function deriveInputEvidence(messages) {
+  const userText = messages
+    .filter((message) => message.role === "user")
+    .map((message) => String(message.content ?? "").toLowerCase())
+    .join("\n");
+  return {
+    hasExplicitDuration:
+      /\b\d+\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)\b/.test(userText) ||
+      /\b(one|two|three|four|five|ten|fifteen|twenty|thirty)\s+(minute|minutes|hour|hours)\b/.test(userText),
+    hasReturnPlan: /\b(return|back|resume|go back|come back)\b/.test(userText)
   };
 }
 

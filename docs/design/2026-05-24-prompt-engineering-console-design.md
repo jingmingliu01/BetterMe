@@ -419,6 +419,8 @@ Accepted Prompt Program Suggestions can produce a `ContractChangePlan` artifact.
 
 The Prompt Program rubric lives in `ai-check-contract.json` under `promptProgram`. Decision policy rules and scoring rules are generated into TypeScript constants, injected into the provider system prompt, and shown in Contract Reference. This makes rubric/policy changes source-controlled contract changes instead of hidden `prompt.ts` edits.
 
+Evaluation schema changes follow the same contract-first rule. `ai-check-evaluation-v4` adds `eval.expectedInputEvidence` so a case can assert whether the replayed user messages contain explicit duration evidence and a return-task plan. These assertions are checked by both the shared eval engine and CLI runner before the model-output assertions are considered passing.
+
 Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, the candidate run does not fail the release gate, and Design, Regression, and Holdout coverage are all present and passing. Promotion records the candidate patch as a local active prompt version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
 
 ### Contract Reference

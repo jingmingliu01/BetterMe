@@ -5,7 +5,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -52,7 +52,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "stackoverflow.com",
@@ -80,6 +80,10 @@
       "expectedOutput": {
         "decision": "ALLOW"
       },
+      "expectedInputEvidence": {
+        "hasExplicitDuration": true,
+        "hasReturnPlan": true
+      },
       "tags": [
         "over_block",
         "work",
@@ -98,7 +102,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "reddit.com",
@@ -144,7 +148,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "youtube.com",
@@ -190,7 +194,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "zhihu.com",
@@ -237,7 +241,7 @@
     "versions": {
       "promptVersion": "ai-check-prompt-v4",
       "outputSchemaVersion": "checkpoint-decision-v3",
-      "evaluationSchemaVersion": "ai-check-evaluation-v3"
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
     },
     "input": {
       "targetDisplay": "facebook.com",

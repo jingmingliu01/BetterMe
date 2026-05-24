@@ -129,6 +129,7 @@ async function runEvalCase(
           systemPromptAddendum: input.systemPromptAddendum
         });
   const failureReasons = evaluateExpectedOutput(actual, testCase.eval?.expectedOutput ?? {});
+  failureReasons.push(...evaluateExpectedInputEvidence(testCase));
   const rawProvider = (actual as Partial<CheckpointDecision>).rawProvider;
   return {
     id: createId("evalresult"),
@@ -206,6 +207,29 @@ function evaluateExpectedOutput(actual: MockDecision, expected: AICheckExpectedO
   }
 
   return failureReasons;
+}
+
+function evaluateExpectedInputEvidence(testCase: AICheckCase): string[] {
+  const expected = testCase.eval?.expectedInputEvidence;
+  if (!expected) return [];
+  const evidence = deriveInputEvidence(testCase.input.messages);
+  const failureReasons: string[] = [];
+  checkExactExpectation("inputEvidence.hasExplicitDuration", evidence.hasExplicitDuration, expected.hasExplicitDuration, failureReasons);
+  checkExactExpectation("inputEvidence.hasReturnPlan", evidence.hasReturnPlan, expected.hasReturnPlan, failureReasons);
+  return failureReasons;
+}
+
+function deriveInputEvidence(messages: AICheckCase["input"]["messages"]): { hasExplicitDuration: boolean; hasReturnPlan: boolean } {
+  const userText = messages
+    .filter((message) => message.role === "user")
+    .map((message) => message.content.toLowerCase())
+    .join("\n");
+  return {
+    hasExplicitDuration:
+      /\b\d+\s*(m|min|mins|minute|minutes|h|hr|hrs|hour|hours)\b/.test(userText) ||
+      /\b(one|two|three|four|five|ten|fifteen|twenty|thirty)\s+(minute|minutes|hour|hours)\b/.test(userText),
+    hasReturnPlan: /\b(return|back|resume|go back|come back)\b/.test(userText)
+  };
 }
 
 function buildEvalMetrics(cases: AICheckCase[], results: AICheckEvalResult[]): AICheckEvalMetrics {

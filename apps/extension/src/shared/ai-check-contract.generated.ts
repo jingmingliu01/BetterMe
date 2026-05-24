@@ -266,8 +266,14 @@ export interface AICheckExpectedOutput {
   };
 }
 
+export interface AICheckExpectedInputEvidence {
+  hasExplicitDuration?: boolean;
+  hasReturnPlan?: boolean;
+}
+
 export interface AICheckCaseEval {
   expectedOutput: AICheckExpectedOutput;
+  expectedInputEvidence?: AICheckExpectedInputEvidence;
   tags: string[];
   reviewerNote?: string;
 }
@@ -690,7 +696,7 @@ const GENERATED_SECTIONS = {
         "path": "versions.evaluationSchemaVersion",
         "type": "string",
         "required": true,
-        "example": "ai-check-evaluation-v3",
+        "example": "ai-check-evaluation-v4",
         "meaning": "Evaluation schema version used to interpret eval expectations.",
         "whyNecessary": "EvaluationRunner semantics are versioned separately from model output parsing.",
         "productImpact": "Keeps PM-authored expectations comparable across prompt and model changes.",
@@ -883,6 +889,28 @@ const GENERATED_SECTIONS = {
         "commonMistakes": "Requiring exact prose when topic coverage is enough."
       },
       {
+        "path": "eval.expectedInputEvidence.hasExplicitDuration",
+        "type": "boolean",
+        "required": false,
+        "example": false,
+        "meaning": "Whether the user's visible messages include a concrete duration or time box.",
+        "whyNecessary": "Many prompt failures hinge on whether the user gave a bounded time plan before the model decided.",
+        "productImpact": "Lets PMs test evidence quality separately from the final decision label.",
+        "validation": "When present, the eval runner derives this boolean from the case input messages before checking model output.",
+        "commonMistakes": "Encoding duration evidence only in reviewerNote instead of a machine-checked expectation."
+      },
+      {
+        "path": "eval.expectedInputEvidence.hasReturnPlan",
+        "type": "boolean",
+        "required": false,
+        "example": false,
+        "meaning": "Whether the user's visible messages include an explicit plan to return to the original task or stop.",
+        "whyNecessary": "Return-task evidence distinguishes deliberate breaks from open-ended browsing.",
+        "productImpact": "Improves tests around bounded breaks, school/work tasks, and over-allow regressions.",
+        "validation": "When present, the eval runner derives this boolean from the case input messages before checking model output.",
+        "commonMistakes": "Treating a duration alone as a return plan when the user did not say what they will return to."
+      },
+      {
         "path": "eval.tags",
         "type": "string[]",
         "required": true,
@@ -1048,7 +1076,7 @@ const GENERATED_SECTIONS = {
       "versions": {
         "promptVersion": "ai-check-prompt-v4",
         "outputSchemaVersion": "checkpoint-decision-v3",
-        "evaluationSchemaVersion": "ai-check-evaluation-v3"
+        "evaluationSchemaVersion": "ai-check-evaluation-v4"
       },
       "input": {
         "targetDisplay": "youtube.com",
@@ -1088,6 +1116,10 @@ const GENERATED_SECTIONS = {
           "memoryUpdate": {
             "behaviorReasonCategory": "boredom"
           }
+        },
+        "expectedInputEvidence": {
+          "hasExplicitDuration": false,
+          "hasReturnPlan": false
         },
         "tags": [
           "under_ask",

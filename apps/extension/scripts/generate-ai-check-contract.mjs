@@ -277,8 +277,14 @@ export interface AICheckExpectedOutput {
   };
 }
 
+export interface AICheckExpectedInputEvidence {
+  hasExplicitDuration?: boolean;
+  hasReturnPlan?: boolean;
+}
+
 export interface AICheckCaseEval {
   expectedOutput: AICheckExpectedOutput;
+  expectedInputEvidence?: AICheckExpectedInputEvidence;
   tags: string[];
   reviewerNote?: string;
 }

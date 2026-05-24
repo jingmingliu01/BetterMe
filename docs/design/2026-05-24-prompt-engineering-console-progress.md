@@ -162,6 +162,7 @@ Implemented now:
 - PM can create `ContractChangePlan` artifacts from accepted suggestions. Plans record prompt/rubric/schema/evaluation targets and required implementation surfaces without mutating the runtime prompt or source contract.
 - PM can move Contract Change Plans through `draft`, `ready`, `applied`, or `rejected`; `applied` requires an implementation note and records the current prompt/output/evaluation versions.
 - `ai-check-contract.json` now owns the Prompt Program rubric under `promptProgram`. Generated constants feed both the provider system prompt and Schema Reference's Prompt Program tab.
+- Evaluation schema v4 adds `eval.expectedInputEvidence` for duration and return-plan evidence; the shared eval engine and CLI runner now check those assertions against case input messages.
 - PM can create named Experiment Workspaces and link selected runs, Candidate Prompt comparisons, Prompt Program Suggestions, release decisions, and promotions into one reviewable artifact set.
 - PM can add explicit Experiment Arms for baseline, current prompt, candidate prompt, or variant definitions, optionally linked to a Prompt Candidate and/or eval run.
 - PM can promote a recommended candidate only when it has no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
@@ -170,7 +171,7 @@ Implemented now:
 
 Still remaining:
 
-- Applying concrete accepted schema suggestions that require output/evaluation schema version bumps, fixture updates, and parser/eval assertion changes.
+- Applying any future output-schema changes that require provider output parser changes and prompt/output fixture migrations.
 
 ## Validation Status
 
@@ -320,6 +321,14 @@ Pending implementation validation:
 - `prompt.ts` injects decision policy and scoring rules from generated contract constants instead of hard-coded prompt text.
 - Schema Reference has a Prompt Program tab that shows the same contract-backed decision policy and scoring rules.
 - Issues document was updated because Contract Reference now covers the prompt rubric/policy surface directly.
+
+2026-05-24 Evaluation input evidence schema update:
+
+- `ai-check-contract.json` now points to `ai-check-evaluation-v4` and keeps v3 in the version registry as historical.
+- Evaluation schema v4 adds optional `eval.expectedInputEvidence.hasExplicitDuration` and `eval.expectedInputEvidence.hasReturnPlan`.
+- All active eval fixtures were migrated to evaluation schema v4.
+- The homework missing-boundary case now asserts missing duration and return-plan evidence; the TypeScript build-error case now asserts both are present.
+- Shared UI/provider evals and CLI evals both check expected input evidence from case messages.
 
 2026-05-24 Experiment Workspace update:
 
