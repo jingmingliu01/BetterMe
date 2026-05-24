@@ -186,10 +186,10 @@ Implementation validation performed:
 - `npm --workspace apps/extension run check:ai-check-contract` passed.
 - `npm --workspace apps/extension run typecheck` passed.
 - `npm --workspace apps/extension run test:ai-check` passed with the known Vite WebSocket sandbox warning.
-- `npm --workspace apps/extension run eval:ai-check` passed with 42/42 cases.
+- `npm --workspace apps/extension run eval:ai-check` passed with 44/44 cases.
 - `npm --workspace apps/extension run build` passed.
 - `npm --workspace apps/extension run test:e2e` passed.
-- Browser smoke check passed: PM Review rendered, Evaluation Cases showed 42 cases, Experiment Lab ran 42/42 and saved a PASS release-gate run.
+- Browser smoke check passed: PM Review rendered, Evaluation Cases showed 44 cases, Experiment Lab ran 44/44 and saved a PASS release-gate run.
 - `test:ai-check` includes focused coverage that selecting turn 2 excludes turn 3+ from replayable eval input.
 - `test:e2e` includes Holdout visibility coverage: tuning mode hides Holdout failure details, release review mode reveals the failure summary.
 - `test:e2e` includes Holdout approval guard coverage (`HOLDOUT_APPROVAL_GUARD_OK true`): tuning-mode Holdout runs cannot be approved in the UI or background API.
@@ -197,7 +197,7 @@ Implementation validation performed:
 - `test:e2e` includes decision-point snapshot source coverage (`SNAPSHOT_SOURCE_UI_OK true`): History review shows the selected decision point as Runtime when the persisted runtime snapshot is available.
 - `test:e2e` includes Case Library origin coverage (`CASE_LIBRARY_ORIGIN_OK true`): PM Review filters to built-in defaults and shows the local override guidance in the selected case detail.
 - `test:e2e` includes Release Decision coverage: approving a passing provider-mode run persists an approved decision with the run id and gate status.
-- CLI `eval:ai-check -- --output=...` writes the shared run artifact; shape validation confirmed the artifact has one run and 42 linked results.
+- CLI `eval:ai-check -- --output=...` writes the shared run artifact; shape validation confirmed the artifact has one run and 44 linked results.
 - `test:e2e` includes Eval Run artifact import coverage: Experiment Lab imports a run artifact and persists matching `evalRuns`/`evalResults` records.
 - `test:e2e` includes Candidate Prompt A/B coverage: Experiment Lab saves a candidate, runs baseline/candidate provider calls, injects `<candidate_prompt_patch>`, persists comparison regression/recommendation, and shows Textual Gradient.
 - `test:e2e` includes Textual Gradient candidate generation coverage: Experiment Lab asks a BYOK provider for a draft candidate, sends Textual Gradient context, and persists the generated Prompt Candidate.
@@ -232,7 +232,7 @@ Pending implementation validation:
 
 2026-05-24 Experiment Lab update:
 
-- Added built-in fixture visibility to Case Library, so the 42 regression fixtures appear in PM Review without manual IndexedDB seeding.
+- Added built-in fixture visibility to Case Library, so the 44 regression fixtures appear in PM Review without manual IndexedDB seeding.
 - Added Experiment Lab first slice with local mock-mode run persistence, metrics, failure list, run history, and release gate summary.
 - Issues document was updated for Experiment Lab productization status. Design document was checked; the high-level model remains unchanged.
 
@@ -243,6 +243,13 @@ Pending implementation validation:
 - Added automated turn-level coverage proving selected turn conversion excludes future messages.
 - `AI_COOLDOWN` now resolves to a terminal completed checkpoint after its timer rather than reopening the same round.
 - Issues document was updated because Phase 1 and terminal cooldown risks were mitigated. Design document still applies.
+
+2026-05-24 AI cooldown fixture hardening update:
+
+- Added two regression fixtures for terminal `AI_COOLDOWN`: final-turn vague social browsing and gentle-mode vague break behavior.
+- The fixtures assert bounded `aiCooldownSeconds` and cooldown-facing copy, strengthening release-gating coverage for cooldown semantics.
+- `eval:ai-check` now passes 44/44 active cases.
+- Issues document was updated because ISSUE-003 is now mitigated by runtime behavior, product copy, E2E, and dedicated eval fixtures.
 
 2026-05-24 Holdout visibility update:
 

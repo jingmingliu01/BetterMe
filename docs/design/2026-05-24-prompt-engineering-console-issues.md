@@ -68,7 +68,7 @@ Update 2026-05-24:
 
 ### ISSUE-003: AI_COOLDOWN semantics need to be terminal
 
-Status: mostly mitigated
+Status: mitigated
 
 Risk:
 
@@ -93,7 +93,7 @@ Update 2026-05-24:
 - Runtime now resolves completed AI cooldowns to terminal completed sessions instead of returning to the same round.
 - Block page copy now describes AI cooldown as ending the checkpoint.
 - E2E covers that an expired AI cooldown cannot reopen the same checkpoint.
-- Dedicated fixture coverage for more AI cooldown policy variants can still be added.
+- Dedicated fixture coverage now includes final-turn vague social browsing and gentle-mode vague break cases, both requiring terminal `AI_COOLDOWN` with bounded cooldown durations.
 
 ### ISSUE-004: Status and dataset purpose are mixed
 

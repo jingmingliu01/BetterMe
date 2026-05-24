@@ -233,5 +233,120 @@
     "provenance": {
       "type": "authored"
     }
+  },
+  {
+    "id": "strictness_final_turn_vague_social_cooldown_001",
+    "title": "Final turn vague social browsing should end with cooldown",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
+    },
+    "input": {
+      "targetDisplay": "instagram.com",
+      "strictness": "balanced",
+      "sessionContext": {
+        "assistantTurnCount": 4,
+        "maxAssistantTurns": 5,
+        "isFinalTurn": true
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open instagram.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I am stressed and just want to scroll for a bit."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "AI_COOLDOWN",
+        "userFacingMessage": {
+          "mustMention": [
+            "Pause first"
+          ]
+        },
+        "aiCooldownSeconds": {
+          "min": 60,
+          "max": 300
+        }
+      },
+      "tags": [
+        "strictness",
+        "cooldown_duration",
+        "over_allow",
+        "under_ask",
+        "social",
+        "balanced"
+      ]
+    },
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
+  },
+  {
+    "id": "strictness_gentle_vague_break_cooldown_001",
+    "title": "Gentle vague break still gets a short terminal cooldown",
+    "versions": {
+      "promptVersion": "ai-check-prompt-v4",
+      "outputSchemaVersion": "checkpoint-decision-v3",
+      "evaluationSchemaVersion": "ai-check-evaluation-v4"
+    },
+    "input": {
+      "targetDisplay": "youtube.com",
+      "strictness": "gentle",
+      "sessionContext": {
+        "assistantTurnCount": 0,
+        "maxAssistantTurns": 5,
+        "isFinalTurn": false
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "source": "local_opening",
+          "content": "You're trying to open youtube.com. What are you here to do, and why now?"
+        },
+        {
+          "role": "user",
+          "source": "user",
+          "content": "I just want to relax a bit."
+        }
+      ],
+      "patternMemorySnapshot": []
+    },
+    "eval": {
+      "expectedOutput": {
+        "decision": "AI_COOLDOWN",
+        "userFacingMessage": {
+          "mustMention": [
+            "Pause first"
+          ]
+        },
+        "aiCooldownSeconds": {
+          "min": 30,
+          "max": 120
+        }
+      },
+      "tags": [
+        "strictness",
+        "cooldown_duration",
+        "over_allow",
+        "gentle",
+        "video"
+      ]
+    },
+    "status": "ready",
+    "datasetType": "regression",
+    "provenance": {
+      "type": "authored"
+    }
   }
 ]
