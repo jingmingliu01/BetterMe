@@ -54,12 +54,14 @@ import {
   createBadCaseReview,
   createPromptCandidate,
   generatePromptCandidate,
+  generatePromptProgramSuggestions,
   importEvalRunArtifact,
   listPromptPromotions,
   listEvalCases,
   listEvalRunSummaries,
   listPromptCandidates,
   listPromptComparisons,
+  listPromptProgramSuggestions,
   listReleaseDecisions,
   listReviewSessions,
   promotePromptCandidate,
@@ -346,6 +348,10 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await runPromptComparison(message.payload));
       case "review/generatePromptCandidate":
         return ok(await generatePromptCandidate(message.payload));
+      case "review/listPromptProgramSuggestions":
+        return ok(await listPromptProgramSuggestions());
+      case "review/generatePromptProgramSuggestions":
+        return ok(await generatePromptProgramSuggestions(message.payload));
       case "review/listPromptPromotions":
         return ok(await listPromptPromotions());
       case "review/promotePromptCandidate":
@@ -363,6 +369,7 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
           evalRuns: await listEvalRunSummaries(),
           promptCandidates: await listPromptCandidates(),
           promptComparisons: await listPromptComparisons(),
+          promptProgramSuggestions: await listPromptProgramSuggestions(),
           promptPromotions: await listPromptPromotions(),
           releaseDecisions: await listReleaseDecisions()
         });

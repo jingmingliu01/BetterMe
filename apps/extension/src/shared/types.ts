@@ -397,6 +397,26 @@ export interface AICheckPromptPromotion {
   createdAt: string;
 }
 
+export type AICheckPromptProgramSuggestionKind = "prompt_patch" | "rubric" | "schema";
+
+export interface AICheckPromptProgramSuggestionItem {
+  kind: AICheckPromptProgramSuggestionKind;
+  title: string;
+  suggestion: string;
+  rationale?: string;
+  implementationNotes?: string;
+  risk?: string;
+}
+
+export interface AICheckPromptProgramSuggestion {
+  id: string;
+  comparisonId: string;
+  provider: AICheckEvalRun["provider"];
+  model: string;
+  items: AICheckPromptProgramSuggestionItem[];
+  createdAt: string;
+}
+
 export type AICheckReleaseDecisionStatus = "approved" | "blocked";
 
 export interface AICheckReleaseDecision {
@@ -514,6 +534,8 @@ export type ExtensionMessage =
   | { type: "review/listPromptComparisons" }
   | { type: "review/runPromptComparison"; payload: RunPromptComparisonInput }
   | { type: "review/generatePromptCandidate"; payload: GeneratePromptCandidateInput }
+  | { type: "review/listPromptProgramSuggestions" }
+  | { type: "review/generatePromptProgramSuggestions"; payload: GeneratePromptProgramSuggestionsInput }
   | { type: "review/listPromptPromotions" }
   | { type: "review/promotePromptCandidate"; payload: PromotePromptCandidateInput }
   | { type: "review/listReleaseDecisions" }
@@ -578,6 +600,12 @@ export interface RunPromptComparisonInput {
 }
 
 export interface GeneratePromptCandidateInput {
+  comparisonId: string;
+  provider?: AICheckEvalRun["provider"];
+  model?: string;
+}
+
+export interface GeneratePromptProgramSuggestionsInput {
   comparisonId: string;
   provider?: AICheckEvalRun["provider"];
   model?: string;

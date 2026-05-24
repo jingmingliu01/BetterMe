@@ -18,6 +18,8 @@ import type {
   AICheckPromptCandidate,
   AICheckPromptComparison,
   AICheckPromptPromotion,
+  AICheckPromptProgramSuggestion,
+  AICheckPromptProgramSuggestionItem,
   AICheckReleaseDecision,
   AICheckMessage,
   AICheckSession,
@@ -32,6 +34,7 @@ import type {
   CreateEvalCaseInput,
   CreatePromptCandidateInput,
   GeneratePromptCandidateInput,
+  GeneratePromptProgramSuggestionsInput,
   ImportEvalRunArtifactInput,
   PromotePromptCandidateInput,
   RunEvalExperimentInput,
@@ -415,6 +418,11 @@ export async function listPromptPromotions(): Promise<AICheckPromptPromotion[]> 
   return promotions.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+export async function listPromptProgramSuggestions(): Promise<AICheckPromptProgramSuggestion[]> {
+  const suggestions = await getAllRecords<AICheckPromptProgramSuggestion>("promptProgramSuggestions");
+  return suggestions.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
 export async function getActivePromptPromotion(): Promise<AICheckPromptPromotion | null> {
   return (await listPromptPromotions())[0] ?? null;
 }
@@ -520,6 +528,47 @@ export async function generatePromptCandidate(input: GeneratePromptCandidateInpu
   });
 }
 
+export async function generatePromptProgramSuggestions(
+  input: GeneratePromptProgramSuggestionsInput
+): Promise<AICheckPromptProgramSuggestion> {
+  const comparison = await getRecord<AICheckPromptComparison>("promptComparisons", input.comparisonId);
+  if (!comparison) {
+    throw new Error("Prompt comparison not found.");
+  }
+  const provider = input.provider ?? comparison.provider;
+  if (provider === "mock") {
+    throw new Error("Prompt Program suggestion generation requires a BYOK provider.");
+  }
+  const providerConfig = PROVIDERS.find((item) => item.id === provider);
+  const model = input.model ?? providerConfig?.defaultModel ?? comparison.model;
+  if (!providerConfig) {
+    throw new Error("Unknown provider.");
+  }
+  if (!providerConfig.models.includes(model)) {
+    throw new Error("Selected model is not available for this provider.");
+  }
+  const apiKey = await loadDecryptedApiKey(providerConfig.id);
+  if (!apiKey) {
+    throw new Error(`Save a ${providerConfig.label} API key before generating Prompt Program suggestions.`);
+  }
+  const raw = await requestProviderJsonObject({
+    provider,
+    model,
+    apiKey,
+    messages: buildPromptProgramSuggestionMessages(comparison)
+  });
+  const suggestion: AICheckPromptProgramSuggestion = {
+    id: createId("promptprogramsuggestion"),
+    comparisonId: comparison.id,
+    provider,
+    model,
+    items: parseGeneratedPromptProgramSuggestions(raw),
+    createdAt: nowIso()
+  };
+  await putRecord("promptProgramSuggestions", suggestion);
+  return suggestion;
+}
+
 export async function promotePromptCandidate(input: PromotePromptCandidateInput): Promise<AICheckPromptPromotion> {
   const comparison = await getRecord<AICheckPromptComparison>("promptComparisons", input.comparisonId);
   if (!comparison) {
@@ -596,6 +645,59 @@ function buildCandidateGenerationMessages(comparison: AICheckPromptComparison): 
   ];
 }
 
+function buildPromptProgramSuggestionMessages(
+  comparison: AICheckPromptComparison
+): Array<{ role: "system" | "user"; content: string }> {
+  return [
+    {
+      role: "system",
+      content: [
+        "You are helping improve BetterMe's full AI Check Prompt Program.",
+        "Return exactly one raw JSON object with key: items.",
+        "items must be an array of 1 to 6 suggestions.",
+        "Each item must include: kind, title, suggestion, rationale, implementationNotes, risk.",
+        'kind must be one of "prompt_patch", "rubric", or "schema".',
+        "Prompt patch items are draft instructions only; schema and rubric items are product-design suggestions only.",
+        "Do not include Markdown.",
+        "Do not quote or reveal hidden Holdout case details. Use only aggregate diagnosis and directions."
+      ].join("\n")
+    },
+    {
+      role: "user",
+      content: JSON.stringify(
+        {
+          task:
+            "Draft richer Prompt Program suggestions from this Textual Gradient, covering prompt patches, policy/rubric clarifications, and schema/evaluation gaps when useful.",
+          recommendation: comparison.recommendation,
+          metrics: {
+            baselinePassRate: comparison.baselineMetrics.passRate,
+            candidatePassRate: comparison.candidateMetrics.passRate,
+            improvedCases: comparison.improvedCaseIds.length,
+            regressedCases: comparison.regressedCaseIds.length,
+            unchangedFailedCases: comparison.unchangedFailedCaseIds.length
+          },
+          promotionGate: comparison.promotionGate,
+          textualGradient: comparison.textualGradient,
+          outputShape: {
+            items: [
+              {
+                kind: "rubric",
+                title: "Short suggestion title",
+                suggestion: "Concrete rubric, prompt, schema, or evaluation improvement.",
+                rationale: "Why this addresses the observed failure pattern.",
+                implementationNotes: "Where a PM or engineer should apply the suggestion.",
+                risk: "Possible overfit, contract drift, or product-risk concern."
+              }
+            ]
+          }
+        },
+        null,
+        2
+      )
+    }
+  ];
+}
+
 function parseGeneratedCandidate(raw: string): CreatePromptCandidateInput {
   let parsed: unknown;
   try {
@@ -616,6 +718,49 @@ function parseGeneratedCandidate(raw: string): CreatePromptCandidateInput {
     instructionPatch: candidate.instructionPatch.trim(),
     rationale: typeof candidate.rationale === "string" ? candidate.rationale.trim() : undefined
   };
+}
+
+function parseGeneratedPromptProgramSuggestions(raw: string): AICheckPromptProgramSuggestionItem[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Provider returned invalid Prompt Program suggestion JSON.");
+  }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { items?: unknown }).items)) {
+    throw new Error("Provider suggestion JSON must include an items array.");
+  }
+  const items = (parsed as { items: unknown[] }).items.slice(0, 6).map(parsePromptProgramSuggestionItem);
+  if (items.length === 0) {
+    throw new Error("Provider suggestion JSON must include at least one suggestion item.");
+  }
+  return items;
+}
+
+function parsePromptProgramSuggestionItem(raw: unknown): AICheckPromptProgramSuggestionItem {
+  if (!raw || typeof raw !== "object") {
+    throw new Error("Each Prompt Program suggestion item must be an object.");
+  }
+  const item = raw as Partial<Record<keyof AICheckPromptProgramSuggestionItem, unknown>>;
+  const kind = item.kind;
+  if (kind !== "prompt_patch" && kind !== "rubric" && kind !== "schema") {
+    throw new Error("Prompt Program suggestion kind must be prompt_patch, rubric, or schema.");
+  }
+  if (typeof item.title !== "string" || typeof item.suggestion !== "string" || item.suggestion.trim().length === 0) {
+    throw new Error("Prompt Program suggestion items must include title and suggestion.");
+  }
+  return {
+    kind,
+    title: item.title.trim().slice(0, 120) || formatSuggestionKind(kind),
+    suggestion: item.suggestion.trim(),
+    rationale: typeof item.rationale === "string" ? item.rationale.trim() : undefined,
+    implementationNotes: typeof item.implementationNotes === "string" ? item.implementationNotes.trim() : undefined,
+    risk: typeof item.risk === "string" ? item.risk.trim() : undefined
+  };
+}
+
+function formatSuggestionKind(kind: AICheckPromptProgramSuggestionItem["kind"]): string {
+  return kind.replace(/_/g, " ");
 }
 
 export async function listReleaseDecisions(): Promise<AICheckReleaseDecision[]> {

@@ -49,6 +49,7 @@ import type {
   AICheckPromptCandidate,
   AICheckPromptComparison,
   AICheckPromptPromotion,
+  AICheckPromptProgramSuggestion,
   AICheckReleaseDecision,
   AICheckReleaseDecisionStatus,
   AIDecision,
@@ -58,6 +59,7 @@ import type {
   CreateEvalCaseInput,
   CreatePromptCandidateInput,
   GeneratePromptCandidateInput,
+  GeneratePromptProgramSuggestionsInput,
   ImportEvalRunArtifactInput,
   PromotePromptCandidateInput,
   ProviderId,
@@ -166,6 +168,10 @@ export function ReviewPage() {
     () => sendMessage<AICheckPromptPromotion[]>({ type: "review/listPromptPromotions" }),
     []
   );
+  const loadPromptProgramSuggestions = useCallback(
+    () => sendMessage<AICheckPromptProgramSuggestion[]>({ type: "review/listPromptProgramSuggestions" }),
+    []
+  );
   const loadProviderStatus = useCallback(() => sendMessage<Record<ProviderId, boolean>>({ type: "provider/status" }), []);
   const {
     data: sessionData,
@@ -210,6 +216,12 @@ export function ReviewPage() {
     refresh: refreshPromptPromotions
   } = useAsyncState(loadPromptPromotions);
   const {
+    data: promptProgramSuggestionData,
+    error: promptProgramSuggestionError,
+    loading: promptProgramSuggestionsLoading,
+    refresh: refreshPromptProgramSuggestions
+  } = useAsyncState(loadPromptProgramSuggestions);
+  const {
     data: providerStatusData,
     error: providerStatusError,
     loading: providerStatusLoading,
@@ -249,6 +261,7 @@ export function ReviewPage() {
   const [runningEval, setRunningEval] = useState(false);
   const [runningPromptComparison, setRunningPromptComparison] = useState(false);
   const [generatingPromptCandidate, setGeneratingPromptCandidate] = useState(false);
+  const [generatingPromptProgramSuggestions, setGeneratingPromptProgramSuggestions] = useState(false);
   const [promotingPromptCandidate, setPromotingPromptCandidate] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -260,6 +273,7 @@ export function ReviewPage() {
   const promptCandidates = promptCandidateData ?? [];
   const promptComparisons = promptComparisonData ?? [];
   const promptPromotions = promptPromotionData ?? [];
+  const promptProgramSuggestions = promptProgramSuggestionData ?? [];
   const selectedSession = useMemo(
     () => sessions.find((item) => item.session.id === selectedSessionId) ?? sessions[0] ?? null,
     [selectedSessionId, sessions]
@@ -616,6 +630,28 @@ export function ReviewPage() {
     }
   }
 
+  async function generateSuggestionsFromSelectedComparison() {
+    if (!selectedPromptComparison) return;
+    setGeneratingPromptProgramSuggestions(true);
+    setStatus(null);
+    try {
+      const suggestion = await sendMessage<AICheckPromptProgramSuggestion>({
+        type: "review/generatePromptProgramSuggestions",
+        payload: {
+          comparisonId: selectedPromptComparison.id,
+          provider: experimentForm.provider,
+          model: experimentForm.model
+        } satisfies GeneratePromptProgramSuggestionsInput
+      });
+      setStatus(`Generated ${suggestion.items.length} Prompt Program suggestions.`);
+      await refreshPromptProgramSuggestions();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not generate Prompt Program suggestions.");
+    } finally {
+      setGeneratingPromptProgramSuggestions(false);
+    }
+  }
+
   async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
     if (!selectedEvalRun) return;
     setSaving(true);
@@ -647,6 +683,7 @@ export function ReviewPage() {
     (promptCandidatesLoading && !promptCandidateData) ||
     (promptComparisonsLoading && !promptComparisonData) ||
     (promptPromotionsLoading && !promptPromotionData) ||
+    (promptProgramSuggestionsLoading && !promptProgramSuggestionData) ||
     (providerStatusLoading && !providerStatusData)
   ) {
     return <AppShell title="AI PM Review" subtitle="Loading local AI quality workspace..." />;
@@ -661,6 +698,7 @@ export function ReviewPage() {
         promptCandidateError ||
         promptComparisonError ||
         promptPromotionError ||
+        promptProgramSuggestionError ||
         providerStatusError) && (
         <p className="badge badge-danger">
           {sessionError ??
@@ -670,6 +708,7 @@ export function ReviewPage() {
             promptCandidateError ??
             promptComparisonError ??
             promptPromotionError ??
+            promptProgramSuggestionError ??
             providerStatusError}
         </p>
       )}
@@ -835,9 +874,11 @@ export function ReviewPage() {
           importing={importingEvalRun}
           activePromptPromotion={activePromptPromotion}
           generatingPromptCandidate={generatingPromptCandidate}
+          generatingPromptProgramSuggestions={generatingPromptProgramSuggestions}
           promptCandidateForm={promptCandidateForm}
           promptCandidates={promptCandidates}
           promptComparisons={promptComparisons}
+          promptProgramSuggestions={promptProgramSuggestions}
           promptPromotionNote={promptPromotionNote}
           promptPromotions={promptPromotions}
           promotingPromptCandidate={promotingPromptCandidate}
@@ -859,6 +900,7 @@ export function ReviewPage() {
           onCreateReleaseDecision={createReleaseDecision}
           onCreatePromptCandidate={savePromptCandidate}
           onGeneratePromptCandidate={generateCandidateFromSelectedComparison}
+          onGeneratePromptProgramSuggestions={generateSuggestionsFromSelectedComparison}
           onImportRun={importEvalRunArtifact}
           onPromotePromptCandidate={promoteSelectedPromptCandidate}
           onRefresh={() =>
@@ -868,6 +910,7 @@ export function ReviewPage() {
               refreshReleaseDecisions(),
               refreshPromptCandidates(),
               refreshPromptComparisons(),
+              refreshPromptProgramSuggestions(),
               refreshPromptPromotions()
             ])
           }
@@ -886,6 +929,7 @@ function ExperimentLab({
   evalCases,
   form,
   generatingPromptCandidate,
+  generatingPromptProgramSuggestions,
   importText,
   importing,
   activePromptPromotion,
@@ -893,6 +937,7 @@ function ExperimentLab({
   promptCandidateForm,
   promptCandidates,
   promptComparisons,
+  promptProgramSuggestions,
   promptPromotionNote,
   promptPromotions,
   promotingPromptCandidate,
@@ -917,6 +962,7 @@ function ExperimentLab({
   onCreateReleaseDecision,
   onCreatePromptCandidate,
   onGeneratePromptCandidate,
+  onGeneratePromptProgramSuggestions,
   onImportRun,
   onPromotePromptCandidate,
   onRefresh,
@@ -927,6 +973,7 @@ function ExperimentLab({
   evalCases: AICheckCase[];
   form: ExperimentFormState;
   generatingPromptCandidate: boolean;
+  generatingPromptProgramSuggestions: boolean;
   importText: string;
   importing: boolean;
   activePromptPromotion: AICheckPromptPromotion | null;
@@ -934,6 +981,7 @@ function ExperimentLab({
   promptCandidateForm: PromptCandidateFormState;
   promptCandidates: AICheckPromptCandidate[];
   promptComparisons: AICheckPromptComparison[];
+  promptProgramSuggestions: AICheckPromptProgramSuggestion[];
   promptPromotionNote: string;
   promptPromotions: AICheckPromptPromotion[];
   promotingPromptCandidate: boolean;
@@ -958,6 +1006,7 @@ function ExperimentLab({
   onCreateReleaseDecision: (decision: AICheckReleaseDecisionStatus) => void;
   onCreatePromptCandidate: () => void;
   onGeneratePromptCandidate: () => void;
+  onGeneratePromptProgramSuggestions: () => void;
   onImportRun: () => void;
   onPromotePromptCandidate: () => void;
   onRefresh: () => void;
@@ -1290,12 +1339,15 @@ function ExperimentLab({
                 comparison={selectedPromptComparison}
                 candidates={promptCandidates}
                 generatingPromptCandidate={generatingPromptCandidate}
+                generatingPromptProgramSuggestions={generatingPromptProgramSuggestions}
+                promptProgramSuggestions={promptProgramSuggestions}
                 promotions={promptPromotions}
                 promotionNote={promptPromotionNote}
                 promoting={promotingPromptCandidate}
                 onSelectBaselineRun={setSelectedRunId}
                 onSelectCandidateRun={setSelectedRunId}
                 onGenerateCandidate={onGeneratePromptCandidate}
+                onGenerateSuggestions={onGeneratePromptProgramSuggestions}
                 onPromote={onPromotePromptCandidate}
                 setPromotionNote={setPromptPromotionNote}
               />
@@ -1481,29 +1533,36 @@ function PromptComparisonSummary({
   candidates,
   comparison,
   generatingPromptCandidate,
+  generatingPromptProgramSuggestions,
+  promptProgramSuggestions,
   promotions,
   promotionNote,
   promoting,
   onSelectBaselineRun,
   onSelectCandidateRun,
   onGenerateCandidate,
+  onGenerateSuggestions,
   onPromote,
   setPromotionNote
 }: {
   candidates: AICheckPromptCandidate[];
   comparison: AICheckPromptComparison;
   generatingPromptCandidate: boolean;
+  generatingPromptProgramSuggestions: boolean;
+  promptProgramSuggestions: AICheckPromptProgramSuggestion[];
   promotions: AICheckPromptPromotion[];
   promotionNote: string;
   promoting: boolean;
   onSelectBaselineRun: (runId: string) => void;
   onSelectCandidateRun: (runId: string) => void;
   onGenerateCandidate: () => void;
+  onGenerateSuggestions: () => void;
   onPromote: () => void;
   setPromotionNote: (value: string) => void;
 }) {
   const candidate = candidates.find((item) => item.id === comparison.candidateId);
   const promotion = promotions.find((item) => item.comparisonId === comparison.id) ?? null;
+  const comparisonSuggestions = promptProgramSuggestions.filter((item) => item.comparisonId === comparison.id);
   const canPromote =
     comparison.recommendation === "promote_candidate" &&
     comparison.regressedCaseIds.length === 0 &&
@@ -1535,6 +1594,9 @@ function PromptComparisonSummary({
         </button>
         <button className="btn btn-ghost" disabled={generatingPromptCandidate} onClick={onGenerateCandidate}>
           {generatingPromptCandidate ? "Generating..." : "Generate Candidate"}
+        </button>
+        <button className="btn btn-ghost" disabled={generatingPromptProgramSuggestions} onClick={onGenerateSuggestions}>
+          {generatingPromptProgramSuggestions ? "Generating..." : "Generate Suggestions"}
         </button>
       </div>
       <section className="stack compact-stack">
@@ -1609,6 +1671,33 @@ function PromptComparisonSummary({
           ))}
         </div>
       </section>
+      {comparisonSuggestions.length > 0 && (
+        <section className="stack compact-stack">
+          <span className="section-label">Prompt Program Suggestions</span>
+          <div className="release-decision-history">
+            {comparisonSuggestions.map((suggestion) => (
+              <div className="release-decision-entry" key={suggestion.id}>
+                <strong>{formatDate(suggestion.createdAt)}</strong>
+                <span>
+                  {formatProvider(suggestion.provider)} · {suggestion.model} · {suggestion.items.length} items
+                </span>
+                <div className="metric-breakdown-grid">
+                  {suggestion.items.map((item) => (
+                    <section className="metric-breakdown stack" key={`${suggestion.id}-${item.kind}-${item.title}`}>
+                      <span className="section-label">{formatTag(item.kind)}</span>
+                      <strong>{item.title}</strong>
+                      <span>{item.suggestion}</span>
+                      {item.rationale && <small>{item.rationale}</small>}
+                      {item.implementationNotes && <small>{item.implementationNotes}</small>}
+                      {item.risk && <small>{item.risk}</small>}
+                    </section>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </section>
   );
 }

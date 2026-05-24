@@ -684,6 +684,48 @@ try {
     throw new Error("Prompt candidate generation did not send Textual Gradient context to the provider.");
   }
   console.log("TEXTUAL_GRADIENT_GENERATION_OK true");
+  await queueProviderResponses(serviceWorker, [
+    {
+      items: [
+        {
+          kind: "rubric",
+          title: "Bounded break rubric",
+          suggestion: "Clarify when bounded break requests should be allowed versus blocked.",
+          rationale: "The comparison regressed on a bounded homework break.",
+          implementationNotes: "Review the reason-strength rubric before changing prompt text.",
+          risk: "Over-blocking legitimate short breaks."
+        },
+        {
+          kind: "schema",
+          title: "Break intent evidence",
+          suggestion: "Consider whether eval expectations should capture explicit duration and return-task evidence.",
+          rationale: "The failure depended on whether the user supplied a time bound.",
+          implementationNotes: "Treat as contract-design input only; do not mutate schema automatically.",
+          risk: "Schema drift if adopted without contract update."
+        }
+      ]
+    }
+  ]);
+  await page.getByRole("button", { name: "Generate Suggestions" }).click();
+  await page.getByText("Generated 2 Prompt Program suggestions.").waitFor({ timeout: 5_000 });
+  const promptProgramSuggestions = await getIndexedDbRecords(page, "promptProgramSuggestions");
+  const latestSuggestion = promptProgramSuggestions.at(-1);
+  if (
+    latestSuggestion?.items?.length !== 2 ||
+    !latestSuggestion.items.some((item) => item.kind === "rubric") ||
+    !latestSuggestion.items.some((item) => item.kind === "schema")
+  ) {
+    throw new Error(`Prompt Program suggestions were not persisted: ${JSON.stringify(promptProgramSuggestions)}`);
+  }
+  const suggestionRequests = await getProviderRequestLog(serviceWorker);
+  if (
+    !suggestionRequests
+      .at(-1)
+      ?.messages?.some((message) => message.content.includes("policy/rubric") && message.content.includes("schema"))
+  ) {
+    throw new Error("Prompt Program suggestion generation did not send rubric/schema context to the provider.");
+  }
+  console.log("PROMPT_PROGRAM_SUGGESTIONS_OK true");
 
   for (const datasetType of ["design", "regression", "holdout"]) {
     await sendRuntimeMessage(page, "review/createEvalCase", {
@@ -851,7 +893,7 @@ async function getBehaviorEvents(page) {
 
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 10);
+    const request = indexedDB.open("betterme-db", 11);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -869,7 +911,7 @@ async function getIndexedDbRecords(page, storeName) {
 async function putIndexedDbRecord(page, storeName, record) {
   return page.evaluate(
     async ({ selectedStore, selectedRecord }) => {
-      const request = indexedDB.open("betterme-db", 10);
+      const request = indexedDB.open("betterme-db", 11);
       const db = await new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
