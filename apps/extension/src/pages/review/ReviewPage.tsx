@@ -2091,6 +2091,9 @@ function PromptComparisonSummary({
   const candidate = candidates.find((item) => item.id === comparison.candidateId);
   const promotion = promotions.find((item) => item.comparisonId === comparison.id) ?? null;
   const comparisonSuggestions = promptProgramSuggestions.filter((item) => item.comparisonId === comparison.id);
+  const holdoutProtected =
+    comparison.mode !== "release_review" &&
+    comparison.promotionGate.datasetCoverage.some((row) => row.datasetType === "holdout" && row.total > 0);
   const canPromote =
     comparison.recommendation === "promote_candidate" &&
     comparison.regressedCaseIds.length === 0 &&
@@ -2120,10 +2123,14 @@ function PromptComparisonSummary({
         <button className="btn btn-ghost" onClick={() => onSelectCandidateRun(comparison.candidateRunId)}>
           Candidate Run
         </button>
-        <button className="btn btn-ghost" disabled={generatingPromptCandidate} onClick={onGenerateCandidate}>
+        <button className="btn btn-ghost" disabled={generatingPromptCandidate || holdoutProtected} onClick={onGenerateCandidate}>
           {generatingPromptCandidate ? "Generating..." : "Generate Candidate"}
         </button>
-        <button className="btn btn-ghost" disabled={generatingPromptProgramSuggestions} onClick={onGenerateSuggestions}>
+        <button
+          className="btn btn-ghost"
+          disabled={generatingPromptProgramSuggestions || holdoutProtected}
+          onClick={onGenerateSuggestions}
+        >
           {generatingPromptProgramSuggestions ? "Generating..." : "Generate Suggestions"}
         </button>
       </div>
@@ -2174,23 +2181,32 @@ function PromptComparisonSummary({
       </section>
       <section className="stack compact-stack">
         <span className="section-label">Textual Gradient</span>
-        <strong>{comparison.textualGradient.summary}</strong>
-        {comparison.textualGradient.failureClusters.length > 0 && (
-          <div className="metric-breakdown-grid">
-            {comparison.textualGradient.failureClusters.slice(0, 4).map((cluster) => (
-              <section className="metric-breakdown stack" key={cluster.label}>
-                <span className="section-label">{formatTag(cluster.label)}</span>
-                <strong>{cluster.cases} cases</strong>
-                <span>{cluster.direction}</span>
-              </section>
-            ))}
-          </div>
+        {holdoutProtected ? (
+          <section className="holdout-guard stack">
+            <strong>Holdout protected</strong>
+            <span>{comparison.textualGradient.summary}</span>
+          </section>
+        ) : (
+          <>
+            <strong>{comparison.textualGradient.summary}</strong>
+            {comparison.textualGradient.failureClusters.length > 0 && (
+              <div className="metric-breakdown-grid">
+                {comparison.textualGradient.failureClusters.slice(0, 4).map((cluster) => (
+                  <section className="metric-breakdown stack" key={cluster.label}>
+                    <span className="section-label">{formatTag(cluster.label)}</span>
+                    <strong>{cluster.cases} cases</strong>
+                    <span>{cluster.direction}</span>
+                  </section>
+                ))}
+              </div>
+            )}
+            <ul>
+              {comparison.textualGradient.suggestedPromptDirections.map((direction) => (
+                <li key={direction}>{direction}</li>
+              ))}
+            </ul>
+          </>
         )}
-        <ul>
-          {comparison.textualGradient.suggestedPromptDirections.map((direction) => (
-            <li key={direction}>{direction}</li>
-          ))}
-        </ul>
         <div className="release-decision-history">
           {comparison.textualGradient.riskNotes.map((note) => (
             <div className="release-decision-entry" key={note}>

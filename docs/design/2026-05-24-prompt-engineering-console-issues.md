@@ -213,7 +213,7 @@ Update 2026-05-24:
 
 ### ISSUE-008: Textual Gradient can overfit visible cases
 
-Status: partially mitigated
+Status: mitigated
 
 Risk:
 
@@ -244,6 +244,7 @@ Update 2026-05-24:
 - Contract Reference surfaces accepted suggestions as a contract-first backlog with reminders for contract source, generated references, eval assertions or fixtures, and linked docs.
 - PM can create a `ContractChangePlan` from an accepted suggestion so the implementation target, required surfaces, and source suggestion item are tracked before any source-code contract change starts.
 - Holdout visibility rules from Experiment Lab still apply because candidate comparison is built from standard tuning/release-review eval runs.
+- Tuning-mode comparisons that include Holdout cases now store a redacted Textual Gradient, hide failure clusters and prompt directions, and disable candidate/suggestion generation from that comparison.
 - Promotion requires the comparison recommendation to be `promote_candidate`, zero regressed cases, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
 - Applying accepted rubric/schema suggestions into the actual contract remains a separate code change with the normal contract validation gates.
 

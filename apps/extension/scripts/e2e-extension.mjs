@@ -531,6 +531,73 @@ try {
   }
   console.log("HOLDOUT_APPROVAL_GUARD_OK true");
 
+  await queueProviderResponses(serviceWorker, [
+    buildProviderDecision({
+      decision: "BLOCK",
+      userFacingMessage: "Stay blocked for now.",
+      decisionReasonCategory: "high_risk_pattern",
+      scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
+      memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
+    }),
+    buildProviderDecision({
+      decision: "ALLOW",
+      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
+      decisionReasonCategory: "clear_intention",
+      unlockMinutes: 5,
+      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
+      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
+    })
+  ]);
+  await page.getByLabel("Experiment provider", { exact: true }).selectOption("openai");
+  await page.getByLabel("Experiment dataset", { exact: true }).selectOption("holdout");
+  await page.getByLabel("Experiment tag", { exact: true }).selectOption("holdout_probe");
+  await page.getByLabel("Prompt candidate name").fill("E2E holdout-protected candidate");
+  await page.getByLabel("Prompt candidate patch").fill("For this candidate, allow bounded homework requests.");
+  await page.getByLabel("Prompt candidate rationale").fill("Probe Holdout Textual Gradient protection.");
+  await page.getByRole("button", { name: /Save Candidate/ }).click();
+  await page.getByText("Saved prompt candidate E2E holdout-protected candidate.").waitFor({ timeout: 3_000 });
+  await page.getByRole("button", { name: /Run A\/B/ }).click();
+  await page.getByText(/Candidate A\/B finished/).waitFor({ timeout: 8_000 });
+  await page.locator(".release-decision-card .holdout-guard strong", { hasText: "Holdout protected" }).waitFor({ timeout: 5_000 });
+  const holdoutComparisonPanelText = await page.locator(".release-decision-card").first().innerText();
+  assertIncludes(
+    holdoutComparisonPanelText,
+    "Holdout details are protected in tuning mode",
+    "Holdout tuning comparison did not redact Textual Gradient details."
+  );
+  assertNotIncludes(
+    holdoutComparisonPanelText,
+    "Protected holdout failing case",
+    "Holdout tuning comparison leaked a Holdout case title."
+  );
+  const generateCandidateButton = page.getByRole("button", { name: "Generate Candidate" });
+  const generateSuggestionsButton = page.getByRole("button", { name: "Generate Suggestions" });
+  if (!(await generateCandidateButton.isDisabled()) || !(await generateSuggestionsButton.isDisabled())) {
+    throw new Error("Holdout tuning comparison allowed Textual Gradient generation actions.");
+  }
+  const holdoutPromptComparisons = await getIndexedDbRecords(page, "promptComparisons");
+  const latestHoldoutComparison = holdoutPromptComparisons.at(-1);
+  if (
+    latestHoldoutComparison?.textualGradient?.failureClusters?.length !== 0 ||
+    latestHoldoutComparison?.textualGradient?.suggestedPromptDirections?.length !== 0
+  ) {
+    throw new Error(`Holdout comparison stored unredacted Textual Gradient details: ${JSON.stringify(latestHoldoutComparison)}`);
+  }
+  let holdoutGradientGenerationRejected = false;
+  try {
+    await sendRuntimeMessage(page, "review/generatePromptCandidate", {
+      comparisonId: latestHoldoutComparison.id,
+      provider: "openai",
+      model: "gpt-5.4-mini"
+    });
+  } catch (error) {
+    holdoutGradientGenerationRejected = String(error).includes("Holdout-protected tuning comparisons");
+  }
+  if (!holdoutGradientGenerationRejected) {
+    throw new Error("Background allowed candidate generation from a Holdout tuning comparison.");
+  }
+  console.log("HOLDOUT_TEXTUAL_GRADIENT_GUARD_OK true");
+
   await sendRuntimeMessage(page, "review/createEvalCase", {
     title: "Provider mode passing case",
     datasetType: "design",

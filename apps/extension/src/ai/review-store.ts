@@ -526,6 +526,9 @@ export async function generatePromptCandidate(input: GeneratePromptCandidateInpu
   if (!comparison) {
     throw new Error("Prompt comparison not found.");
   }
+  if (promptComparisonHasProtectedHoldout(comparison)) {
+    throw new Error("Holdout-protected tuning comparisons cannot generate prompt candidates. Rerun in release review mode.");
+  }
   const provider = input.provider ?? comparison.provider;
   if (provider === "mock") {
     throw new Error("Prompt candidate generation requires a BYOK provider.");
@@ -562,6 +565,9 @@ export async function generatePromptProgramSuggestions(
   const comparison = await getRecord<AICheckPromptComparison>("promptComparisons", input.comparisonId);
   if (!comparison) {
     throw new Error("Prompt comparison not found.");
+  }
+  if (promptComparisonHasProtectedHoldout(comparison)) {
+    throw new Error("Holdout-protected tuning comparisons cannot generate Prompt Program suggestions. Rerun in release review mode.");
   }
   const provider = input.provider ?? comparison.provider;
   if (provider === "mock") {
@@ -1150,6 +1156,7 @@ function buildPromptComparison(input: {
   }
 
   const promotionGate = buildPromotionGate(input.selectedCases, input.candidateSummary.results);
+  const protectedHoldout = comparisonHasProtectedHoldout(input.candidateSummary.run.mode, input.selectedCases);
   const recommendation =
     regressedCaseIds.length > 0 ||
     input.candidateSummary.run.metrics.releaseGate.status === "fail" ||
@@ -1177,15 +1184,28 @@ function buildPromptComparison(input: {
     unchangedPassedCaseIds,
     recommendation,
     promotionGate,
-    textualGradient: buildTextualGradient({
-      cases: input.selectedCases,
-      candidateResults: input.candidateSummary.results,
-      improvedCaseIds,
-      regressedCaseIds,
-      unchangedFailedCaseIds
-    }),
+    textualGradient: protectedHoldout
+      ? buildProtectedHoldoutTextualGradient()
+      : buildTextualGradient({
+          cases: input.selectedCases,
+          candidateResults: input.candidateSummary.results,
+          improvedCaseIds,
+          regressedCaseIds,
+          unchangedFailedCaseIds
+        }),
     createdAt: nowIso()
   };
+}
+
+function promptComparisonHasProtectedHoldout(comparison: AICheckPromptComparison): boolean {
+  return (
+    comparison.mode !== "release_review" &&
+    comparison.promotionGate.datasetCoverage.some((row) => row.datasetType === "holdout" && row.total > 0)
+  );
+}
+
+function comparisonHasProtectedHoldout(mode: AICheckEvalRun["mode"], cases: AICheckCase[]): boolean {
+  return mode !== "release_review" && cases.some((testCase) => testCase.datasetType === "holdout");
 }
 
 function buildPromotionGate(cases: AICheckCase[], candidateResults: AICheckEvalResult[]): AICheckPromptComparison["promotionGate"] {
@@ -1267,6 +1287,19 @@ function buildTextualGradient(input: {
     failureClusters,
     suggestedPromptDirections,
     riskNotes
+  };
+}
+
+function buildProtectedHoldoutTextualGradient(): AICheckPromptComparison["textualGradient"] {
+  return {
+    summary: "Holdout details are protected in tuning mode. Rerun in release review mode to inspect failure patterns.",
+    failureClusters: [],
+    suggestedPromptDirections: [],
+    riskNotes: [
+      "Detailed Holdout failures are hidden during tuning to avoid contaminating prompt edits.",
+      "Textual Gradient candidate and suggestion generation are disabled for this comparison.",
+      "Use release review mode when the PM is making a release decision."
+    ]
   };
 }
 

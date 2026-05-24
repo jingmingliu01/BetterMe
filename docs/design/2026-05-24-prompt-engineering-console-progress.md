@@ -193,6 +193,7 @@ Implementation validation performed:
 - `test:ai-check` includes focused coverage that selecting turn 2 excludes turn 3+ from replayable eval input.
 - `test:e2e` includes Holdout visibility coverage: tuning mode hides Holdout failure details, release review mode reveals the failure summary.
 - `test:e2e` includes Holdout approval guard coverage (`HOLDOUT_APPROVAL_GUARD_OK true`): tuning-mode Holdout runs cannot be approved in the UI or background API.
+- `test:e2e` includes Holdout Textual Gradient guard coverage (`HOLDOUT_TEXTUAL_GRADIENT_GUARD_OK true`): tuning-mode Holdout comparisons store redacted Textual Gradient, hide Holdout case titles, and reject candidate generation through the background API.
 - `test:e2e` includes provider-mode Experiment Lab coverage: saved BYOK provider, runtime provider messages, BYOK run metadata, and one focused passing provider run.
 - `test:e2e` includes decision-point snapshot source coverage (`SNAPSHOT_SOURCE_UI_OK true`): History review shows the selected decision point as Runtime when the persisted runtime snapshot is available.
 - `test:e2e` includes Case Library origin coverage (`CASE_LIBRARY_ORIGIN_OK true`): PM Review filters to built-in defaults and shows the local override guidance in the selected case detail.
@@ -303,6 +304,13 @@ Pending implementation validation:
 - Experiment Lab now asks a saved BYOK provider to draft a new Prompt Candidate from a comparison's Textual Gradient.
 - Generated candidates are saved as draft Prompt Candidates and must still pass A/B comparison and promotion gates.
 - Issues document was updated because LLM-assisted append-only prompt candidate generation moved from open to first-slice implemented. Design document was updated to document the generation boundary.
+
+2026-05-24 Holdout Textual Gradient guard update:
+
+- Tuning-mode Candidate Prompt comparisons that include Holdout cases now store a redacted Textual Gradient summary instead of failure clusters or prompt directions.
+- PM Review disables Generate Candidate and Generate Suggestions for those protected comparisons.
+- Background generation APIs reject candidate or suggestion generation from Holdout-protected tuning comparisons.
+- Issues document was updated because the Textual Gradient overfit risk is now mitigated by Holdout redaction, non-mutating artifacts, and promotion gates.
 
 2026-05-24 Prompt Program Suggestions update:
 
