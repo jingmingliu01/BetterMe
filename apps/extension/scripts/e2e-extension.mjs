@@ -750,6 +750,12 @@ try {
   ) {
     throw new Error(`Prompt Program suggestion review state was not persisted: ${JSON.stringify(reviewedSuggestion)}`);
   }
+  await page.getByRole("button", { name: "Schema Reference" }).click();
+  await page.getByText("Contract-first backlog").waitFor({ timeout: 5_000 });
+  await page.getByText("1 accepted suggestions").waitFor({ timeout: 5_000 });
+  await page.getByText("Bounded break rubric").waitFor({ timeout: 5_000 });
+  await page.getByText("Update apps/extension/src/shared/ai-check-contract.json first.").waitFor({ timeout: 5_000 });
+  console.log("PROMPT_PROGRAM_BACKLOG_OK true");
   console.log("PROMPT_PROGRAM_SUGGESTION_REVIEW_OK true");
 
   for (const datasetType of ["design", "regression", "holdout"]) {

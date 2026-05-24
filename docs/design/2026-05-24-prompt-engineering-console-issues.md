@@ -240,6 +240,7 @@ Update 2026-05-24:
 - It can also generate Prompt Program Suggestions across prompt patch, rubric, and schema categories.
 - Prompt Program Suggestions are read-only PM artifacts; they do not mutate the active prompt, AI Check contract, rubric, schema, release decisions, or promotion state.
 - PM can accept or reject individual suggestion items. Accepted items are tracked as contract-first implementation inputs, while applying them still requires explicit contract/code/docs changes.
+- Schema Reference surfaces accepted suggestions as a contract-first backlog with reminders for contract source, generated references, eval assertions or fixtures, and linked docs.
 - Holdout visibility rules from Experiment Lab still apply because candidate comparison is built from standard tuning/release-review eval runs.
 - Promotion requires the comparison recommendation to be `promote_candidate`, zero regressed cases, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
 - Applying accepted rubric/schema suggestions into the actual contract remains a separate code change with the normal contract validation gates.
@@ -247,6 +248,11 @@ Update 2026-05-24:
 ### ISSUE-009: Contract Reference can become stale if Prompt Program expands
 
 Status: open
+
+Update 2026-05-24:
+
+- Contract Reference now includes accepted Prompt Program Suggestions as a visible backlog so accepted rubric/schema ideas are less likely to be lost outside the contract workflow.
+- The backlog is intentionally non-mutating; stale-contract risk is still handled by requiring explicit `ai-check-contract.json` changes and validation before any suggestion is considered applied.
 
 Risk:
 

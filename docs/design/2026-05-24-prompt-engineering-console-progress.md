@@ -158,6 +158,7 @@ Implemented now:
 - PM can generate a new draft Prompt Candidate from Textual Gradient using a saved BYOK provider.
 - PM can generate read-only Prompt Program Suggestions from Textual Gradient using a saved BYOK provider; suggestions are categorized as prompt patch, rubric, or schema and are persisted in `promptProgramSuggestions`.
 - PM can accept or reject individual Prompt Program Suggestion items. Accepted items are tracked as contract-first implementation inputs and do not mutate the active prompt, schema, rubric, release decision, or promotion state.
+- Schema Reference shows accepted Prompt Program Suggestions as a contract-first backlog with reminders to update `ai-check-contract.json`, generated references, eval assertions or fixtures, and linked docs.
 - PM can promote a recommended candidate only when it has no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
 - Promotion creates a `promptPromotions` audit record and makes that candidate patch the active local Prompt Program for new AI Check sessions.
 - Runtime AI Check freezes the promoted prompt version on session start and injects the promoted patch into provider messages.
@@ -187,6 +188,7 @@ Implementation validation performed:
 - `test:e2e` includes Textual Gradient candidate generation coverage: Experiment Lab asks a BYOK provider for a draft candidate, sends Textual Gradient context, and persists the generated Prompt Candidate.
 - `test:e2e` includes Prompt Program Suggestions coverage: Experiment Lab asks a BYOK provider for prompt patch/rubric/schema suggestions from Textual Gradient and persists them in `promptProgramSuggestions`.
 - `test:e2e` includes Prompt Program Suggestion review coverage: PM Review accepts and rejects individual suggestion items and persists review state for the contract-first handoff.
+- `test:e2e` includes Contract-first backlog coverage (`PROMPT_PROGRAM_BACKLOG_OK true`): accepted Prompt Program Suggestions appear in Schema Reference with contract-source guidance.
 - `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
 
 Pending implementation validation:
@@ -283,6 +285,12 @@ Pending implementation validation:
 - Experiment Lab lets PM accept or reject individual suggestion items.
 - Accepted items are tracked as contract-first implementation inputs without mutating the active prompt, AI Check contract, rubric, schema, release decisions, or promotion state.
 - Issues document was updated because the contract-first workflow now has an explicit PM review handoff. Design document was updated to include suggestion item review state.
+
+2026-05-24 Contract-first backlog update:
+
+- Schema Reference now shows accepted Prompt Program Suggestions as a contract-first backlog.
+- The backlog surfaces source comparison ids and reminds implementers to update `ai-check-contract.json`, generated contract references, eval assertions or fixtures, and linked docs.
+- Issues document was updated because accepted suggestions now have a visible contract-work queue. Design document was updated to include the backlog in Contract Reference.
 
 ## Update Checklist
 

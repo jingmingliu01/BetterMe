@@ -423,6 +423,7 @@ Contract Reference continues the current Schema Reference role, but the name sho
 
 It should show:
 
+- accepted Prompt Program Suggestions as a contract-first backlog.
 - provider messages.
 - input schema.
 - output schema.
@@ -431,6 +432,8 @@ It should show:
 - prompt program policy/rubric references.
 
 It must remain generated from shared contract/runtime builders where possible.
+
+The accepted-suggestion backlog is an implementation queue, not a patch applier. Each item should remind the PM/engineer to update `ai-check-contract.json` first, regenerate derived contract references, update eval assertions or fixtures, and then refresh linked design/progress/issues docs.
 
 ## Runtime and Data Model Requirements
 
@@ -575,6 +578,7 @@ First implemented slice:
 - Show improved/regressed counts, recommendation, and Textual Gradient diagnosis.
 - Generate a draft Prompt Candidate from Textual Gradient through a saved BYOK provider.
 - Generate read-only Prompt Program Suggestions from Textual Gradient across prompt patch, rubric, and schema categories.
+- Show accepted Prompt Program Suggestions inside Contract Reference as a contract-first backlog.
 - Promote a passing candidate into the active local Prompt Program through an audited promotion artifact.
 - Require passing Design, Regression, and Holdout dataset coverage before promotion.
 - Freeze the promoted prompt version on new AI Check sessions and inject its patch into runtime provider messages.

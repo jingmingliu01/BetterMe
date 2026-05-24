@@ -940,7 +940,7 @@ export function ReviewPage() {
         />
       )}
 
-      {area === "schema" && <SchemaReference />}
+      {area === "schema" && <SchemaReference promptProgramSuggestions={promptProgramSuggestions} />}
     </AppShell>
   );
 }
@@ -2215,7 +2215,7 @@ function EvalCaseDetail({
   );
 }
 
-function SchemaReference() {
+function SchemaReference({ promptProgramSuggestions }: { promptProgramSuggestions: AICheckPromptProgramSuggestion[] }) {
   const [activeTab, setActiveTab] = useState<SchemaManualTab>("messages");
   const [selectedOutputSchemaVersion, setSelectedOutputSchemaVersion] = useState(
     AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion
@@ -2270,6 +2270,8 @@ function SchemaReference() {
           />
         </div>
       </div>
+
+      <ContractSuggestionBacklog promptProgramSuggestions={promptProgramSuggestions} />
 
       <div className="schema-manual-tabs" role="tablist" aria-label="Schema reference views">
         {(["messages", "output", "evaluation"] as SchemaManualTab[]).map((tab) => (
@@ -2345,6 +2347,54 @@ function VersionChip({ label, source, value }: { label: string; source: string; 
       <strong>{value}</strong>
       <code>{source}</code>
     </div>
+  );
+}
+
+function ContractSuggestionBacklog({
+  promptProgramSuggestions
+}: {
+  promptProgramSuggestions: AICheckPromptProgramSuggestion[];
+}) {
+  const acceptedItems = promptProgramSuggestions.flatMap((suggestion) =>
+    suggestion.items
+      .filter((item) => item.status === "accepted")
+      .map((item) => ({
+        item,
+        suggestion
+      }))
+  );
+
+  return (
+    <section className="panel stack">
+      <div className="section-heading">
+        <span className="section-label">Contract-first backlog</span>
+        <h2>{acceptedItems.length === 0 ? "No accepted suggestions" : `${acceptedItems.length} accepted suggestions`}</h2>
+      </div>
+      <p className="muted">
+        Accepted Prompt Program Suggestions are implementation inputs only. Apply them by changing the contract source,
+        regenerated references, eval assertions, and linked docs in one explicit change.
+      </p>
+      {acceptedItems.length > 0 && (
+        <div className="metric-breakdown-grid">
+          {acceptedItems.map(({ item, suggestion }) => (
+            <section className="metric-breakdown stack" key={`${suggestion.id}-${item.id}`}>
+              <span className="section-label">{formatTag(item.kind)}</span>
+              <strong>{item.title}</strong>
+              <span>{item.suggestion}</span>
+              {item.implementationNotes && <small>{item.implementationNotes}</small>}
+              {item.risk && <small>{item.risk}</small>}
+              {item.reviewNote && <small>{item.reviewNote}</small>}
+              <code>{suggestion.comparisonId}</code>
+            </section>
+          ))}
+        </div>
+      )}
+      <div className="schema-guidance stack">
+        <StatusItem label="Contract source" value="Update apps/extension/src/shared/ai-check-contract.json first." />
+        <StatusItem label="Generated surfaces" value="Run contract generation and keep PM Review references aligned." />
+        <StatusItem label="Validation" value="Update eval assertions or fixtures, then run the AI Check contract and eval gates." />
+      </div>
+    </section>
   );
 }
 
