@@ -756,6 +756,22 @@ try {
   await page.getByText("Bounded break rubric").waitFor({ timeout: 5_000 });
   await page.getByText("Update apps/extension/src/shared/ai-check-contract.json first.").waitFor({ timeout: 5_000 });
   console.log("PROMPT_PROGRAM_BACKLOG_OK true");
+  await page.getByRole("button", { name: "Create plan for Bounded break rubric" }).click();
+  await page.getByText("Contract change plan created: Bounded break rubric.").waitFor({ timeout: 5_000 });
+  const contractChangePlans = await getIndexedDbRecords(page, "contractChangePlans");
+  const acceptedRubricItem = reviewedSuggestion.items.find((item) => item.title === "Bounded break rubric");
+  const latestPlan = contractChangePlans.find((plan) => plan.suggestionItemId === acceptedRubricItem?.id);
+  if (
+    !latestPlan ||
+    latestPlan.status !== "draft" ||
+    !latestPlan.targets.includes("rubric") ||
+    !latestPlan.targets.includes("evaluation") ||
+    !latestPlan.requiredSurfaces.includes("apps/extension/src/shared/ai-check-contract.json")
+  ) {
+    throw new Error(`Contract change plan was not persisted correctly: ${JSON.stringify(contractChangePlans)}`);
+  }
+  await page.getByText("Plan draft").waitFor({ timeout: 5_000 });
+  console.log("CONTRACT_CHANGE_PLAN_OK true");
   console.log("PROMPT_PROGRAM_SUGGESTION_REVIEW_OK true");
   await page.getByRole("button", { name: "Experiment Lab" }).click();
   await page.getByLabel("Experiment workspace name").fill("E2E multi-arm workspace");
@@ -955,7 +971,7 @@ async function getBehaviorEvents(page) {
 
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 12);
+    const request = indexedDB.open("betterme-db", 13);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -973,7 +989,7 @@ async function getIndexedDbRecords(page, storeName) {
 async function putIndexedDbRecord(page, storeName, record) {
   return page.evaluate(
     async ({ selectedStore, selectedRecord }) => {
-      const request = indexedDB.open("betterme-db", 12);
+      const request = indexedDB.open("betterme-db", 13);
       const db = await new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

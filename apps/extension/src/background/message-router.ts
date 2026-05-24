@@ -49,6 +49,7 @@ import {
 import {
   addExperimentArm,
   archiveEvalCase,
+  createContractChangePlan,
   createExperiment,
   createReleaseDecision,
   convertBadCaseToEvalCase,
@@ -59,6 +60,7 @@ import {
   generatePromptProgramSuggestions,
   importEvalRunArtifact,
   linkExperimentArtifact,
+  listContractChangePlans,
   listPromptPromotions,
   listEvalCases,
   listEvalRunSummaries,
@@ -359,6 +361,10 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await generatePromptProgramSuggestions(message.payload));
       case "review/reviewPromptProgramSuggestionItem":
         return ok(await reviewPromptProgramSuggestionItem(message.payload));
+      case "review/listContractChangePlans":
+        return ok(await listContractChangePlans());
+      case "review/createContractChangePlan":
+        return ok(await createContractChangePlan(message.payload));
       case "review/listPromptPromotions":
         return ok(await listPromptPromotions());
       case "review/promotePromptCandidate":
@@ -385,6 +391,7 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
           promptCandidates: await listPromptCandidates(),
           promptComparisons: await listPromptComparisons(),
           promptProgramSuggestions: await listPromptProgramSuggestions(),
+          contractChangePlans: await listContractChangePlans(),
           promptPromotions: await listPromptPromotions(),
           releaseDecisions: await listReleaseDecisions(),
           experiments: await listExperiments()

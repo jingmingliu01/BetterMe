@@ -8,6 +8,8 @@ import { filterEvalCasesForRun, runEvalExperimentForCases } from "./eval-engine"
 import type {
   AICheckCase,
   AICheckCaseInput,
+  AICheckContractChangePlan,
+  AICheckContractChangePlanTarget,
   AICheckDatasetType,
   AICheckDecisionPointSnapshot,
   AICheckExpectedOutput,
@@ -34,6 +36,7 @@ import type {
   BehaviorReasonCategory,
   CheckpointDecision,
   AddExperimentArmInput,
+  CreateContractChangePlanInput,
   CreateExperimentInput,
   CreateReleaseDecisionInput,
   CreateEvalCaseInput,
@@ -430,6 +433,11 @@ export async function listPromptProgramSuggestions(): Promise<AICheckPromptProgr
   return suggestions.sort((left, right) => (right.updatedAt ?? right.createdAt).localeCompare(left.updatedAt ?? left.createdAt));
 }
 
+export async function listContractChangePlans(): Promise<AICheckContractChangePlan[]> {
+  const plans = await getAllRecords<AICheckContractChangePlan>("contractChangePlans");
+  return plans.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
 export async function getActivePromptPromotion(): Promise<AICheckPromptPromotion | null> {
   return (await listPromptPromotions())[0] ?? null;
 }
@@ -606,6 +614,43 @@ export async function reviewPromptProgramSuggestionItem(
   }
   await putRecord("promptProgramSuggestions", updated);
   return updated;
+}
+
+export async function createContractChangePlan(input: CreateContractChangePlanInput): Promise<AICheckContractChangePlan> {
+  const suggestion = await getRecord<AICheckPromptProgramSuggestion>("promptProgramSuggestions", input.suggestionId);
+  if (!suggestion) {
+    throw new Error("Prompt Program suggestion not found.");
+  }
+  const item = suggestion.items.find((candidate) => candidate.id === input.itemId);
+  if (!item) {
+    throw new Error("Prompt Program suggestion item not found.");
+  }
+  if (item.status !== "accepted") {
+    throw new Error("Only accepted suggestions can become contract change plans.");
+  }
+  const existingPlans = await listContractChangePlans();
+  const existingPlan = existingPlans.find(
+    (plan) => plan.suggestionId === suggestion.id && plan.suggestionItemId === item.id
+  );
+  if (existingPlan) {
+    return existingPlan;
+  }
+  const createdAt = nowIso();
+  const targets = deriveContractChangeTargets(item.kind);
+  const plan: AICheckContractChangePlan = {
+    id: createId("contractchangeplan"),
+    suggestionId: suggestion.id,
+    suggestionItemId: item.id,
+    status: "draft",
+    title: input.title?.trim() || item.title,
+    targets,
+    summary: input.summary?.trim() || item.suggestion,
+    requiredSurfaces: buildContractChangeRequiredSurfaces(targets),
+    createdAt,
+    updatedAt: createdAt
+  };
+  await putRecord("contractChangePlans", plan);
+  return plan;
 }
 
 export async function promotePromptCandidate(input: PromotePromptCandidateInput): Promise<AICheckPromptPromotion> {
@@ -802,6 +847,30 @@ function parsePromptProgramSuggestionItem(raw: unknown): AICheckPromptProgramSug
 
 function formatSuggestionKind(kind: AICheckPromptProgramSuggestionItem["kind"]): string {
   return kind.replace(/_/g, " ");
+}
+
+function deriveContractChangeTargets(
+  kind: AICheckPromptProgramSuggestionItem["kind"]
+): AICheckContractChangePlanTarget[] {
+  if (kind === "prompt_patch") return ["prompt"];
+  if (kind === "rubric") return ["rubric", "evaluation"];
+  return ["schema", "evaluation"];
+}
+
+function buildContractChangeRequiredSurfaces(targets: AICheckContractChangePlanTarget[]): string[] {
+  const surfaces = [
+    "apps/extension/src/shared/ai-check-contract.json",
+    "generated AI Check contract references",
+    "AI Check eval assertions or fixtures",
+    "linked design/progress/issues docs"
+  ];
+  if (targets.includes("schema")) {
+    surfaces.splice(2, 0, "generated TypeScript/parser constraints");
+  }
+  if (targets.includes("prompt")) {
+    surfaces.splice(1, 0, "runtime provider message builder and prompt version registry");
+  }
+  return surfaces;
 }
 
 export async function listReleaseDecisions(): Promise<AICheckReleaseDecision[]> {

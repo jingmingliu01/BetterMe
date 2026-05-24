@@ -42,6 +42,7 @@ import { useAsyncState } from "../shared/useAsyncState";
 import type {
   AICheckCase,
   AICheckCaseStatus,
+  AICheckContractChangePlan,
   AICheckDecisionExpectation,
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
@@ -59,6 +60,7 @@ import type {
   BadCaseErrorType,
   BadCaseReview,
   AddExperimentArmInput,
+  CreateContractChangePlanInput,
   CreateEvalCaseInput,
   CreateExperimentInput,
   CreatePromptCandidateInput,
@@ -187,6 +189,10 @@ export function ReviewPage() {
     () => sendMessage<AICheckPromptProgramSuggestion[]>({ type: "review/listPromptProgramSuggestions" }),
     []
   );
+  const loadContractChangePlans = useCallback(
+    () => sendMessage<AICheckContractChangePlan[]>({ type: "review/listContractChangePlans" }),
+    []
+  );
   const loadProviderStatus = useCallback(() => sendMessage<Record<ProviderId, boolean>>({ type: "provider/status" }), []);
   const {
     data: sessionData,
@@ -243,6 +249,12 @@ export function ReviewPage() {
     refresh: refreshPromptProgramSuggestions
   } = useAsyncState(loadPromptProgramSuggestions);
   const {
+    data: contractChangePlanData,
+    error: contractChangePlanError,
+    loading: contractChangePlansLoading,
+    refresh: refreshContractChangePlans
+  } = useAsyncState(loadContractChangePlans);
+  const {
     data: providerStatusData,
     error: providerStatusError,
     loading: providerStatusLoading,
@@ -288,6 +300,7 @@ export function ReviewPage() {
   const [generatingPromptCandidate, setGeneratingPromptCandidate] = useState(false);
   const [generatingPromptProgramSuggestions, setGeneratingPromptProgramSuggestions] = useState(false);
   const [reviewingPromptProgramSuggestionItemId, setReviewingPromptProgramSuggestionItemId] = useState<string | null>(null);
+  const [creatingContractChangePlanItemId, setCreatingContractChangePlanItemId] = useState<string | null>(null);
   const [promotingPromptCandidate, setPromotingPromptCandidate] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -301,6 +314,7 @@ export function ReviewPage() {
   const promptComparisons = promptComparisonData ?? [];
   const promptPromotions = promptPromotionData ?? [];
   const promptProgramSuggestions = promptProgramSuggestionData ?? [];
+  const contractChangePlans = contractChangePlanData ?? [];
   const selectedSession = useMemo(
     () => sessions.find((item) => item.session.id === selectedSessionId) ?? sessions[0] ?? null,
     [selectedSessionId, sessions]
@@ -700,6 +714,23 @@ export function ReviewPage() {
     }
   }
 
+  async function createContractChangePlan(input: CreateContractChangePlanInput) {
+    setCreatingContractChangePlanItemId(input.itemId);
+    setStatus(null);
+    try {
+      const plan = await sendMessage<AICheckContractChangePlan>({
+        type: "review/createContractChangePlan",
+        payload: input
+      });
+      setStatus(`Contract change plan created: ${plan.title}.`);
+      await refreshContractChangePlans();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not create contract change plan.");
+    } finally {
+      setCreatingContractChangePlanItemId(null);
+    }
+  }
+
   async function createExperimentWorkspace() {
     setSaving(true);
     setStatus(null);
@@ -804,6 +835,7 @@ export function ReviewPage() {
     (promptComparisonsLoading && !promptComparisonData) ||
     (promptPromotionsLoading && !promptPromotionData) ||
     (promptProgramSuggestionsLoading && !promptProgramSuggestionData) ||
+    (contractChangePlansLoading && !contractChangePlanData) ||
     (providerStatusLoading && !providerStatusData)
   ) {
     return <AppShell title="AI PM Review" subtitle="Loading local AI quality workspace..." />;
@@ -820,6 +852,7 @@ export function ReviewPage() {
         promptComparisonError ||
         promptPromotionError ||
         promptProgramSuggestionError ||
+        contractChangePlanError ||
         providerStatusError) && (
         <p className="badge badge-danger">
           {sessionError ??
@@ -831,6 +864,7 @@ export function ReviewPage() {
             promptComparisonError ??
             promptPromotionError ??
             promptProgramSuggestionError ??
+            contractChangePlanError ??
             providerStatusError}
         </p>
       )}
@@ -1047,6 +1081,7 @@ export function ReviewPage() {
               refreshReleaseDecisions(),
               refreshPromptCandidates(),
               refreshPromptComparisons(),
+              refreshContractChangePlans(),
               refreshPromptProgramSuggestions(),
               refreshPromptPromotions()
             ])
@@ -1056,7 +1091,14 @@ export function ReviewPage() {
         />
       )}
 
-      {area === "schema" && <SchemaReference promptProgramSuggestions={promptProgramSuggestions} />}
+      {area === "schema" && (
+        <SchemaReference
+          contractChangePlans={contractChangePlans}
+          creatingContractChangePlanItemId={creatingContractChangePlanItemId}
+          onCreateContractChangePlan={createContractChangePlan}
+          promptProgramSuggestions={promptProgramSuggestions}
+        />
+      )}
     </AppShell>
   );
 }
@@ -2552,7 +2594,17 @@ function EvalCaseDetail({
   );
 }
 
-function SchemaReference({ promptProgramSuggestions }: { promptProgramSuggestions: AICheckPromptProgramSuggestion[] }) {
+function SchemaReference({
+  contractChangePlans,
+  creatingContractChangePlanItemId,
+  onCreateContractChangePlan,
+  promptProgramSuggestions
+}: {
+  contractChangePlans: AICheckContractChangePlan[];
+  creatingContractChangePlanItemId: string | null;
+  onCreateContractChangePlan: (input: CreateContractChangePlanInput) => void;
+  promptProgramSuggestions: AICheckPromptProgramSuggestion[];
+}) {
   const [activeTab, setActiveTab] = useState<SchemaManualTab>("messages");
   const [selectedOutputSchemaVersion, setSelectedOutputSchemaVersion] = useState(
     AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion
@@ -2608,7 +2660,12 @@ function SchemaReference({ promptProgramSuggestions }: { promptProgramSuggestion
         </div>
       </div>
 
-      <ContractSuggestionBacklog promptProgramSuggestions={promptProgramSuggestions} />
+      <ContractSuggestionBacklog
+        contractChangePlans={contractChangePlans}
+        creatingContractChangePlanItemId={creatingContractChangePlanItemId}
+        onCreateContractChangePlan={onCreateContractChangePlan}
+        promptProgramSuggestions={promptProgramSuggestions}
+      />
 
       <div className="schema-manual-tabs" role="tablist" aria-label="Schema reference views">
         {(["messages", "output", "evaluation"] as SchemaManualTab[]).map((tab) => (
@@ -2688,14 +2745,23 @@ function VersionChip({ label, source, value }: { label: string; source: string; 
 }
 
 function ContractSuggestionBacklog({
+  contractChangePlans,
+  creatingContractChangePlanItemId,
+  onCreateContractChangePlan,
   promptProgramSuggestions
 }: {
+  contractChangePlans: AICheckContractChangePlan[];
+  creatingContractChangePlanItemId: string | null;
+  onCreateContractChangePlan: (input: CreateContractChangePlanInput) => void;
   promptProgramSuggestions: AICheckPromptProgramSuggestion[];
 }) {
   const acceptedItems = promptProgramSuggestions.flatMap((suggestion) =>
     suggestion.items
       .filter((item) => item.status === "accepted")
       .map((item) => ({
+        plan: contractChangePlans.find(
+          (candidate) => candidate.suggestionId === suggestion.id && candidate.suggestionItemId === item.id
+        ),
         item,
         suggestion
       }))
@@ -2713,7 +2779,7 @@ function ContractSuggestionBacklog({
       </p>
       {acceptedItems.length > 0 && (
         <div className="metric-breakdown-grid">
-          {acceptedItems.map(({ item, suggestion }) => (
+          {acceptedItems.map(({ item, plan, suggestion }) => (
             <section className="metric-breakdown stack" key={`${suggestion.id}-${item.id}`}>
               <span className="section-label">{formatTag(item.kind)}</span>
               <strong>{item.title}</strong>
@@ -2721,6 +2787,29 @@ function ContractSuggestionBacklog({
               {item.implementationNotes && <small>{item.implementationNotes}</small>}
               {item.risk && <small>{item.risk}</small>}
               {item.reviewNote && <small>{item.reviewNote}</small>}
+              {plan ? (
+                <div className="stack">
+                  <span className="badge badge-success">Plan {formatTag(plan.status)}</span>
+                  <small>{plan.targets.map(formatTag).join(" + ")}</small>
+                  {plan.requiredSurfaces.map((surface) => (
+                    <small key={surface}>{surface}</small>
+                  ))}
+                </div>
+              ) : (
+                <button
+                  aria-label={`Create plan for ${item.title}`}
+                  className="btn btn-ghost"
+                  disabled={creatingContractChangePlanItemId === item.id}
+                  onClick={() =>
+                    onCreateContractChangePlan({
+                      suggestionId: suggestion.id,
+                      itemId: item.id
+                    })
+                  }
+                >
+                  {creatingContractChangePlanItemId === item.id ? "Creating..." : "Create Plan"}
+                </button>
+              )}
               <code>{suggestion.comparisonId}</code>
             </section>
           ))}

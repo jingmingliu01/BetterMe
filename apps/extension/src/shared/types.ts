@@ -423,6 +423,22 @@ export interface AICheckPromptProgramSuggestion {
   updatedAt: string;
 }
 
+export type AICheckContractChangePlanStatus = "draft" | "ready" | "applied" | "rejected";
+export type AICheckContractChangePlanTarget = "prompt" | "rubric" | "schema" | "evaluation";
+
+export interface AICheckContractChangePlan {
+  id: string;
+  suggestionId: string;
+  suggestionItemId: string;
+  status: AICheckContractChangePlanStatus;
+  title: string;
+  targets: AICheckContractChangePlanTarget[];
+  summary: string;
+  requiredSurfaces: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type AICheckReleaseDecisionStatus = "approved" | "blocked";
 
 export interface AICheckReleaseDecision {
@@ -573,6 +589,8 @@ export type ExtensionMessage =
   | { type: "review/listPromptProgramSuggestions" }
   | { type: "review/generatePromptProgramSuggestions"; payload: GeneratePromptProgramSuggestionsInput }
   | { type: "review/reviewPromptProgramSuggestionItem"; payload: ReviewPromptProgramSuggestionItemInput }
+  | { type: "review/listContractChangePlans" }
+  | { type: "review/createContractChangePlan"; payload: CreateContractChangePlanInput }
   | { type: "review/listPromptPromotions" }
   | { type: "review/promotePromptCandidate"; payload: PromotePromptCandidateInput }
   | { type: "review/listReleaseDecisions" }
@@ -657,6 +675,13 @@ export interface ReviewPromptProgramSuggestionItemInput {
   itemId: string;
   status: Extract<AICheckPromptProgramSuggestionReviewStatus, "accepted" | "rejected">;
   reviewNote?: string;
+}
+
+export interface CreateContractChangePlanInput {
+  suggestionId: string;
+  itemId: string;
+  title?: string;
+  summary?: string;
 }
 
 export interface PromotePromptCandidateInput {
