@@ -166,8 +166,8 @@ Implemented now:
 - PM can generate read-only Prompt Program Suggestions from Textual Gradient using a saved BYOK provider; suggestions are categorized as prompt patch, rubric, or schema and are persisted in `promptProgramSuggestions`.
 - PM can accept or reject individual Prompt Program Suggestion items. Accepted items are tracked as contract-first implementation inputs and do not mutate the active prompt, schema, rubric, release decision, or promotion state.
 - Contract Reference shows accepted Prompt Program Suggestions as a contract-first backlog with reminders to update `ai-check-contract.json`, generated references, eval assertions or fixtures, and linked docs.
-- PM can create `ContractChangePlan` artifacts from accepted suggestions. Plans record prompt/rubric/schema/evaluation targets and required implementation surfaces without mutating the runtime prompt or source contract.
-- PM can move Contract Change Plans through `draft`, `ready`, `applied`, or `rejected`; `applied` requires an implementation note and records the current prompt/output/evaluation versions.
+- PM can create `ContractChangePlan` artifacts from accepted suggestions. Plans record prompt/rubric/schema/evaluation targets, required implementation surfaces, and the prompt/output/evaluation versions current at plan creation without mutating the runtime prompt or source contract.
+- PM can move Contract Change Plans through `draft`, `ready`, `applied`, or `rejected`; `applied` requires an implementation note, structured evidence, target-specific version changes since plan creation, and records the current prompt/output/evaluation versions.
 - `ai-check-contract.json` now owns the Prompt Program rubric under `promptProgram`. Generated constants feed both the provider system prompt and Contract Reference's Prompt Program tab.
 - Evaluation schema v4 adds `eval.expectedInputEvidence` for duration and return-plan evidence; the shared eval engine and CLI runner now check those assertions against case input messages.
 - PM Review's Evaluation Case editor can author and edit expected input evidence with explicit duration and return-plan controls.
@@ -209,7 +209,7 @@ Implementation validation performed:
 - `test:e2e` includes Contract-first backlog coverage (`PROMPT_PROGRAM_BACKLOG_OK true`): accepted Prompt Program Suggestions appear in Contract Reference with contract-source guidance.
 - `test:e2e` includes Prompt Program Contract Reference coverage (`PROMPT_PROGRAM_CONTRACT_REFERENCE_OK true`): Contract Reference shows contract-backed decision policy and scoring rules from `AI_CHECK_CONTRACT.promptProgram`.
 - `test:e2e` includes expected input evidence authoring coverage (`EXPECTED_INPUT_EVIDENCE_AUTHORING_OK true`): authored eval cases persist duration and return-plan evidence expectations.
-- `test:e2e` includes Contract Change Plan coverage (`CONTRACT_CHANGE_PLAN_OK true`): Contract Reference creates a non-mutating plan from an accepted suggestion, persists its targets and required implementation surfaces, then records ready/applied lifecycle state with implementation note and contract versions.
+- `test:e2e` includes Contract Change Plan coverage (`CONTRACT_CHANGE_PLAN_OK true`): Contract Reference creates a non-mutating plan from an accepted suggestion, persists its targets, required implementation surfaces, and creation-time versions, rejects applied state before required target versions change, then records ready/applied lifecycle state with implementation note and contract versions.
 - `test:e2e` includes Experiment Workspace coverage (`EXPERIMENT_WORKSPACE_OK true`): PM Review creates a named workspace, adds an explicit candidate arm, and links run, comparison, and suggestion artifacts.
 - `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted Prompt Program version on a new runtime AI Check session, and injects the promoted patch into provider messages.
 
@@ -358,7 +358,14 @@ Pending implementation validation:
 - Applied plans now require structured evidence that contract source, generated references, eval assertions or fixtures, linked docs, and validation were handled.
 - Contract Reference exposes the applied-evidence checklist and validation-summary field next to each plan.
 - `updateContractChangePlan` rejects applied status unless all evidence fields are complete.
-- Issues document was updated from open to partially mitigated because the stale-contract risk now has a stronger product guard, while true source verification still depends on the normal implementation and validation gates.
+- Issues document was updated from open to partially mitigated because the stale-contract risk gained a stronger product guard, while true source verification still depended on the normal implementation and validation gates.
+
+2026-05-24 Contract Change Plan version gate update:
+
+- Contract Change Plans now persist `createdAgainstVersions` at plan creation.
+- Applying a plan requires target-specific version changes since creation: prompt/rubric targets require a Prompt Program version change, schema targets require an output schema version change, and rubric/schema/evaluation targets require an evaluation schema version change.
+- Contract Reference shows the baseline versions and required missing version updates before enabling `Mark Applied`.
+- Issues document was updated because stale-contract risk moved from evidence-only mitigation to a version-gated workflow, and the already-implemented Experiment Lab and Candidate Prompt A/B risks now have enough product/test evidence to be marked mitigated. Design document was updated to capture the version baseline and apply gate.
 
 2026-05-24 Prompt Program rubric contract update:
 

@@ -156,7 +156,7 @@ Update 2026-05-24:
 
 ### ISSUE-006: Experiment results are not productized
 
-Status: partially mitigated
+Status: mitigated
 
 Risk:
 
@@ -187,7 +187,7 @@ Update 2026-05-24:
 
 ### ISSUE-007: Candidate Prompt A/B can cause scope creep
 
-Status: partially mitigated
+Status: mitigated
 
 Risk:
 
@@ -252,7 +252,7 @@ Update 2026-05-24:
 
 ### ISSUE-009: Contract Reference can become stale if Prompt Program expands
 
-Status: partially mitigated
+Status: mostly mitigated
 
 Update 2026-05-24:
 
@@ -260,6 +260,7 @@ Update 2026-05-24:
 - The backlog is intentionally non-mutating; stale-contract risk is still handled by requiring explicit `ai-check-contract.json` changes and validation before any suggestion is considered applied.
 - Accepted suggestions can now become `ContractChangePlan` artifacts. This reduces handoff loss, but does not close stale-contract risk because the actual source contract still changes only through a normal code/doc implementation slice.
 - Contract Change Plans can now move to ready, applied, or rejected. Applied plans require an implementation note, structured evidence for contract source, generated references, eval coverage, linked docs, and validation, and record current prompt/output/evaluation versions. This remains handoff evidence rather than automatic source verification.
+- Contract Change Plans now record the prompt/output/evaluation versions that were current when the plan was created. Marking a plan applied requires target-specific version changes since creation, so prompt/rubric/schema/evaluation plans cannot be completed with evidence checkboxes alone.
 - Prompt Program decision policy and scoring rules now live under `ai-check-contract.json.promptProgram`, are generated into TypeScript constants, feed the provider system prompt, and render in Contract Reference.
 - Evaluation schema v4 now captures input evidence expectations for explicit duration and return-task plans, with checks in both shared and CLI eval runners.
 - PM Review now exposes expected input evidence controls while authoring or editing Evaluation Cases.

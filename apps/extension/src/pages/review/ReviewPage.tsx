@@ -129,6 +129,22 @@ function isContractChangePlanAppliedEvidenceComplete(evidence: AICheckContractCh
   );
 }
 
+function getMissingContractPlanVersionUpdates(plan: AICheckContractChangePlan): string[] {
+  const baseline = plan.createdAgainstVersions;
+  if (!baseline) return ["createdAgainstVersions"];
+  const requiredVersions = new Set<keyof typeof AI_CHECK_CURRENT_VERSIONS>();
+  if (plan.targets.includes("prompt") || plan.targets.includes("rubric")) {
+    requiredVersions.add("promptVersion");
+  }
+  if (plan.targets.includes("schema")) {
+    requiredVersions.add("outputSchemaVersion");
+  }
+  if (plan.targets.includes("evaluation") || plan.targets.includes("rubric") || plan.targets.includes("schema")) {
+    requiredVersions.add("evaluationSchemaVersion");
+  }
+  return [...requiredVersions].filter((key) => AI_CHECK_CURRENT_VERSIONS[key] === baseline[key]);
+}
+
 interface ExperimentFormState {
   mode: AICheckEvalRunMode;
   provider: "mock" | ProviderId;
@@ -3010,7 +3026,9 @@ function ContractSuggestionBacklog({
                     const appliedEvidenceComplete = isContractChangePlanAppliedEvidenceComplete(appliedEvidence);
                     const appliedEvidenceLocked = plan.status === "applied";
                     const implementationNote = contractChangePlanNotes[plan.id] ?? plan.implementationNote ?? "";
-                    const canMarkApplied = Boolean(implementationNote.trim()) && appliedEvidenceComplete;
+                    const missingVersionUpdates = getMissingContractPlanVersionUpdates(plan);
+                    const versionUpdatesComplete = missingVersionUpdates.length === 0;
+                    const canMarkApplied = Boolean(implementationNote.trim()) && appliedEvidenceComplete && versionUpdatesComplete;
                     const setEvidence = (patch: Partial<AICheckContractChangePlanAppliedEvidence>) =>
                       onSetContractChangePlanEvidence(plan.id, {
                         ...appliedEvidence,
@@ -3028,6 +3046,15 @@ function ContractSuggestionBacklog({
                             Applied against {plan.appliedVersions.promptVersion} / {plan.appliedVersions.outputSchemaVersion} /{" "}
                             {plan.appliedVersions.evaluationSchemaVersion}
                           </small>
+                        )}
+                        {plan.createdAgainstVersions && (
+                          <small>
+                            Created against {plan.createdAgainstVersions.promptVersion} /{" "}
+                            {plan.createdAgainstVersions.outputSchemaVersion} / {plan.createdAgainstVersions.evaluationSchemaVersion}
+                          </small>
+                        )}
+                        {!versionUpdatesComplete && (
+                          <small>Required version update before apply: {missingVersionUpdates.join(", ")}.</small>
                         )}
                         {plan.appliedEvidence && (
                           <small>
@@ -3094,7 +3121,10 @@ function ContractSuggestionBacklog({
                             value={appliedEvidence.validationSummary}
                           />
                           {!canMarkApplied && (
-                            <small>Complete the implementation note and every evidence item before marking this plan applied.</small>
+                            <small>
+                              Complete the implementation note, every evidence item, and required version updates before marking this plan
+                              applied.
+                            </small>
                           )}
                         </div>
                         <div className="schema-manual-tabs">

@@ -916,7 +916,9 @@ try {
     latestPlan.status !== "draft" ||
     !latestPlan.targets.includes("rubric") ||
     !latestPlan.targets.includes("evaluation") ||
-    !latestPlan.requiredSurfaces.includes("apps/extension/src/shared/ai-check-contract.json")
+    !latestPlan.requiredSurfaces.includes("apps/extension/src/shared/ai-check-contract.json") ||
+    !latestPlan.createdAgainstVersions?.promptVersion ||
+    !latestPlan.createdAgainstVersions?.evaluationSchemaVersion
   ) {
     throw new Error(`Contract change plan was not persisted correctly: ${JSON.stringify(contractChangePlans)}`);
   }
@@ -944,8 +946,49 @@ try {
   await page
     .getByLabel("Contract plan validation summary for Bounded break rubric")
     .fill("Ran check:ai-check-contract, eval:ai-check, typecheck, build, and e2e.");
-  await page.getByRole("button", { name: "Mark Applied" }).click();
-  await page.getByText("Contract change plan marked applied.").waitFor({ timeout: 5_000 });
+  if (!(await page.getByRole("button", { name: "Mark Applied" }).isDisabled())) {
+    throw new Error("Contract change plan can be marked applied without required version updates.");
+  }
+  const completeAppliedEvidence = {
+    contractSourceUpdated: true,
+    generatedReferencesUpdated: true,
+    evalCoverageUpdated: true,
+    linkedDocsUpdated: true,
+    validationSummary: "Ran check:ai-check-contract, eval:ai-check, typecheck, build, and e2e."
+  };
+  let unchangedVersionsRejected = false;
+  try {
+    await sendRuntimeMessage(page, "review/updateContractChangePlan", {
+      id: latestPlan.id,
+      status: "applied",
+      implementationNote: "Applied after contract-source validation.",
+      appliedEvidence: completeAppliedEvidence
+    });
+  } catch (error) {
+    unchangedVersionsRejected = String(error).includes("require version updates");
+  }
+  if (!unchangedVersionsRejected) {
+    throw new Error("Contract change plan applied without target version updates.");
+  }
+  const readyPlan = (await getIndexedDbRecords(page, "contractChangePlans")).find((plan) => plan.id === latestPlan.id);
+  if (!readyPlan) {
+    throw new Error("Contract change plan disappeared before version-gate success probe.");
+  }
+  // Simulate a plan created before a later contract version bump, then prove applied can proceed.
+  await putIndexedDbRecord(page, "contractChangePlans", {
+    ...readyPlan,
+    createdAgainstVersions: {
+      promptVersion: `${latestPlan.createdAgainstVersions.promptVersion}-previous`,
+      outputSchemaVersion: latestPlan.createdAgainstVersions.outputSchemaVersion,
+      evaluationSchemaVersion: `${latestPlan.createdAgainstVersions.evaluationSchemaVersion}-previous`
+    }
+  });
+  await sendRuntimeMessage(page, "review/updateContractChangePlan", {
+    id: latestPlan.id,
+    status: "applied",
+    implementationNote: "Applied after contract-source validation.",
+    appliedEvidence: completeAppliedEvidence
+  });
   const updatedContractChangePlans = await getIndexedDbRecords(page, "contractChangePlans");
   const appliedPlan = updatedContractChangePlans.find((plan) => plan.id === latestPlan.id);
   if (

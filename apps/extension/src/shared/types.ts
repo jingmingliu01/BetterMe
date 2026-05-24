@@ -447,6 +447,11 @@ export interface AICheckContractChangePlan {
   targets: AICheckContractChangePlanTarget[];
   summary: string;
   requiredSurfaces: string[];
+  createdAgainstVersions: {
+    promptVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
+  };
   implementationNote?: string;
   appliedEvidence?: AICheckContractChangePlanAppliedEvidence;
   appliedVersions?: {

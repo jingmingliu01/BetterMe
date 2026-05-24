@@ -664,6 +664,7 @@ export async function createContractChangePlan(input: CreateContractChangePlanIn
     targets,
     summary: input.summary?.trim() || item.suggestion,
     requiredSurfaces: buildContractChangeRequiredSurfaces(targets),
+    createdAgainstVersions: getCurrentContractVersions(),
     createdAt,
     updatedAt: createdAt
   };
@@ -685,6 +686,12 @@ export async function updateContractChangePlan(input: UpdateContractChangePlanIn
   if (input.status === "applied" && !isCompleteContractChangeAppliedEvidence(appliedEvidence)) {
     throw new Error("Applied contract change plans require complete contract, reference, eval, docs, and validation evidence.");
   }
+  if (input.status === "applied") {
+    const missingVersionChanges = getMissingContractChangeVersionUpdates(plan);
+    if (missingVersionChanges.length > 0) {
+      throw new Error(`Applied contract change plans require version updates for: ${missingVersionChanges.join(", ")}.`);
+    }
+  }
   const updated: AICheckContractChangePlan = {
     ...plan,
     status: input.status,
@@ -694,11 +701,7 @@ export async function updateContractChangePlan(input: UpdateContractChangePlanIn
     appliedAt: input.status === "applied" ? now : plan.appliedAt,
     appliedVersions:
       input.status === "applied"
-        ? {
-            promptVersion: AI_CHECK_PROMPT_VERSION,
-            outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
-            evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION
-          }
+        ? getCurrentContractVersions()
         : plan.appliedVersions,
     updatedAt: now
   };
@@ -709,6 +712,33 @@ export async function updateContractChangePlan(input: UpdateContractChangePlanIn
   }
   await putRecord("contractChangePlans", updated);
   return updated;
+}
+
+function getCurrentContractVersions(): NonNullable<AICheckContractChangePlan["appliedVersions"]> {
+  return {
+    promptVersion: AI_CHECK_PROMPT_VERSION,
+    outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
+    evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION
+  };
+}
+
+function getMissingContractChangeVersionUpdates(plan: AICheckContractChangePlan): string[] {
+  const baseline = plan.createdAgainstVersions;
+  if (!baseline) {
+    return ["createdAgainstVersions"];
+  }
+  const current = getCurrentContractVersions();
+  const requiredVersions = new Set<keyof NonNullable<AICheckContractChangePlan["appliedVersions"]>>();
+  if (plan.targets.includes("prompt") || plan.targets.includes("rubric")) {
+    requiredVersions.add("promptVersion");
+  }
+  if (plan.targets.includes("schema")) {
+    requiredVersions.add("outputSchemaVersion");
+  }
+  if (plan.targets.includes("evaluation") || plan.targets.includes("rubric") || plan.targets.includes("schema")) {
+    requiredVersions.add("evaluationSchemaVersion");
+  }
+  return [...requiredVersions].filter((key) => current[key] === baseline[key]);
 }
 
 function isCompleteContractChangeAppliedEvidence(
