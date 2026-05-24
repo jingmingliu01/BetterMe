@@ -1471,6 +1471,7 @@ function PromptComparisonSummary({
     comparison.recommendation === "promote_candidate" &&
     comparison.regressedCaseIds.length === 0 &&
     comparison.candidateMetrics.releaseGate.status !== "fail" &&
+    comparison.promotionGate.status === "pass" &&
     !promotion &&
     !promoting;
   return (
@@ -1498,6 +1499,22 @@ function PromptComparisonSummary({
       </div>
       <section className="stack compact-stack">
         <span className="section-label">Promotion</span>
+        <div className={`release-gate release-gate-${comparison.promotionGate.status}`}>
+          <div>
+            <span className="section-label">Promotion gate</span>
+            <strong>{comparison.promotionGate.status.toUpperCase()}</strong>
+          </div>
+          <ul>
+            {comparison.promotionGate.reasons.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="metric-grid">
+          {comparison.promotionGate.datasetCoverage.map((row) => (
+            <MetricCard key={row.datasetType} label={formatTag(row.datasetType)} value={`${row.passed}/${row.total}`} />
+          ))}
+        </div>
         {promotion ? (
           <div className="release-decision-entry">
             <strong>{promotion.promptVersion}</strong>
@@ -1517,7 +1534,10 @@ function PromptComparisonSummary({
               Promote Candidate
             </button>
             {!canPromote && (
-              <p className="muted">Promotion requires a promote recommendation, no regressions, and a passing candidate gate.</p>
+              <p className="muted">
+                Promotion requires a promote recommendation, no regressions, a passing candidate gate, and Design/Regression/Holdout
+                coverage.
+              </p>
             )}
           </>
         )}

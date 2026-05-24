@@ -207,6 +207,7 @@ Update 2026-05-24:
 - Standard `AICheckEvalRun` rows remain the persisted run unit; comparison artifacts link one baseline run and one candidate run.
 - Candidate runs require a BYOK provider and append the candidate patch in a `<candidate_prompt_patch>` block.
 - Promotion is intentionally separate: a candidate can replace the active local Prompt Program only through a PM action that writes a Prompt Promotion audit record.
+- Promotion requires passing Design, Regression, and Holdout dataset coverage.
 - New AI Check sessions freeze the active promoted prompt version and use the promoted patch in provider messages.
 
 ### ISSUE-008: Textual Gradient can overfit visible cases
@@ -236,8 +237,8 @@ Update 2026-05-24:
 - Textual Gradient now exists as diagnosis inside Prompt Comparison artifacts.
 - It summarizes failure clusters, suggested directions, and risk notes, but does not mutate prompts or approve releases.
 - Holdout visibility rules from Experiment Lab still apply because candidate comparison is built from standard tuning/release-review eval runs.
-- Promotion requires the comparison recommendation to be `promote_candidate`, zero regressed cases, and a non-failing candidate release gate.
-- Stronger promotion gates across Design, Regression, and Holdout remain open.
+- Promotion requires the comparison recommendation to be `promote_candidate`, zero regressed cases, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
+- LLM-assisted candidate generation remains open.
 
 ### ISSUE-009: Contract Reference can become stale if Prompt Program expands
 

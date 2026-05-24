@@ -8,6 +8,7 @@ import { filterEvalCasesForRun, runEvalExperimentForCases } from "./eval-engine"
 import type {
   AICheckCase,
   AICheckCaseInput,
+  AICheckDatasetType,
   AICheckDecisionPointSnapshot,
   AICheckExpectedOutput,
   AICheckEvalResult,
@@ -496,6 +497,9 @@ export async function promotePromptCandidate(input: PromotePromptCandidateInput)
   if (comparison.candidateMetrics.releaseGate.status === "fail") {
     throw new Error("Cannot promote a candidate when the candidate release gate failed.");
   }
+  if (comparison.promotionGate.status !== "pass") {
+    throw new Error(`Cannot promote this candidate: ${comparison.promotionGate.reasons.join(" ")}`);
+  }
   const candidate = await getRecord<AICheckPromptCandidate>("promptCandidates", comparison.candidateId);
   if (!candidate || candidate.status === "archived") {
     throw new Error("Prompt candidate not found.");
@@ -603,8 +607,11 @@ function buildPromptComparison(input: {
     }
   }
 
+  const promotionGate = buildPromotionGate(input.selectedCases, input.candidateSummary.results);
   const recommendation =
-    regressedCaseIds.length > 0 || input.candidateSummary.run.metrics.releaseGate.status === "fail"
+    regressedCaseIds.length > 0 ||
+    input.candidateSummary.run.metrics.releaseGate.status === "fail" ||
+    promotionGate.status === "fail"
       ? "reject_candidate"
       : improvedCaseIds.length > 0 &&
           input.candidateSummary.run.metrics.passRate >= input.baselineSummary.run.metrics.passRate
@@ -627,6 +634,7 @@ function buildPromptComparison(input: {
     unchangedFailedCaseIds,
     unchangedPassedCaseIds,
     recommendation,
+    promotionGate,
     textualGradient: buildTextualGradient({
       cases: input.selectedCases,
       candidateResults: input.candidateSummary.results,
@@ -635,6 +643,34 @@ function buildPromptComparison(input: {
       unchangedFailedCaseIds
     }),
     createdAt: nowIso()
+  };
+}
+
+function buildPromotionGate(cases: AICheckCase[], candidateResults: AICheckEvalResult[]): AICheckPromptComparison["promotionGate"] {
+  const resultByCaseId = new Map(candidateResults.map((result) => [result.evalCaseId, result]));
+  const requiredDatasets: AICheckDatasetType[] = ["design", "regression", "holdout"];
+  const datasetCoverage = requiredDatasets.map((datasetType) => {
+    const datasetCases = cases.filter((testCase) => testCase.datasetType === datasetType);
+    const passed = datasetCases.filter((testCase) => resultByCaseId.get(testCase.id)?.pass).length;
+    return {
+      datasetType,
+      total: datasetCases.length,
+      passed,
+      passRate: datasetCases.length > 0 ? passed / datasetCases.length : 0
+    };
+  });
+  const reasons: string[] = [];
+  for (const row of datasetCoverage) {
+    if (row.total === 0) {
+      reasons.push(`${row.datasetType} coverage is missing.`);
+    } else if (row.passed < row.total) {
+      reasons.push(`${row.datasetType} coverage has ${row.total - row.passed} failing case(s).`);
+    }
+  }
+  return {
+    status: reasons.length === 0 ? "pass" : "fail",
+    reasons: reasons.length === 0 ? ["Design, Regression, and Holdout coverage passed."] : reasons,
+    datasetCoverage
   };
 }
 

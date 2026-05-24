@@ -353,6 +353,17 @@ export interface AICheckTextualGradient {
   riskNotes: string[];
 }
 
+export interface AICheckPromptPromotionGate {
+  status: "pass" | "fail";
+  reasons: string[];
+  datasetCoverage: Array<{
+    datasetType: AICheckDatasetType;
+    total: number;
+    passed: number;
+    passRate: number;
+  }>;
+}
+
 export interface AICheckPromptComparison {
   id: string;
   candidateId: string;
@@ -369,6 +380,7 @@ export interface AICheckPromptComparison {
   unchangedFailedCaseIds: string[];
   unchangedPassedCaseIds: string[];
   recommendation: "promote_candidate" | "revise_candidate" | "reject_candidate";
+  promotionGate: AICheckPromptPromotionGate;
   textualGradient: AICheckTextualGradient;
   createdAt: string;
 }

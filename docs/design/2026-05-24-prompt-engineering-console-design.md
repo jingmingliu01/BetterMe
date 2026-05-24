@@ -364,6 +364,15 @@ interface AICheckPromptComparison {
   improvedCaseIds: string[];
   regressedCaseIds: string[];
   recommendation: "promote_candidate" | "revise_candidate" | "reject_candidate";
+  promotionGate: {
+    status: "pass" | "fail";
+    datasetCoverage: Array<{
+      datasetType: "design" | "regression" | "holdout";
+      total: number;
+      passed: number;
+    }>;
+    reasons: string[];
+  };
   textualGradient: AICheckTextualGradient;
   createdAt: string;
 }
@@ -385,7 +394,7 @@ The baseline run and candidate run both remain standard `AICheckEvalRun` rows. T
 
 Textual Gradient is diagnosis only. It can summarize failure clusters and suggested prompt directions, but it must not directly mutate the current Prompt Program or approve a candidate.
 
-Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, and the candidate run does not fail the release gate. Promotion records the candidate patch as a local active prompt version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
+Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, the candidate run does not fail the release gate, and Design, Regression, and Holdout coverage are all present and passing. Promotion records the candidate patch as a local active prompt version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
 
 ### Contract Reference
 
@@ -544,13 +553,13 @@ First implemented slice:
 - Persist the comparison artifact linking baseline and candidate runs.
 - Show improved/regressed counts, recommendation, and Textual Gradient diagnosis.
 - Promote a passing candidate into the active local Prompt Program through an audited promotion artifact.
+- Require passing Design, Regression, and Holdout dataset coverage before promotion.
 - Freeze the promoted prompt version on new AI Check sessions and inject its patch into runtime provider messages.
 
 Still later:
 
 - Richer multi-arm experiment management.
 - LLM-assisted candidate generation from Textual Gradient notes.
-- Stronger release gate requiring explicit Design, Regression, and Holdout coverage before promotion.
 
 ## Validation Expectations
 

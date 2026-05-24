@@ -661,7 +661,37 @@ try {
   }
   console.log("CANDIDATE_PROMPT_AB_OK true");
 
+  for (const datasetType of ["design", "regression", "holdout"]) {
+    await sendRuntimeMessage(page, "review/createEvalCase", {
+      title: `Candidate promotion ${datasetType} probe`,
+      datasetType,
+      status: "ready",
+      targetDisplay: "example.com",
+      strictness: "balanced",
+      userMessage: "I need to research homework for 10 minutes then I will close the tab.",
+      expectedDecision: "ALLOW",
+      tags: ["candidate_promotion_probe"],
+      reviewerNote: `E2E Candidate Promotion ${datasetType} coverage probe.`
+    });
+  }
+  await page.reload();
+  await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Experiment Lab" }).click();
   await queueProviderResponses(serviceWorker, [
+    buildProviderDecision({
+      decision: "BLOCK",
+      userFacingMessage: "Stay blocked for now.",
+      decisionReasonCategory: "high_risk_pattern",
+      scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
+      memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
+    }),
+    buildProviderDecision({
+      decision: "BLOCK",
+      userFacingMessage: "Stay blocked for now.",
+      decisionReasonCategory: "high_risk_pattern",
+      scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
+      memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
+    }),
     buildProviderDecision({
       decision: "BLOCK",
       userFacingMessage: "Stay blocked for now.",
@@ -676,15 +706,36 @@ try {
       unlockMinutes: 5,
       scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
       memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
+    }),
+    buildProviderDecision({
+      decision: "ALLOW",
+      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
+      decisionReasonCategory: "clear_intention",
+      unlockMinutes: 5,
+      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
+      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
+    }),
+    buildProviderDecision({
+      decision: "ALLOW",
+      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
+      decisionReasonCategory: "clear_intention",
+      unlockMinutes: 5,
+      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
+      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
     })
   ]);
+  await page.getByLabel("Experiment provider", { exact: true }).selectOption("openai");
+  await page.getByLabel("Experiment mode", { exact: true }).selectOption("release_review");
+  await page.getByLabel("Experiment dataset", { exact: true }).selectOption("all");
+  await page.getByLabel("Experiment tag", { exact: true }).selectOption("candidate_promotion_probe");
   await page.getByLabel("Prompt candidate name").fill("E2E promoted candidate");
   await page.getByLabel("Prompt candidate patch").fill("For this candidate, allow bounded homework requests.");
   await page.getByLabel("Prompt candidate rationale").fill("Probe candidate promotion handling.");
   await page.getByRole("button", { name: /Save Candidate/ }).click();
   await page.getByText("Saved prompt candidate E2E promoted candidate.").waitFor({ timeout: 3_000 });
   await page.getByRole("button", { name: /Run A\/B/ }).click();
-  await page.getByText(/Candidate A\/B finished: 1 improved, 0 regressed/).waitFor({ timeout: 8_000 });
+  await page.getByText(/Candidate A\/B finished: 3 improved, 0 regressed/).waitFor({ timeout: 8_000 });
+  await page.getByText("Design, Regression, and Holdout coverage passed.").waitFor({ timeout: 5_000 });
   await page.getByLabel("Prompt promotion note").fill("Promote the bounded homework patch.");
   await page.getByRole("button", { name: "Promote Candidate", exact: true }).click();
   await page.getByText(/Promoted prompt program/).waitFor({ timeout: 3_000 });
