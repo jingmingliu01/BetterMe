@@ -1314,8 +1314,14 @@ function ExperimentLab({
     promptProgramSuggestions.find((suggestion) => suggestion.comparisonId === selectedPromptComparison?.id) ?? null;
   const selectedComparisonPromotion =
     promptPromotions.find((promotion) => promotion.comparisonId === selectedPromptComparison?.id) ?? null;
+  const releaseReviewRequiredForApproval = Boolean(
+    selectedRun && selectedRunHasHoldout && selectedRun.run.mode !== "release_review"
+  );
   const canApproveSelectedRun =
-    Boolean(selectedRun) && selectedRun?.run.metrics.releaseGate.status !== "fail" && !savingReleaseDecision;
+    Boolean(selectedRun) &&
+    selectedRun?.run.metrics.releaseGate.status !== "fail" &&
+    !releaseReviewRequiredForApproval &&
+    !savingReleaseDecision;
 
   return (
     <section className="experiment-workspace">
@@ -1864,6 +1870,9 @@ function ExperimentLab({
               </div>
               {selectedRun.run.metrics.releaseGate.status === "fail" && (
                 <p className="muted">Approval is disabled while the release gate is failing.</p>
+              )}
+              {releaseReviewRequiredForApproval && (
+                <p className="muted">Approval requires a release review run when Holdout cases are included.</p>
               )}
               {selectedReleaseDecisions.length > 0 && (
                 <div className="release-decision-history">

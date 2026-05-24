@@ -160,6 +160,7 @@ Holdout visibility rule:
 - `tuning` mode can run Holdout cases but should show aggregate metrics and release-gate status only.
 - `release_review` mode can show controlled Holdout failure summaries when the PM is making a release decision.
 - Routine prompt tuning should not expose Holdout case titles, tags, or failure reasons.
+- A run that includes Holdout cases cannot be approved as a release decision unless it was run in `release_review` mode.
 
 Implementation has started with `status = "regression"` replaced by `datasetType = "regression"` in the evaluation schema and built-in fixtures. Because legacy data is not a constraint, this remains a direct model cleanup instead of a compatibility migration.
 

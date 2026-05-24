@@ -51,6 +51,7 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 - Dataset split exists in the contract and fixtures. Experiment Lab now protects Holdout details in tuning mode and exposes them only in release review mode.
 - Experiment Run is persisted and visible in PM Review for mock-mode and provider-mode current Prompt Program runs.
 - Release Gate exists as an Experiment Lab result summary, and PM Review now stores first-slice Release Decisions against selected runs.
+- Release approval is blocked for tuning-mode runs that include Holdout cases; PMs must rerun in release review mode before approval.
 
 ## Planned Phases
 
@@ -129,6 +130,7 @@ Implemented now:
 - Running an experiment stores an `AICheckEvalRun` plus per-case `AICheckEvalResult` rows locally.
 - Metrics show pass rate, failed categories, tag/strictness breakdowns, failures, run history, and release gate summary.
 - Tuning mode hides Holdout breakdowns and failure details while preserving aggregate metrics and release gate status.
+- Approval is disabled for tuning-mode runs that include Holdout cases.
 - PM can approve or block release for a selected run with a release note; the stored decision snapshots gate status, metrics, provider/model, and versions.
 - CLI `eval:ai-check` can write an importable `AICheckEvalRunSummary` artifact, and Experiment Lab can import that artifact into local run history.
 - First slice runs the current Prompt Program only, while Phase 4 now adds provider-mode candidate comparisons on top of the same run/result foundation.
@@ -189,6 +191,7 @@ Implementation validation performed:
 - Browser smoke check passed: PM Review rendered, Evaluation Cases showed 42 cases, Experiment Lab ran 42/42 and saved a PASS release-gate run.
 - `test:ai-check` includes focused coverage that selecting turn 2 excludes turn 3+ from replayable eval input.
 - `test:e2e` includes Holdout visibility coverage: tuning mode hides Holdout failure details, release review mode reveals the failure summary.
+- `test:e2e` includes Holdout approval guard coverage (`HOLDOUT_APPROVAL_GUARD_OK true`): tuning-mode Holdout runs cannot be approved in the UI or background API.
 - `test:e2e` includes provider-mode Experiment Lab coverage: saved BYOK provider, runtime provider messages, BYOK run metadata, and one focused passing provider run.
 - `test:e2e` includes decision-point snapshot source coverage (`SNAPSHOT_SOURCE_UI_OK true`): History review shows the selected decision point as Runtime when the persisted runtime snapshot is available.
 - `test:e2e` includes Case Library origin coverage (`CASE_LIBRARY_ORIGIN_OK true`): PM Review filters to built-in defaults and shows the local override guidance in the selected case detail.
@@ -246,6 +249,12 @@ Pending implementation validation:
 - Experiment Lab tuning mode now hides Holdout breakdowns and failure details.
 - Release review mode can reveal Holdout failure summaries for explicit release decisions.
 - Issues document was updated because Holdout visibility is now productized at the first-slice level. Design document was updated to record the mode rule.
+
+2026-05-24 Holdout approval guard update:
+
+- Release approval is now disabled in PM Review for tuning-mode runs that include Holdout cases.
+- `createReleaseDecision` rejects approved decisions for Holdout runs unless the run mode is `release_review`.
+- E2E covers both the visible approval guard and the background API guard.
 
 2026-05-24 provider-mode Experiment Lab update:
 

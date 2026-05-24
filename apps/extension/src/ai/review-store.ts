@@ -932,6 +932,9 @@ export async function createReleaseDecision(input: CreateReleaseDecisionInput): 
   if (input.decision === "approved" && run.metrics.releaseGate.status === "fail") {
     throw new Error("Cannot approve a release when the release gate failed.");
   }
+  if (input.decision === "approved" && run.mode !== "release_review" && (await evalRunIncludesHoldout(run))) {
+    throw new Error("Cannot approve a Holdout run outside release review mode.");
+  }
   const createdAt = nowIso();
   const decision: AICheckReleaseDecision = {
     id: createId("release"),
@@ -951,6 +954,12 @@ export async function createReleaseDecision(input: CreateReleaseDecisionInput): 
   };
   await putRecord("releaseDecisions", decision);
   return decision;
+}
+
+async function evalRunIncludesHoldout(run: AICheckEvalRun): Promise<boolean> {
+  const cases = await listEvalCases();
+  const caseById = new Map(cases.map((evalCase) => [evalCase.id, evalCase]));
+  return run.caseIds.some((caseId) => caseById.get(caseId)?.datasetType === "holdout");
 }
 
 export async function listExperiments(): Promise<AICheckExperiment[]> {

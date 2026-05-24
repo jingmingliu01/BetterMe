@@ -285,7 +285,7 @@ Mitigation:
 
 ### ISSUE-010: Holdout visibility rules are undefined
 
-Status: mostly mitigated
+Status: mitigated
 
 Risk:
 
@@ -310,4 +310,4 @@ Update 2026-05-24:
 - Eval runs now store `mode = tuning | release_review`.
 - Tuning mode hides Holdout breakdowns and failure details, leaving aggregate metrics and release gate status visible.
 - Release review mode can reveal Holdout failure summaries when the PM explicitly runs that mode.
-- Remaining polish: a richer release-review approval/note flow can be added later if Holdout debugging needs stronger process control.
+- Release approval is disabled and rejected for tuning-mode runs that include Holdout cases; approval requires a release review run.

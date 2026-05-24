@@ -481,6 +481,57 @@ try {
   console.log("HOLDOUT_VISIBILITY_OK true");
 
   await sendRuntimeMessage(page, "review/createEvalCase", {
+    title: "Protected holdout passing approval guard case",
+    datasetType: "holdout",
+    status: "ready",
+    targetDisplay: "example.com",
+    strictness: "balanced",
+    userMessage: "I need to research homework for 10 minutes then return to homework.",
+    expectedDecision: "ALLOW",
+    tags: ["low_risk", "holdout_approval_probe"],
+    reviewerNote: "E2E holdout approval mode guard probe."
+  });
+  await page.reload();
+  await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Experiment Lab" }).click();
+  await page.getByLabel("Experiment dataset", { exact: true }).selectOption("holdout");
+  await page.getByLabel("Experiment tag", { exact: true }).selectOption("low_risk");
+  await page.getByRole("button", { name: /Run Eval/ }).click();
+  await page.getByText(/Experiment .* finished/).waitFor({ timeout: 3_000 });
+  resultPanelText = await page.locator(".experiment-results-panel").innerText();
+  assertIncludes(resultPanelText, "1/1", `Holdout approval guard probe did not pass: ${resultPanelText}`);
+  assertIncludes(
+    resultPanelText,
+    "Approval requires a release review run when Holdout cases are included.",
+    "Tuning-mode Holdout run did not explain approval guard."
+  );
+  const approveHoldoutTuningButton = page.getByRole("button", { name: "Approve Prompt" });
+  if (!(await approveHoldoutTuningButton.isDisabled())) {
+    throw new Error("Tuning-mode Holdout run allowed release approval.");
+  }
+  const holdoutTuningRuns = (await getIndexedDbRecords(page, "evalRuns"))
+    .filter((run) => run.mode === "tuning" && run.filters?.datasetTypes?.includes("holdout"))
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const latestHoldoutTuningRun = holdoutTuningRuns.at(-1);
+  if (!latestHoldoutTuningRun) {
+    throw new Error("Holdout tuning run was not persisted for approval guard test.");
+  }
+  let holdoutApprovalRejected = false;
+  try {
+    await sendRuntimeMessage(page, "review/createReleaseDecision", {
+      runId: latestHoldoutTuningRun.id,
+      decision: "approved",
+      note: "This should require release review mode."
+    });
+  } catch (error) {
+    holdoutApprovalRejected = String(error).includes("release review mode");
+  }
+  if (!holdoutApprovalRejected) {
+    throw new Error("Background allowed approval for a tuning-mode Holdout run.");
+  }
+  console.log("HOLDOUT_APPROVAL_GUARD_OK true");
+
+  await sendRuntimeMessage(page, "review/createEvalCase", {
     title: "Provider mode passing case",
     datasetType: "design",
     status: "ready",
