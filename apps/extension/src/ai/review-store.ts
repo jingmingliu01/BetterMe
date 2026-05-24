@@ -34,7 +34,6 @@ import type {
   BadCaseErrorType,
   BadCaseReview,
   BehaviorEvent,
-  BehaviorReasonCategory,
   CheckpointDecision,
   AddExperimentArmInput,
   CreateContractChangePlanInput,
@@ -1423,49 +1422,17 @@ function buildEvalTitle(badCase: BadCaseReview): string {
 
 function normalizeStoredEvalCase(evalCase: AICheckCase): AICheckCase {
   const status = evalCase.archivedAt ? "archived" : evalCase.status ?? "ready";
-  const legacyEval = (evalCase.eval ?? { expectedOutput: {}, tags: [] }) as NonNullable<AICheckCase["eval"]> & {
-    allowedDecisions?: AIDecision[];
-    disallowedDecisions?: AIDecision[];
-    expectedCooldownRangeSeconds?: { min: number; max: number };
-    expectedScoreRanges?: AICheckExpectedOutput["scores"];
-    mustAskAbout?: string[];
-    mustNotSay?: string[];
-  };
+  const currentEval = evalCase.eval ?? { expectedOutput: {}, tags: [] };
   const expectedOutput: AICheckExpectedOutput = {
-    ...(legacyEval?.expectedOutput ?? {}),
-    ...(legacyEval?.mustAskAbout || legacyEval?.mustNotSay
-      ? buildUserFacingExpectation(
-          legacyEval.mustAskAbout,
-          legacyEval.mustNotSay,
-          legacyEval.expectedOutput?.userFacingMessage
-        )
-      : {}),
-    ...(legacyEval?.expectedCooldownRangeSeconds ? { aiCooldownSeconds: legacyEval.expectedCooldownRangeSeconds } : {}),
-    ...(legacyEval?.expectedScoreRanges ? { scores: legacyEval.expectedScoreRanges } : {})
+    ...(currentEval.expectedOutput ?? {})
   };
-  if (legacyEval?.allowedDecisions?.length) {
-    expectedOutput.decision = {
-      allowed: legacyEval.allowedDecisions,
-      ...(legacyEval.disallowedDecisions?.length ? { disallowed: legacyEval.disallowedDecisions } : {})
-    };
-  }
-  const legacyBehaviorReason = (expectedOutput as AICheckExpectedOutput & {
-    behaviorReasonCategory?: BehaviorReasonCategory;
-  }).behaviorReasonCategory;
-  if (legacyBehaviorReason) {
-    expectedOutput.memoryUpdate = {
-      ...(expectedOutput.memoryUpdate ?? {}),
-      behaviorReasonCategory: legacyBehaviorReason
-    };
-    delete (expectedOutput as AICheckExpectedOutput & { behaviorReasonCategory?: BehaviorReasonCategory }).behaviorReasonCategory;
-  }
   const normalized: AICheckCase = {
     ...evalCase,
     eval: {
       expectedOutput,
-      expectedInputEvidence: legacyEval?.expectedInputEvidence,
-      tags: legacyEval?.tags ?? [],
-      reviewerNote: legacyEval?.reviewerNote
+      expectedInputEvidence: currentEval.expectedInputEvidence,
+      tags: currentEval.tags ?? [],
+      reviewerNote: currentEval.reviewerNote
     },
     status,
     createdAt: evalCase.createdAt ?? evalCase.updatedAt ?? nowIso(),

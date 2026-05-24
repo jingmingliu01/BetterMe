@@ -97,7 +97,7 @@ Update 2026-05-24:
 
 ### ISSUE-004: Status and dataset purpose are mixed
 
-Status: mostly mitigated
+Status: mitigated
 
 Risk:
 
@@ -123,6 +123,8 @@ Update 2026-05-24:
 - Built-in fixtures now use `status = ready` with `datasetType = regression`.
 - Eval runner supports dataset filters.
 - Experiment Lab now exposes dataset controls and separates tuning mode from release review mode.
+- Runtime eval-case normalization no longer maps legacy fields such as `allowedDecisions`, `mustAskAbout`, `expectedScoreRanges`, or `expectedCooldownRangeSeconds` into the current `eval.expectedOutput` shape.
+- Contract validation now rejects extra fields in evaluation fixtures, so dataset/status and expectation meaning must stay explicit in `ai-check-contract.json`.
 
 ### ISSUE-005: Source mixes provenance and workflow
 

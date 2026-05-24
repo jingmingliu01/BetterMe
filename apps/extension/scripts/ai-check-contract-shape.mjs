@@ -185,6 +185,11 @@ function validateNode(contract, rawNode, value, label, errors, options) {
         errors.push(`${label} must be an object.`);
         return;
       }
+      for (const key of Object.keys(value)) {
+        if (!Object.hasOwn(node.fields ?? {}, key)) {
+          errors.push(`${label}.${key} is not defined in the AI Check contract.`);
+        }
+      }
       for (const [key, child] of Object.entries(node.fields ?? {})) {
         validateNode(contract, child, value[key], `${label}.${key}`, errors, options);
       }

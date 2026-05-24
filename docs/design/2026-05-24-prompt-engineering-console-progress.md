@@ -33,9 +33,11 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 - Bad-case marking with expected decision, error types, and reviewer note.
 - Bad-case conversion into an Evaluation Case from the selected decision point.
 - `AICheckCase` schema with `input`, optional `output`, `eval`, lifecycle `status`, `datasetType`, `provenance`, optional `lineage`, and archive metadata.
+- Eval-case normalization preserves only the current unified `eval.expectedOutput`, `eval.expectedInputEvidence`, `eval.tags`, and `eval.reviewerNote` shape; legacy expectation fields are not migrated.
 - Built-in eval fixtures under `apps/extension/evals/ai-check-cases`.
 - Built-in eval fixtures are visible in Case Library as contract defaults, with explicit origin badges and local override guidance.
 - Local `eval:ai-check` runner with status/tag/dataset filtering and provider-mode reuse of runtime provider messages.
+- Contract validation rejects extra fixture fields, which guards the current evaluation schema against silently reintroducing legacy expectation keys.
 - Experiment Lab can run the current Prompt Program in mock mode, persist `evalRuns`/`evalResults`, show metrics, failures, run history, and release gate summary.
 - Contract Reference / Contract Manual exists for provider messages, Prompt Program policy, output, and evaluation.
 
@@ -230,6 +232,12 @@ Pending implementation validation:
 - Updated AI Check evaluation schema to v3 with dataset/provenance/lineage model.
 - Reclassified built-in eval fixtures to ready regression dataset cases.
 - Issues document was updated because issue status changed. Design document was checked; its product direction and phase structure still apply.
+
+2026-05-24 eval schema strictness update:
+
+- Removed runtime conversion from legacy eval expectation fields into `eval.expectedOutput`.
+- Added strict extra-field rejection to AI Check contract shape validation and logic-test coverage for old eval fields.
+- Issues document was updated because `ISSUE-004` is now fully mitigated. Design document was checked; its current product model already says Evaluation Cases use the unified decision-point case shape, so no design change was required.
 
 2026-05-24 Experiment Lab update:
 

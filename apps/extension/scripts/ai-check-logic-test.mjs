@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createServer } from "vite";
+import { validateCaseShape } from "./ai-check-contract-shape.mjs";
 
 const server = await createServer({
   configFile: false,
@@ -63,6 +64,22 @@ try {
   );
   assert.deepEqual(AI_CHECK_CONTRACT.sections.evaluation.example.versions, AI_CHECK_CONTRACT.current);
   assert.ok(AI_CHECK_CONTRACT.sections.evaluation.fields.some((field) => field.path === "status"));
+  const legacyEvalShapeErrors = validateCaseShape(
+    AI_CHECK_CONTRACT,
+    {
+      ...AI_CHECK_CONTRACT.sections.evaluation.example,
+      eval: {
+        ...AI_CHECK_CONTRACT.sections.evaluation.example.eval,
+        allowedDecisions: ["ALLOW"],
+        mustAskAbout: ["duration"],
+        expectedCooldownRangeSeconds: { min: 60, max: 300 }
+      }
+    },
+    { label: "legacy eval shape" }
+  );
+  assert.ok(legacyEvalShapeErrors.some((error) => error.includes("allowedDecisions is not defined")));
+  assert.ok(legacyEvalShapeErrors.some((error) => error.includes("mustAskAbout is not defined")));
+  assert.ok(legacyEvalShapeErrors.some((error) => error.includes("expectedCooldownRangeSeconds is not defined")));
 
   const prompt = buildStaticContractPrompt();
   const promptParts = buildStaticContractPromptParts();
