@@ -70,7 +70,7 @@ Current implementation anchors:
 - `apps/extension/src/shared/ai-check-contract.json`
 - `apps/extension/src/shared/provider-config.json`
 
-`promptVersion` should eventually become `promptProgramVersion`, or should be documented as the version of the full Prompt Program rather than only static prompt text.
+The stored contract key remains `promptVersion` for compatibility with the existing AI Check contract and project conventions, but its product meaning is Prompt Program Version: it versions the full decision program, not just static prompt text.
 
 ### Session
 
@@ -425,7 +425,7 @@ Evaluation schema changes follow the same contract-first rule. `ai-check-evaluat
 
 PM Review must expose these evidence expectations in the Evaluation Case editor as optional authoring controls. Leaving a control ignored means the case does not assert that evidence dimension; choosing yes or no creates a machine-checked expectation under `eval.expectedInputEvidence`.
 
-Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, the candidate run does not fail the release gate, and Design, Regression, and Holdout coverage are all present and passing. Promotion records the candidate patch as a local active prompt version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
+Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, the candidate run does not fail the release gate, and Design, Regression, and Holdout coverage are all present and passing. Promotion records the candidate patch as a local active Prompt Program version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
 
 ### Contract Reference
 
@@ -609,7 +609,7 @@ First implemented slice:
 - Add explicit experiment arms for baseline/current prompt/candidate prompt/variant definitions inside a workspace.
 - Promote a passing candidate into the active local Prompt Program through an audited promotion artifact.
 - Require passing Design, Regression, and Holdout dataset coverage before promotion.
-- Freeze the promoted prompt version on new AI Check sessions and inject its patch into runtime provider messages.
+- Freeze the promoted Prompt Program version on new AI Check sessions and inject its patch into runtime provider messages.
 
 Still later:
 

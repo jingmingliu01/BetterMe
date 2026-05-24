@@ -825,6 +825,11 @@ try {
   }
   await page.getByRole("button", { name: "Contract Reference" }).click();
   await page.getByText("Contract-first backlog").waitFor({ timeout: 5_000 });
+  const promptProgramVersionLabel = await page.getByLabel("Prompt Program version").evaluate((select) => {
+    const selected = select.selectedOptions[0];
+    return selected?.textContent ?? "";
+  });
+  assertIncludes(promptProgramVersionLabel, "AI Check Prompt Program v4", "Contract Reference did not label promptVersion as the Prompt Program version.");
   await page.getByText("1 accepted suggestions").waitFor({ timeout: 5_000 });
   await page.getByText("Bounded break rubric").waitFor({ timeout: 5_000 });
   await page.getByText("Update apps/extension/src/shared/ai-check-contract.json first.").waitFor({ timeout: 5_000 });
@@ -894,6 +899,7 @@ try {
   console.log("CONTRACT_CHANGE_PLAN_OK true");
   console.log("PROMPT_PROGRAM_SUGGESTION_REVIEW_OK true");
   await page.getByRole("button", { name: "Experiment Lab" }).click();
+  await page.getByText("Prompt Program Version").waitFor({ timeout: 5_000 });
   await page.getByLabel("Experiment workspace name").fill("E2E multi-arm workspace");
   await page.getByLabel("Experiment workspace notes").fill("Collect baseline, candidate, and suggestion artifacts.");
   await page.getByRole("button", { name: /Save Workspace/ }).click();

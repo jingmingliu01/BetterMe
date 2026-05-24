@@ -1366,7 +1366,7 @@ function ExperimentLab({
           <h2>Current Prompt Program</h2>
         </div>
         <div className="status-list">
-          <StatusItem label="Prompt" value={AI_CHECK_CURRENT_VERSIONS.promptVersion} />
+          <StatusItem label="Prompt Program Version" value={AI_CHECK_CURRENT_VERSIONS.promptVersion} />
           <StatusItem label="Active patch" value={activePromptPromotion ? activePromptPromotion.promptVersion : "None"} />
           <StatusItem label="Provider" value={formatProvider(form.provider)} />
           <StatusItem label="Model" value={form.model} />
@@ -2813,7 +2813,7 @@ function SchemaReference({
         </p>
         <div className="contract-version-grid">
           <VersionPicker
-            label="Prompt"
+            label="Prompt Program"
             value={AI_CHECK_CURRENT_VERSIONS.promptVersion}
             options={AI_CHECK_PROMPT_VERSIONS}
             source="AI_CHECK_CONTRACT.current.promptVersion"

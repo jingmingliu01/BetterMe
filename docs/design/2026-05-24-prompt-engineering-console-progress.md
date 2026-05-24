@@ -11,7 +11,7 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-Phase 1 is implemented. Phase 2, the first Phase 3 Experiment Lab slice, and the first Phase 4 Candidate Prompt/Textual Gradient slice are implemented enough to support the current Prompt Engineering Console workflow, with future contract-change application work intentionally left as explicit code/doc implementation slices.
+Phase 1, Phase 2, the Phase 3 Experiment Lab first slice, and the Phase 4 Candidate Prompt/Textual Gradient first slice are implemented enough to support the current Prompt Engineering Console workflow, with future contract-change application work intentionally left as explicit code/doc implementation slices.
 
 This document set remains the scaffold for the larger Prompt Engineering Console implementation. Candidate Prompt A/B, Textual Gradient, and a guarded local promotion flow now have a first Phase 4 implementation.
 
@@ -84,7 +84,7 @@ Still remaining:
 
 ### Phase 2: Ideal Case Model and Dataset Split
 
-Status: partially implemented
+Status: implemented
 
 Scope:
 
@@ -103,14 +103,15 @@ Implemented now:
 - Existing built-in fixtures are reclassified as `status = ready` and `datasetType = regression`.
 - Case Library exposes a Case origin filter and built-in default badges so PMs can distinguish authored, review-derived, real-session, and bundled fixture cases.
 - Eval runner accepts dataset filters.
+- Experiment Lab defines Holdout visibility behavior: tuning mode hides detailed Holdout failures while release review mode can show controlled failure summaries.
 
 Still remaining:
 
-- Add richer release-review controls if Holdout debugging needs approval or note-taking.
+- None for the implemented case model, dataset split, and Holdout visibility scope.
 
 ### Phase 3: Experiment Lab First Slice
 
-Status: partially implemented
+Status: implemented
 
 Scope:
 
@@ -137,7 +138,7 @@ Implemented now:
 
 Still remaining:
 
-- Candidate Prompt promotion flow after candidate prompt artifacts exist.
+- None for the implemented Experiment Lab first-slice scope.
 
 ### Phase 4: Candidate Prompt and Textual Gradient
 
@@ -172,11 +173,11 @@ Implemented now:
 - PM can add explicit Experiment Arms for baseline, current prompt, candidate prompt, or variant definitions, optionally linked to a Prompt Candidate and/or eval run.
 - PM can promote a recommended candidate only when it has no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
 - Promotion creates a `promptPromotions` audit record and makes that candidate patch the active local Prompt Program for new AI Check sessions.
-- Runtime AI Check freezes the promoted prompt version on session start and injects the promoted patch into provider messages.
+- Runtime AI Check freezes the promoted Prompt Program version on session start and injects the promoted patch into provider messages.
 
 Still remaining:
 
-- Applying any future output-schema changes that require provider output parser changes and prompt/output fixture migrations.
+- Applying any future output-schema changes remains a separate contract-first implementation slice when such a schema change is actually accepted.
 
 ## Validation Status
 
@@ -207,7 +208,7 @@ Implementation validation performed:
 - `test:e2e` includes expected input evidence authoring coverage (`EXPECTED_INPUT_EVIDENCE_AUTHORING_OK true`): authored eval cases persist duration and return-plan evidence expectations.
 - `test:e2e` includes Contract Change Plan coverage (`CONTRACT_CHANGE_PLAN_OK true`): Contract Reference creates a non-mutating plan from an accepted suggestion, persists its targets and required implementation surfaces, then records ready/applied lifecycle state with implementation note and contract versions.
 - `test:e2e` includes Experiment Workspace coverage (`EXPERIMENT_WORKSPACE_OK true`): PM Review creates a named workspace, adds an explicit candidate arm, and links run, comparison, and suggestion artifacts.
-- `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
+- `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted Prompt Program version on a new runtime AI Check session, and injects the promoted patch into provider messages.
 
 Pending implementation validation:
 
@@ -287,7 +288,7 @@ Pending implementation validation:
 
 - Added Prompt Promotion local store and review APIs.
 - Experiment Lab now lets PM promote only candidates that have a promotion recommendation, no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
-- New AI Check sessions now freeze the active promoted prompt version and use the promoted patch in runtime provider messages.
+- New AI Check sessions now freeze the active promoted Prompt Program version and use the promoted patch in runtime provider messages.
 - Issues document was updated because candidate promotion moved from open to first-slice implemented. Design document was updated to document the promotion artifact, dataset coverage gate, and runtime activation rule.
 
 2026-05-24 Textual Gradient candidate generation update:
@@ -343,6 +344,12 @@ Pending implementation validation:
 - `prompt.ts` injects decision policy and scoring rules from generated contract constants instead of hard-coded prompt text.
 - Contract Reference has a Prompt Program tab that shows the same contract-backed decision policy and scoring rules.
 - Issues document was updated because Contract Reference now covers the prompt rubric/policy surface directly.
+
+2026-05-24 Prompt Program version semantics update:
+
+- The stored field remains `promptVersion` to stay compatible with the existing contract and project conventions.
+- Contract docs and PM Review now label its product meaning as Prompt Program Version, covering the full system prompt, decision policy, scoring rubric, prompt-facing schema, parser contract, and fallback behavior.
+- Design document was updated to remove the earlier ambiguity that `promptVersion` might mean only static prompt text.
 
 2026-05-24 Evaluation input evidence schema update:
 

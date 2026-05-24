@@ -675,11 +675,11 @@ const GENERATED_SECTIONS = {
         "type": "string",
         "required": true,
         "example": "ai-check-prompt-v4",
-        "meaning": "Prompt version this case targets.",
-        "whyNecessary": "Eval runs need to know whether a case belongs to the current prompt contract or a legacy run.",
-        "productImpact": "Prevents silently judging old prompt expectations against a new prompt.",
-        "validation": "Default eval runs require the current prompt version unless legacy mode is explicit.",
-        "commonMistakes": "Omitting versions and making the case look current by accident."
+        "meaning": "Prompt Program version this case targets. The stored key is promptVersion for compatibility, but the product meaning is the full Prompt Program: system prompt, decision policy, scoring rubric, prompt-facing schema, parser contract, and fallback behavior.",
+        "whyNecessary": "Eval runs need to know whether a case belongs to the current Prompt Program contract or an explicitly older run.",
+        "productImpact": "Prevents silently judging old Prompt Program expectations against new prompt policy, rubric, or schema behavior.",
+        "validation": "Default eval runs require the current Prompt Program version unless legacy mode is explicit.",
+        "commonMistakes": "Treating promptVersion as only the static system prompt string, or omitting versions and making the case look current by accident."
       },
       {
         "path": "versions.outputSchemaVersion",

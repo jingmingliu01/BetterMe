@@ -209,7 +209,7 @@ Update 2026-05-24:
 - Candidate runs require a BYOK provider and append the candidate patch in a `<candidate_prompt_patch>` block.
 - Promotion is intentionally separate: a candidate can replace the active local Prompt Program only through a PM action that writes a Prompt Promotion audit record.
 - Promotion requires passing Design, Regression, and Holdout dataset coverage.
-- New AI Check sessions freeze the active promoted prompt version and use the promoted patch in provider messages.
+- New AI Check sessions freeze the active promoted Prompt Program version and use the promoted patch in provider messages.
 
 ### ISSUE-008: Textual Gradient can overfit visible cases
 
