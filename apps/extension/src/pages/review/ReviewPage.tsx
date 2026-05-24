@@ -28,10 +28,12 @@ import {
   AI_CHECK_OUTPUT_SCHEMA_VERSIONS,
   AI_CHECK_PROMPT_PROGRAM,
   AI_CHECK_PROMPT_VERSIONS,
+  AI_CHECK_PROVENANCE_TYPES,
   AI_CHECK_SCORING_RULES,
   AI_CHECK_STRICTNESS_LEVELS
 } from "../../shared/ai-check-contract";
 import { PROVIDERS } from "../../shared/constants";
+import { BUILT_IN_AI_CHECK_CASES } from "../../ai/built-in-eval-cases";
 import {
   buildRoundSnapshot,
   buildTrustedRoundContextParts,
@@ -52,6 +54,7 @@ import type {
   AICheckEvalRunSummary,
   AICheckExperiment,
   AICheckExperimentArtifactKind,
+  AICheckCaseProvenance,
   AICheckPromptCandidate,
   AICheckPromptComparison,
   AICheckPromptPromotion,
@@ -86,6 +89,7 @@ type ReviewArea = "history" | "eval" | "experiment" | "schema";
 type SchemaManualTab = "messages" | "rubric" | "output" | "evaluation";
 type ExperimentFilterValue<T extends string> = "all" | T;
 type EvidenceExpectationValue = "ignore" | "true" | "false";
+type CaseOriginFilter = "all" | "built_in" | AICheckCaseProvenance["type"];
 
 interface EvalFormState {
   title: string;
@@ -170,6 +174,7 @@ const COMMON_TAGS = AI_CHECK_COMMON_TAGS;
 const EVAL_STATUSES = AI_CHECK_CASE_STATUSES;
 const DATASET_TYPES = AI_CHECK_DATASET_TYPES;
 const CASE_SETS = AI_CHECK_CASE_SETS;
+const BUILT_IN_EVAL_CASE_IDS = new Set(BUILT_IN_AI_CHECK_CASES.map((evalCase) => evalCase.id));
 
 export function ReviewPage() {
   const loadSessions = useCallback(() => sendMessage<AIPMReviewSession[]>({ type: "review/listSessions" }), []);
@@ -275,6 +280,7 @@ export function ReviewPage() {
   const [reviewerNote, setReviewerNote] = useState("");
   const [selectedSetId, setSelectedSetId] = useState("active");
   const [selectedTag, setSelectedTag] = useState<string>("all");
+  const [selectedCaseOrigin, setSelectedCaseOrigin] = useState<CaseOriginFilter>("all");
   const [caseSearch, setCaseSearch] = useState("");
   const [selectedEvalCaseId, setSelectedEvalCaseId] = useState<string | null>(null);
   const [creatingEvalCase, setCreatingEvalCase] = useState(false);
@@ -350,12 +356,18 @@ export function ReviewPage() {
     return evalCases.filter((evalCase) => {
       if (!caseMatchesSet(evalCase, selectedSet)) return false;
       if (selectedTag !== "all" && !(evalCase.eval?.tags ?? []).includes(selectedTag)) return false;
+      if (selectedCaseOrigin === "built_in" && !isBuiltInEvalCase(evalCase)) return false;
+      if (selectedCaseOrigin !== "all" && selectedCaseOrigin !== "built_in" && evalCase.provenance.type !== selectedCaseOrigin) {
+        return false;
+      }
       if (!query) return true;
       return [
         evalCase.title,
         evalCase.input.targetDisplay,
         evalCase.eval?.expectedOutput.decision,
         evalCase.input.strictness,
+        evalCase.provenance.type,
+        isBuiltInEvalCase(evalCase) ? "built in default fixture" : "",
         ...(evalCase.eval?.tags ?? [])
       ]
         .filter(Boolean)
@@ -363,7 +375,7 @@ export function ReviewPage() {
         .toLowerCase()
         .includes(query);
     });
-  }, [caseSearch, evalCases, selectedSet, selectedTag]);
+  }, [caseSearch, evalCases, selectedCaseOrigin, selectedSet, selectedTag]);
 
   const selectedEvalCase = useMemo(() => {
     if (creatingEvalCase) return null;
@@ -951,6 +963,24 @@ export function ReviewPage() {
             </div>
 
             <label className="stack compact-stack">
+              <span>Case origin</span>
+              <select
+                aria-label="Case origin"
+                className="select"
+                value={selectedCaseOrigin}
+                onChange={(event) => setSelectedCaseOrigin(event.target.value as CaseOriginFilter)}
+              >
+                <option value="all">All origins</option>
+                <option value="built_in">Built-in defaults</option>
+                {AI_CHECK_PROVENANCE_TYPES.map((provenanceType) => (
+                  <option key={provenanceType} value={provenanceType}>
+                    {formatCaseProvenance(provenanceType)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="stack compact-stack">
               <span>Tag filter</span>
               <select className="select" value={selectedTag} onChange={(event) => setSelectedTag(event.target.value)}>
                 <option value="all">All tags</option>
@@ -1019,6 +1049,10 @@ export function ReviewPage() {
                     <div className="row space-between">
                       <strong>{evalCase.title}</strong>
                       <span className={`status-pill status-pill-${evalCase.status}`}>{formatStatus(evalCase.status)}</span>
+                    </div>
+                    <div className="row wrap-row">
+                      <span className="badge">{formatCaseProvenance(evalCase.provenance.type)}</span>
+                      {isBuiltInEvalCase(evalCase) && <span className="badge badge-warn">Built-in default</span>}
                     </div>
                     <span>{evalCase.input.targetDisplay}</span>
                     <small>
@@ -2472,6 +2506,22 @@ function EvalCaseDetail({
         )}
       </div>
 
+      {!creating && evalCase && (
+        <div className="row wrap-row">
+          <span className="badge">{formatCaseProvenance(evalCase.provenance.type)}</span>
+          {isBuiltInEvalCase(evalCase) && <span className="badge badge-warn">Built-in default</span>}
+          {evalCase.provenance.type === "review" && evalCase.provenance.reviewId && (
+            <span className="badge">Review linked</span>
+          )}
+        </div>
+      )}
+      {!creating && evalCase && isBuiltInEvalCase(evalCase) && (
+        <p className="muted">
+          Built-in defaults are contract fixtures. Edits or archives are stored as local overrides instead of changing the
+          bundled fixture source.
+        </p>
+      )}
+
       <div className="eval-form-grid">
         <label className="stack compact-stack">
           <span>Title</span>
@@ -3883,6 +3933,10 @@ function caseMatchesSet(evalCase: AICheckCase, caseSet: (typeof CASE_SETS)[numbe
   return true;
 }
 
+function isBuiltInEvalCase(evalCase: AICheckCase): boolean {
+  return BUILT_IN_EVAL_CASE_IDS.has(evalCase.id);
+}
+
 function countCasesForSet(evalCases: AICheckCase[], caseSet: (typeof CASE_SETS)[number]): number {
   return evalCases.filter((evalCase) => caseMatchesSet(evalCase, caseSet)).length;
 }
@@ -3977,6 +4031,19 @@ function formatStatusLabel(status: string): string {
 
 function formatTag(tag: string): string {
   return tag.replaceAll("_", " ");
+}
+
+function formatCaseProvenance(provenanceType: AICheckCaseProvenance["type"]): string {
+  switch (provenanceType) {
+    case "authored":
+      return "Authored";
+    case "review":
+      return "PM review";
+    case "session":
+      return "Real session";
+    default:
+      return formatStatusLabel(provenanceType);
+  }
 }
 
 function formatProviderJson(raw: string): string {

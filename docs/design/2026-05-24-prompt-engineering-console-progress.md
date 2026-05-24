@@ -34,7 +34,7 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 - Bad-case conversion into an Evaluation Case from the selected decision point.
 - `AICheckCase` schema with `input`, optional `output`, `eval`, lifecycle `status`, `datasetType`, `provenance`, optional `lineage`, and archive metadata.
 - Built-in eval fixtures under `apps/extension/evals/ai-check-cases`.
-- Built-in eval fixtures are visible in Case Library as read-only default cases; local edits/archives are stored as local overrides.
+- Built-in eval fixtures are visible in Case Library as contract defaults, with explicit origin badges and local override guidance.
 - Local `eval:ai-check` runner with status/tag/dataset filtering and provider-mode reuse of runtime provider messages.
 - Experiment Lab can run the current Prompt Program in mock mode, persist `evalRuns`/`evalResults`, show metrics, failures, run history, and release gate summary.
 - Contract Reference / Contract Manual exists for provider messages, Prompt Program policy, output, and evaluation.
@@ -47,7 +47,7 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 - New BadCaseReview records prefer the persisted selected decision-point input snapshot and exclude future turns.
 - Conversion to eval uses the stored input snapshot when present and preserves captured model output.
 - New conversion uses original round snapshot pattern memory instead of reloading current pattern memory.
-- Built-in fixture cases and local editable eval cases are unified in Case Library; built-in edits still use local override behavior rather than an explicit read-only badge.
+- Built-in fixture cases and local editable eval cases are unified in Case Library, with origin filters and built-in default affordances.
 - Dataset split exists in the contract and fixtures. Experiment Lab now protects Holdout details in tuning mode and exposes them only in release review mode.
 - Experiment Run is persisted and visible in PM Review for mock-mode and provider-mode current Prompt Program runs.
 - Release Gate exists as an Experiment Lab result summary, and PM Review now stores first-slice Release Decisions against selected runs.
@@ -100,6 +100,7 @@ Implemented now:
 - `datasetType`, `provenance`, and optional `lineage` are in the contract and generated types.
 - `source` case semantics are removed from `AICheckCase`.
 - Existing built-in fixtures are reclassified as `status = ready` and `datasetType = regression`.
+- Case Library exposes a Case origin filter and built-in default badges so PMs can distinguish authored, review-derived, real-session, and bundled fixture cases.
 - Eval runner accepts dataset filters.
 
 Still remaining:
@@ -190,6 +191,7 @@ Implementation validation performed:
 - `test:e2e` includes Holdout visibility coverage: tuning mode hides Holdout failure details, release review mode reveals the failure summary.
 - `test:e2e` includes provider-mode Experiment Lab coverage: saved BYOK provider, runtime provider messages, BYOK run metadata, and one focused passing provider run.
 - `test:e2e` includes decision-point snapshot source coverage (`SNAPSHOT_SOURCE_UI_OK true`): History review shows the selected decision point as Runtime when the persisted runtime snapshot is available.
+- `test:e2e` includes Case Library origin coverage (`CASE_LIBRARY_ORIGIN_OK true`): PM Review filters to built-in defaults and shows the local override guidance in the selected case detail.
 - `test:e2e` includes Release Decision coverage: approving a passing provider-mode run persists an approved decision with the run id and gate status.
 - CLI `eval:ai-check -- --output=...` writes the shared run artifact; shape validation confirmed the artifact has one run and 42 linked results.
 - `test:e2e` includes Eval Run artifact import coverage: Experiment Lab imports a run artifact and persists matching `evalRuns`/`evalResults` records.
@@ -347,6 +349,13 @@ Pending implementation validation:
 - History review exposes the selected decision point's snapshot source as `Runtime` for persisted runtime snapshots or `Derived` for deterministic fallback snapshots.
 - Bad-case reviews now store the snapshot source used at review time.
 - E2E now verifies the Runtime snapshot source affordance before converting a reviewed decision point.
+
+2026-05-24 Case Library origin affordance update:
+
+- Case Library now has a Case origin filter for all origins, built-in defaults, authored cases, real-session cases, and PM-review cases.
+- Evaluation case list and detail now show provenance badges plus a built-in default badge for bundled fixture ids.
+- Built-in default detail explains that edits and archives become local overrides instead of mutating bundled fixture source.
+- E2E now verifies built-in default filtering and guidance.
 
 2026-05-24 Experiment Workspace update:
 

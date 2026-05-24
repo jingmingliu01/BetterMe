@@ -443,6 +443,12 @@ try {
     throw new Error(`Review workspace did not create expected eval case: ${JSON.stringify(evalCases)}`);
   }
   console.log("REVIEW_EVAL_LOOP_OK true");
+  await page.getByRole("button", { name: "Evaluation Cases", exact: true }).click();
+  await page.getByRole("button", { name: /All Active Cases/ }).click();
+  await page.getByLabel("Case origin").selectOption("built_in");
+  await page.locator(".badge", { hasText: "Built-in default" }).first().waitFor({ timeout: 5_000 });
+  await page.getByText("Built-in defaults are contract fixtures.").waitFor({ timeout: 5_000 });
+  console.log("CASE_LIBRARY_ORIGIN_OK true");
 
   await sendRuntimeMessage(page, "review/createEvalCase", {
     title: "Protected holdout failing case",

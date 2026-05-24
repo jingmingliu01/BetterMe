@@ -42,7 +42,7 @@ Update 2026-05-24:
 
 ### ISSUE-002: BadCase conversion can include future turns
 
-Status: mostly mitigated
+Status: mitigated
 
 Risk:
 
@@ -126,7 +126,7 @@ Update 2026-05-24:
 
 ### ISSUE-005: Source mixes provenance and workflow
 
-Status: mostly mitigated
+Status: mitigated
 
 Risk:
 
@@ -150,6 +150,7 @@ Update 2026-05-24:
 - `AICheckCase.source` was removed from the contract and generated types.
 - `provenance` is required and `lineage` is optional.
 - PM-reviewed conversions use `provenance.type = "review"` with review/session/decision ids.
+- Case Library now exposes case origin filtering and provenance badges, including explicit built-in default affordances for bundled fixtures.
 
 ### ISSUE-006: Experiment results are not productized
 
