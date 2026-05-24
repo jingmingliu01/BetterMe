@@ -372,7 +372,8 @@ Pending implementation validation:
 
 - Added `npm --workspace apps/extension run audit:prompt-console`.
 - The audit verifies linked design/progress/issues docs, AI Check contract ownership of Prompt Program rules, current-version eval fixtures, dataset/status separation, no runtime legacy eval migration, Contract Change Plan version gates, and E2E coverage markers for the Prompt Engineering Console workflow.
-- Progress document was updated because validation scope changed. Design and issues documents were checked; no product-scope or risk-status change was required for this automation-only gate.
+- `npm --workspace apps/extension run check:ai-check-contract` now runs the Prompt Console audit after generated contract and fixture validation, making Contract Reference drift a default contract-check failure.
+- Issues document was updated because ISSUE-009 is now mitigated by a contract-check gate instead of only a standalone audit. Design document was checked; the contract-first product boundary still applies.
 
 2026-05-24 Prompt Program rubric contract update:
 

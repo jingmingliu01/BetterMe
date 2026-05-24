@@ -51,8 +51,8 @@ async function auditDocs() {
       }
     }
   }
-  if (/Status: (open|partially mitigated)/.test(issues)) {
-    errors.push("Prompt Engineering Console issues doc still has open or partially mitigated status.");
+  if (/Status: (open|partially mitigated|mostly mitigated)/.test(issues)) {
+    errors.push("Prompt Engineering Console issues doc still has open, partially mitigated, or mostly mitigated status.");
   }
   for (const required of [
     "Legacy local PM Review data does not need to be preserved as a design constraint.",
