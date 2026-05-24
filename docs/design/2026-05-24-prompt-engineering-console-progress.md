@@ -13,7 +13,7 @@ Rule: when this document changes, check the design and issues documents for requ
 
 Phase 1, Phase 2, and the first Phase 3 Experiment Lab slice are partially implemented in the AI Check contract, review-store conversion path, PM Review UI, eval fixtures, eval runner, local run/result stores, and CLI run artifact import/export path.
 
-This document set remains the scaffold for the larger Prompt Engineering Console implementation. The current code change does not yet implement Candidate Prompt A/B or Textual Gradient.
+This document set remains the scaffold for the larger Prompt Engineering Console implementation. Candidate Prompt A/B and Textual Gradient now have a first Phase 4 implementation, but prompt promotion is still pending.
 
 ## Product Decisions Locked
 
@@ -23,7 +23,7 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 - `AI_COOLDOWN` is terminal in product and release-gating semantics.
 - Decision-point snapshots should be accepted as the reliable way to make review/eval reproducible.
 - `datasetType` should be independent from lifecycle `status`.
-- Candidate Prompt A/B and Textual Gradient are second-step Experiment Lab capabilities, not first-slice requirements.
+- Candidate Prompt A/B and Textual Gradient are Phase 4 capabilities layered on top of the persisted run/result foundation.
 
 ## Already Exists
 
@@ -129,7 +129,7 @@ Implemented now:
 - Tuning mode hides Holdout breakdowns and failure details while preserving aggregate metrics and release gate status.
 - PM can approve or block release for a selected run with a release note; the stored decision snapshots gate status, metrics, provider/model, and versions.
 - CLI `eval:ai-check` can write an importable `AICheckEvalRunSummary` artifact, and Experiment Lab can import that artifact into local run history.
-- First slice runs the current Prompt Program only, keeping Candidate Prompt A/B out of scope.
+- First slice runs the current Prompt Program only, while Phase 4 now adds provider-mode candidate comparisons on top of the same run/result foundation.
 
 Still remaining:
 
@@ -137,7 +137,7 @@ Still remaining:
 
 ### Phase 4: Candidate Prompt and Textual Gradient
 
-Status: second-step scope, not started
+Status: first slice implemented
 
 Scope:
 
@@ -146,6 +146,21 @@ Scope:
 - Add Textual Gradient diagnosis from failed cases.
 - Generate prompt/rubric/schema candidate suggestions.
 - Require Design, Regression, and Holdout checks before promotion.
+
+Implemented now:
+
+- Experiment Lab can save draft Prompt Candidates with name, instruction patch, and rationale.
+- Candidate Prompt A/B runs require a BYOK provider so the candidate patch can affect model behavior.
+- A/B comparison executes a baseline run and candidate run against the same case filters.
+- Candidate provider messages append the patch inside `<candidate_prompt_patch>` while keeping the normal provider-message order.
+- PM Review persists `promptCandidates` and `promptComparisons`.
+- Comparison view shows baseline vs candidate pass rate, improved/regressed counts, recommendation, and Textual Gradient clusters/directions/risk notes.
+
+Still remaining:
+
+- Candidate promotion flow that can create a new active Prompt Program version.
+- LLM-assisted candidate generation from Textual Gradient.
+- Stronger release gate requiring explicit Design, Regression, and Holdout coverage before promotion.
 
 ## Validation Status
 
@@ -164,6 +179,7 @@ Implementation validation performed:
 - `test:e2e` includes Release Decision coverage: approving a passing provider-mode run persists an approved decision with the run id and gate status.
 - CLI `eval:ai-check -- --output=...` writes the shared run artifact; shape validation confirmed the artifact has one run and 42 linked results.
 - `test:e2e` includes Eval Run artifact import coverage: Experiment Lab imports a run artifact and persists matching `evalRuns`/`evalResults` records.
+- `test:e2e` includes Candidate Prompt A/B coverage: Experiment Lab saves a candidate, runs baseline/candidate provider calls, injects `<candidate_prompt_patch>`, persists comparison regression/recommendation, and shows Textual Gradient.
 
 Pending implementation validation:
 
@@ -225,6 +241,13 @@ Pending implementation validation:
 - CLI eval runner now supports `--output=<path>` and writes the shared `AICheckEvalRunSummary` artifact shape.
 - Experiment Lab now imports that artifact into local `evalRuns` and `evalResults`.
 - Issues document was updated because CLI/UI shared persistence moved from open gap to implemented first-slice behavior. Design document was updated to document the shared run artifact contract.
+
+2026-05-24 Candidate Prompt A/B update:
+
+- Added Prompt Candidate and Prompt Comparison local stores and review APIs.
+- Experiment Lab now saves draft candidate prompt patches, runs provider-mode baseline/candidate comparisons, and stores comparison artifacts.
+- Textual Gradient now summarizes comparison failures into clusters, directions, and risk notes.
+- Issues document was updated because Candidate Prompt A/B and Textual Gradient moved from deferred to first-slice implemented, with promotion still open. Design document was updated to document the narrower candidate/comparison artifact model.
 
 ## Update Checklist
 

@@ -24,7 +24,10 @@ export async function sendMessage<T>(message: ExtensionMessage): Promise<T> {
 }
 
 function getMessageTimeoutMs(message: ExtensionMessage): number {
-  return message.type === "ai/sendMessage" || message.type === "ai/startAndSend" ? 35_000 : 4_000;
+  if (message.type === "ai/sendMessage" || message.type === "ai/startAndSend") return 35_000;
+  if (message.type === "review/runEvalExperiment") return 60_000;
+  if (message.type === "review/runPromptComparison") return 90_000;
+  return 4_000;
 }
 
 export function getQueryParam(name: string): string | null {

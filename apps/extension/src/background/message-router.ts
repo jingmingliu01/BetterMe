@@ -52,11 +52,15 @@ import {
   convertBadCaseToEvalCase,
   createEvalCase,
   createBadCaseReview,
+  createPromptCandidate,
   importEvalRunArtifact,
   listEvalCases,
   listEvalRunSummaries,
+  listPromptCandidates,
+  listPromptComparisons,
   listReleaseDecisions,
   listReviewSessions,
+  runPromptComparison,
   runEvalExperiment,
   updateEvalCase,
   updateBadCaseReview
@@ -329,6 +333,14 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await runEvalExperiment(message.payload));
       case "review/importEvalRunArtifact":
         return ok(await importEvalRunArtifact(message.payload));
+      case "review/listPromptCandidates":
+        return ok(await listPromptCandidates());
+      case "review/createPromptCandidate":
+        return ok(await createPromptCandidate(message.payload));
+      case "review/listPromptComparisons":
+        return ok(await listPromptComparisons());
+      case "review/runPromptComparison":
+        return ok(await runPromptComparison(message.payload));
       case "review/listReleaseDecisions":
         return ok(await listReleaseDecisions());
       case "review/createReleaseDecision":
@@ -340,6 +352,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
           reviewSessions: await listReviewSessions(),
           evalCases: await listEvalCases(),
           evalRuns: await listEvalRunSummaries(),
+          promptCandidates: await listPromptCandidates(),
+          promptComparisons: await listPromptComparisons(),
           releaseDecisions: await listReleaseDecisions()
         });
       case "data/deleteAll":

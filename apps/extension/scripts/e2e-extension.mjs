@@ -598,6 +598,69 @@ try {
   }
   console.log("EVAL_RUN_ARTIFACT_IMPORT_OK true");
 
+  await sendRuntimeMessage(page, "review/createEvalCase", {
+    title: "Candidate A/B probe case",
+    datasetType: "design",
+    status: "ready",
+    targetDisplay: "example.com",
+    strictness: "balanced",
+    userMessage: "I need to research homework for 10 minutes then I will close the tab.",
+    expectedDecision: "ALLOW",
+    tags: ["candidate_ab_probe"],
+    reviewerNote: "E2E Candidate Prompt A/B probe."
+  });
+  await queueProviderResponses(serviceWorker, [
+    buildProviderDecision({
+      decision: "ALLOW",
+      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
+      decisionReasonCategory: "clear_intention",
+      unlockMinutes: 5,
+      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
+      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
+    }),
+    buildProviderDecision({
+      decision: "BLOCK",
+      userFacingMessage: "Stay blocked for now.",
+      decisionReasonCategory: "high_risk_pattern",
+      scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
+      memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
+    })
+  ]);
+  const candidateProviderRequestCountBefore = (await getProviderRequestLog(serviceWorker)).length;
+  await page.reload();
+  await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Experiment Lab" }).click();
+  await page.getByLabel("Experiment provider", { exact: true }).selectOption("openai");
+  await page.getByLabel("Experiment dataset", { exact: true }).selectOption("design");
+  await page.getByLabel("Experiment tag", { exact: true }).selectOption("candidate_ab_probe");
+  await page.getByLabel("Prompt candidate name").fill("E2E stricter candidate");
+  await page.getByLabel("Prompt candidate patch").fill("For this candidate, block bounded homework requests.");
+  await page.getByLabel("Prompt candidate rationale").fill("Probe candidate comparison regression handling.");
+  await page.getByRole("button", { name: /Save Candidate/ }).click();
+  await page.getByText("Saved prompt candidate E2E stricter candidate.").waitFor({ timeout: 3_000 });
+  await page.getByRole("button", { name: /Run A\/B/ }).click();
+  await page.getByText(/Candidate A\/B finished/).waitFor({ timeout: 8_000 });
+  await page.getByText("Textual Gradient", { exact: true }).waitFor({ timeout: 5_000 });
+  const promptComparisons = await getIndexedDbRecords(page, "promptComparisons");
+  const promptCandidates = await getIndexedDbRecords(page, "promptCandidates");
+  const latestComparison = promptComparisons.at(-1);
+  if (
+    !promptCandidates.some((candidate) => candidate.name === "E2E stricter candidate") ||
+    latestComparison?.regressedCaseIds?.length !== 1 ||
+    latestComparison?.recommendation !== "reject_candidate"
+  ) {
+    throw new Error(`Candidate comparison did not persist expected regression: ${JSON.stringify(promptComparisons)}`);
+  }
+  const candidateProviderRequests = await getProviderRequestLog(serviceWorker);
+  if (candidateProviderRequests.length !== candidateProviderRequestCountBefore + 2) {
+    throw new Error("Candidate A/B did not issue baseline and candidate provider requests.");
+  }
+  const candidateRequest = candidateProviderRequests.at(-1);
+  if (!candidateRequest?.messages?.some((message) => message.content.includes("<candidate_prompt_patch>"))) {
+    throw new Error("Candidate A/B did not send the candidate prompt patch to the provider.");
+  }
+  console.log("CANDIDATE_PROMPT_AB_OK true");
+
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.org");
   await page.getByRole("button", { name: /Block This Domain/ }).click();
@@ -653,7 +716,7 @@ async function getBehaviorEvents(page) {
 
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 8);
+    const request = indexedDB.open("betterme-db", 9);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -671,7 +734,7 @@ async function getIndexedDbRecords(page, storeName) {
 async function putIndexedDbRecord(page, storeName, record) {
   return page.evaluate(
     async ({ selectedStore, selectedRecord }) => {
-      const request = indexedDB.open("betterme-db", 8);
+      const request = indexedDB.open("betterme-db", 9);
       const db = await new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

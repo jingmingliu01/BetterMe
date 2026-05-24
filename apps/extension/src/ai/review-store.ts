@@ -4,7 +4,7 @@ import { createId, nowIso } from "../shared/id";
 import { loadDecryptedApiKey } from "../storage/crypto-key-store";
 import { BUILT_IN_AI_CHECK_CASES } from "./built-in-eval-cases";
 import { deriveDecisionPointSnapshotFromHistory } from "./decision-point-snapshot";
-import { runEvalExperimentForCases } from "./eval-engine";
+import { filterEvalCasesForRun, runEvalExperimentForCases } from "./eval-engine";
 import type {
   AICheckCase,
   AICheckCaseInput,
@@ -12,7 +12,10 @@ import type {
   AICheckExpectedOutput,
   AICheckEvalResult,
   AICheckEvalRun,
+  AICheckEvalRunFilters,
   AICheckEvalRunSummary,
+  AICheckPromptCandidate,
+  AICheckPromptComparison,
   AICheckReleaseDecision,
   AICheckMessage,
   AICheckSession,
@@ -25,8 +28,10 @@ import type {
   CheckpointDecision,
   CreateReleaseDecisionInput,
   CreateEvalCaseInput,
+  CreatePromptCandidateInput,
   ImportEvalRunArtifactInput,
   RunEvalExperimentInput,
+  RunPromptComparisonInput,
   StrictnessLevel,
   UpdateEvalCaseInput
 } from "../shared/types";
@@ -371,6 +376,95 @@ export async function importEvalRunArtifact(input: ImportEvalRunArtifactInput): 
   return summary;
 }
 
+export async function listPromptCandidates(): Promise<AICheckPromptCandidate[]> {
+  const candidates = await getAllRecords<AICheckPromptCandidate>("promptCandidates");
+  return candidates.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+}
+
+export async function createPromptCandidate(input: CreatePromptCandidateInput): Promise<AICheckPromptCandidate> {
+  const instructionPatch = input.instructionPatch.trim();
+  if (!instructionPatch) {
+    throw new Error("Candidate prompt patch is required.");
+  }
+  const now = nowIso();
+  const candidate: AICheckPromptCandidate = {
+    id: createId("promptcandidate"),
+    name: input.name.trim() || "Untitled candidate prompt",
+    status: "draft",
+    instructionPatch,
+    rationale: input.rationale?.trim() || undefined,
+    createdAt: now,
+    updatedAt: now
+  };
+  await putRecord("promptCandidates", candidate);
+  return candidate;
+}
+
+export async function listPromptComparisons(): Promise<AICheckPromptComparison[]> {
+  const comparisons = await getAllRecords<AICheckPromptComparison>("promptComparisons");
+  return comparisons.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function runPromptComparison(input: RunPromptComparisonInput): Promise<AICheckPromptComparison> {
+  const candidate = await getRecord<AICheckPromptCandidate>("promptCandidates", input.candidateId);
+  if (!candidate || candidate.status === "archived") {
+    throw new Error("Prompt candidate not found.");
+  }
+  const provider = input.provider ?? "mock";
+  if (provider === "mock") {
+    throw new Error("Candidate Prompt A/B requires a BYOK provider so the prompt patch can affect model behavior.");
+  }
+  const providerConfig = PROVIDERS.find((item) => item.id === provider);
+  const model = input.model ?? providerConfig?.defaultModel ?? "mock";
+  if (!providerConfig) {
+    throw new Error("Unknown provider.");
+  }
+  if (!providerConfig.models.includes(model)) {
+    throw new Error("Selected model is not available for this provider.");
+  }
+  const apiKey = await loadDecryptedApiKey(providerConfig.id);
+  if (!apiKey) {
+    throw new Error(`Save a ${providerConfig.label} API key before running Candidate Prompt A/B.`);
+  }
+
+  const cases = await listEvalCases();
+  const selectedCases = filterEvalCasesForRun(cases, input.filters);
+  if (selectedCases.length === 0) {
+    throw new Error("No evaluation cases match this comparison filter.");
+  }
+
+  const baselineSummary = await runEvalExperimentForCases(cases, {
+    filters: input.filters,
+    mode: input.mode ?? "tuning",
+    provider,
+    model,
+    apiKey
+  });
+  const candidateSummary = await runEvalExperimentForCases(cases, {
+    filters: input.filters,
+    mode: input.mode ?? "tuning",
+    provider,
+    model,
+    apiKey,
+    promptVersion: `${AI_CHECK_PROMPT_VERSION}+candidate:${candidate.id}`,
+    systemPromptAddendum: candidate.instructionPatch
+  });
+  await saveEvalRun(baselineSummary.run);
+  await Promise.all(baselineSummary.results.map((result) => saveEvalResult(result)));
+  await saveEvalRun(candidateSummary.run);
+  await Promise.all(candidateSummary.results.map((result) => saveEvalResult(result)));
+
+  const comparison = buildPromptComparison({
+    candidate,
+    filters: input.filters,
+    selectedCases,
+    baselineSummary,
+    candidateSummary
+  });
+  await putRecord("promptComparisons", comparison);
+  return comparison;
+}
+
 export async function listReleaseDecisions(): Promise<AICheckReleaseDecision[]> {
   const decisions = await getAllRecords<AICheckReleaseDecision>("releaseDecisions");
   return decisions.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -427,6 +521,154 @@ export async function runEvalExperiment(input: RunEvalExperimentInput): Promise<
   await saveEvalRun(summary.run);
   await Promise.all(summary.results.map((result) => saveEvalResult(result)));
   return summary;
+}
+
+function buildPromptComparison(input: {
+  candidate: AICheckPromptCandidate;
+  filters: AICheckEvalRunFilters;
+  selectedCases: AICheckCase[];
+  baselineSummary: AICheckEvalRunSummary;
+  candidateSummary: AICheckEvalRunSummary;
+}): AICheckPromptComparison {
+  const baselineByCaseId = new Map(input.baselineSummary.results.map((result) => [result.evalCaseId, result]));
+  const candidateByCaseId = new Map(input.candidateSummary.results.map((result) => [result.evalCaseId, result]));
+  const improvedCaseIds: string[] = [];
+  const regressedCaseIds: string[] = [];
+  const unchangedFailedCaseIds: string[] = [];
+  const unchangedPassedCaseIds: string[] = [];
+
+  for (const testCase of input.selectedCases) {
+    const baseline = baselineByCaseId.get(testCase.id);
+    const candidate = candidateByCaseId.get(testCase.id);
+    if (!baseline || !candidate) continue;
+    if (!baseline.pass && candidate.pass) {
+      improvedCaseIds.push(testCase.id);
+    } else if (baseline.pass && !candidate.pass) {
+      regressedCaseIds.push(testCase.id);
+    } else if (!baseline.pass && !candidate.pass) {
+      unchangedFailedCaseIds.push(testCase.id);
+    } else {
+      unchangedPassedCaseIds.push(testCase.id);
+    }
+  }
+
+  const recommendation =
+    regressedCaseIds.length > 0 || input.candidateSummary.run.metrics.releaseGate.status === "fail"
+      ? "reject_candidate"
+      : improvedCaseIds.length > 0 &&
+          input.candidateSummary.run.metrics.passRate >= input.baselineSummary.run.metrics.passRate
+        ? "promote_candidate"
+        : "revise_candidate";
+
+  return {
+    id: createId("promptcomparison"),
+    candidateId: input.candidate.id,
+    baselineRunId: input.baselineSummary.run.id,
+    candidateRunId: input.candidateSummary.run.id,
+    mode: input.candidateSummary.run.mode,
+    provider: input.candidateSummary.run.provider,
+    model: input.candidateSummary.run.model,
+    filters: input.filters,
+    baselineMetrics: input.baselineSummary.run.metrics,
+    candidateMetrics: input.candidateSummary.run.metrics,
+    improvedCaseIds,
+    regressedCaseIds,
+    unchangedFailedCaseIds,
+    unchangedPassedCaseIds,
+    recommendation,
+    textualGradient: buildTextualGradient({
+      cases: input.selectedCases,
+      candidateResults: input.candidateSummary.results,
+      improvedCaseIds,
+      regressedCaseIds,
+      unchangedFailedCaseIds
+    }),
+    createdAt: nowIso()
+  };
+}
+
+function buildTextualGradient(input: {
+  cases: AICheckCase[];
+  candidateResults: AICheckEvalResult[];
+  improvedCaseIds: string[];
+  regressedCaseIds: string[];
+  unchangedFailedCaseIds: string[];
+}): AICheckPromptComparison["textualGradient"] {
+  const caseById = new Map(input.cases.map((testCase) => [testCase.id, testCase]));
+  const resultByCaseId = new Map(input.candidateResults.map((result) => [result.evalCaseId, result]));
+  const failedCaseIds = [...input.regressedCaseIds, ...input.unchangedFailedCaseIds];
+  const clusterCounts = new Map<string, number>();
+
+  for (const caseId of failedCaseIds) {
+    const testCase = caseById.get(caseId);
+    const result = resultByCaseId.get(caseId);
+    const tags = testCase?.eval?.tags?.length ? testCase.eval.tags : ["untagged_failure"];
+    for (const tag of tags.slice(0, 3)) {
+      clusterCounts.set(tag, (clusterCounts.get(tag) ?? 0) + 1);
+    }
+    for (const reason of result?.failureReasons ?? []) {
+      const label = reason.split(" expected ")[0] || reason;
+      clusterCounts.set(label, (clusterCounts.get(label) ?? 0) + 1);
+    }
+  }
+
+  const failureClusters = [...clusterCounts.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 6)
+    .map(([label, cases]) => ({
+      label,
+      cases,
+      direction: buildClusterDirection(label)
+    }));
+  const suggestedPromptDirections = buildPromptDirections(failureClusters, input.regressedCaseIds.length);
+  const riskNotes = [
+    input.regressedCaseIds.length > 0
+      ? `${input.regressedCaseIds.length} previously passing case(s) regressed; do not promote this candidate.`
+      : "No previously passing cases regressed in this comparison.",
+    "Treat Textual Gradient as diagnosis only. It must not overwrite the current Prompt Program.",
+    "Use release review mode before making a promotion decision when Holdout cases are included."
+  ];
+  const summary =
+    input.regressedCaseIds.length > 0
+      ? `Candidate introduced ${input.regressedCaseIds.length} regression(s) and fixed ${input.improvedCaseIds.length} case(s).`
+      : `Candidate fixed ${input.improvedCaseIds.length} case(s) with no observed regressions.`;
+
+  return {
+    summary,
+    failureClusters,
+    suggestedPromptDirections,
+    riskNotes
+  };
+}
+
+function buildClusterDirection(label: string): string {
+  if (label.includes("over_allow") || label.includes("false allow") || label.includes("decision")) {
+    return "Tighten the decision boundary for ALLOW and require specific purpose plus time boundary.";
+  }
+  if (label.includes("under_ask") || label.includes("ASK_MORE")) {
+    return "Clarify when ASK_MORE is required before a terminal decision.";
+  }
+  if (label.includes("unsafe") || label.includes("nsfw")) {
+    return "Strengthen sensitive-risk handling without adding explicit content.";
+  }
+  if (label.includes("wrong_cooldown") || label.includes("aiCooldownSeconds")) {
+    return "Specify cooldown duration selection by strictness and risk level.";
+  }
+  if (label.includes("wrong_reason") || label.includes("decisionReasonCategory")) {
+    return "Sharpen reason category definitions and examples.";
+  }
+  return "Add a targeted rubric or example for this failure pattern.";
+}
+
+function buildPromptDirections(
+  failureClusters: AICheckPromptComparison["textualGradient"]["failureClusters"],
+  regressionCount: number
+): string[] {
+  const directions = failureClusters.map((cluster) => cluster.direction);
+  if (regressionCount > 0) {
+    directions.unshift("Reduce the candidate patch before adding new behavior; regressions outrank improvements.");
+  }
+  return [...new Set(directions)].slice(0, 5);
 }
 
 function validateEvalRunArtifact(summary: AICheckEvalRunSummary): void {

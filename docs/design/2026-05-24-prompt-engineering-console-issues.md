@@ -184,7 +184,7 @@ Update 2026-05-24:
 
 ### ISSUE-007: Candidate Prompt A/B can cause scope creep
 
-Status: deferred to Phase 4
+Status: partially mitigated
 
 Risk:
 
@@ -201,9 +201,16 @@ Mitigation:
 - Phase 3 excludes candidate prompts.
 - Phase 4 adds candidate arms after persisted runs, metrics, and release gate are stable.
 
+Update 2026-05-24:
+
+- Candidate Prompt A/B is implemented as a narrow Phase 4 first slice using separate Prompt Candidate and Prompt Comparison artifacts.
+- Standard `AICheckEvalRun` rows remain the persisted run unit; comparison artifacts link one baseline run and one candidate run.
+- Candidate runs require a BYOK provider and append the candidate patch in a `<candidate_prompt_patch>` block.
+- Promotion is still intentionally separate and remains open, so a candidate cannot automatically replace the current Prompt Program.
+
 ### ISSUE-008: Textual Gradient can overfit visible cases
 
-Status: deferred to Phase 4
+Status: partially mitigated
 
 Risk:
 
@@ -222,6 +229,13 @@ Mitigation:
 - Require candidate prompt experiments to pass Design, Regression, and Holdout gates.
 - Hide or limit Holdout details during daily tuning.
 - Store textual gradient notes separately from release decisions.
+
+Update 2026-05-24:
+
+- Textual Gradient now exists as diagnosis inside Prompt Comparison artifacts.
+- It summarizes failure clusters, suggested directions, and risk notes, but does not mutate prompts or approve releases.
+- Holdout visibility rules from Experiment Lab still apply because candidate comparison is built from standard tuning/release-review eval runs.
+- Stronger promotion gates across Design, Regression, and Holdout remain open.
 
 ### ISSUE-009: Contract Reference can become stale if Prompt Program expands
 

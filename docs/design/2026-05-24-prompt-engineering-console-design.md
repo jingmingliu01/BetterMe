@@ -343,6 +343,36 @@ Second implementation scope:
 - candidate prompt/rubric/schema suggestions.
 - experiment notes and rationale.
 
+Phase 4 first slice uses separate product-layer artifacts instead of changing the evaluation case or eval run contract:
+
+```ts
+interface AICheckPromptCandidate {
+  id: string;
+  name: string;
+  status: "draft" | "archived";
+  instructionPatch: string;
+  rationale?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AICheckPromptComparison {
+  id: string;
+  candidateId: string;
+  baselineRunId: string;
+  candidateRunId: string;
+  improvedCaseIds: string[];
+  regressedCaseIds: string[];
+  recommendation: "promote_candidate" | "revise_candidate" | "reject_candidate";
+  textualGradient: AICheckTextualGradient;
+  createdAt: string;
+}
+```
+
+The baseline run and candidate run both remain standard `AICheckEvalRun` rows. The comparison artifact binds them together. Candidate runs append the candidate patch to the static system prompt inside a `<candidate_prompt_patch>` block, while preserving the normal trusted Round Context, Conversation, and Turn Context order.
+
+Textual Gradient is diagnosis only. It can summarize failure clusters and suggested prompt directions, but it must not directly mutate the current Prompt Program or approve a candidate.
+
 ### Contract Reference
 
 Contract Reference continues the current Schema Reference role, but the name should communicate that it covers the whole Prompt Program contract.
@@ -455,6 +485,8 @@ interface AICheckExperiment {
 }
 ```
 
+The implemented Phase 4 first slice uses `AICheckPromptCandidate` and `AICheckPromptComparison` as a narrower version of this future multi-arm experiment shape. A full `AICheckExperiment` object can still be introduced later if the product needs named multi-run experiment workspaces.
+
 ## Implementation Phases
 
 ### Phase 1: Decision-Point Review Foundation
@@ -490,6 +522,19 @@ interface AICheckExperiment {
 - Add Textual Gradient diagnosis from failed cases.
 - Generate candidate prompt/rubric/schema suggestions.
 - Require regression and holdout checks before promotion.
+
+First implemented slice:
+
+- Store draft prompt candidates with a name, rationale, and instruction patch.
+- Run provider-mode A/B by executing one baseline run and one candidate run against the same filters.
+- Persist the comparison artifact linking baseline and candidate runs.
+- Show improved/regressed counts, recommendation, and Textual Gradient diagnosis.
+
+Still later:
+
+- Promotion flow that changes the active Prompt Program version.
+- Richer multi-arm experiment management.
+- LLM-assisted candidate generation from Textual Gradient notes.
 
 ## Validation Expectations
 

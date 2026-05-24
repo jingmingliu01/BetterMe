@@ -57,6 +57,8 @@ export async function runEvalExperimentForCases(
     provider?: AICheckEvalRun["provider"];
     model?: string;
     apiKey?: string;
+    promptVersion?: string;
+    systemPromptAddendum?: string;
   }
 ): Promise<{
   run: AICheckEvalRun;
@@ -83,14 +85,15 @@ export async function runEvalExperimentForCases(
         createdAt,
         provider,
         model,
-        apiKey: input.apiKey
+        apiKey: input.apiKey,
+        systemPromptAddendum: input.systemPromptAddendum
       })
     );
   }
   const metrics = buildEvalMetrics(selectedCases, results);
   const run: AICheckEvalRun = {
     id: runId,
-    promptVersion: AI_CHECK_CURRENT_VERSIONS.promptVersion,
+    promptVersion: input.promptVersion ?? AI_CHECK_CURRENT_VERSIONS.promptVersion,
     outputSchemaVersion: AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion,
     evaluationSchemaVersion: AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion,
     mode,
@@ -113,6 +116,7 @@ async function runEvalCase(
     provider: AICheckEvalRun["provider"];
     model: string;
     apiKey?: string;
+    systemPromptAddendum?: string;
   }
 ): Promise<AICheckEvalResult> {
   const actual =
@@ -121,7 +125,8 @@ async function runEvalCase(
       : await providerDecision(testCase, {
           provider: input.provider,
           model: input.model,
-          apiKey: input.apiKey ?? ""
+          apiKey: input.apiKey ?? "",
+          systemPromptAddendum: input.systemPromptAddendum
         });
   const failureReasons = evaluateExpectedOutput(actual, testCase.eval?.expectedOutput ?? {});
   const rawProvider = (actual as Partial<CheckpointDecision>).rawProvider;
@@ -139,7 +144,7 @@ async function runEvalCase(
 
 async function providerDecision(
   testCase: AICheckCase,
-  input: { provider: ProviderId; model: string; apiKey: string }
+  input: { provider: ProviderId; model: string; apiKey: string; systemPromptAddendum?: string }
 ): Promise<CheckpointDecision> {
   const round = buildRoundSnapshotFromCaseInput(testCase.input, { sessionId: `eval_${testCase.id}` });
   const turn = buildTurnStateFromCaseInput(testCase.input);
@@ -150,7 +155,8 @@ async function providerDecision(
     messages: buildProviderMessages({
       round,
       messages: testCase.input.messages,
-      turn
+      turn,
+      systemPromptAddendum: input.systemPromptAddendum
     }),
     sessionId: `eval_${testCase.id}`,
     strictness: testCase.input.strictness,

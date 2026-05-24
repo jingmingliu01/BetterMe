@@ -46,6 +46,8 @@ import type {
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
   AICheckEvalRunSummary,
+  AICheckPromptCandidate,
+  AICheckPromptComparison,
   AICheckReleaseDecision,
   AICheckReleaseDecisionStatus,
   AIDecision,
@@ -53,8 +55,10 @@ import type {
   BadCaseErrorType,
   BadCaseReview,
   CreateEvalCaseInput,
+  CreatePromptCandidateInput,
   ImportEvalRunArtifactInput,
   ProviderId,
+  RunPromptComparisonInput,
   StrictnessLevel,
   AICheckSchemaFieldReference,
   UpdateEvalCaseInput
@@ -90,6 +94,12 @@ interface ExperimentFormState {
   strictness: ExperimentFilterValue<StrictnessLevel>;
   expectedDecision: ExperimentFilterValue<AIDecision>;
   includeArchived: boolean;
+}
+
+interface PromptCandidateFormState {
+  name: string;
+  instructionPatch: string;
+  rationale: string;
 }
 
 interface SchemaManualSection {
@@ -141,6 +151,14 @@ export function ReviewPage() {
     () => sendMessage<AICheckReleaseDecision[]>({ type: "review/listReleaseDecisions" }),
     []
   );
+  const loadPromptCandidates = useCallback(
+    () => sendMessage<AICheckPromptCandidate[]>({ type: "review/listPromptCandidates" }),
+    []
+  );
+  const loadPromptComparisons = useCallback(
+    () => sendMessage<AICheckPromptComparison[]>({ type: "review/listPromptComparisons" }),
+    []
+  );
   const loadProviderStatus = useCallback(() => sendMessage<Record<ProviderId, boolean>>({ type: "provider/status" }), []);
   const {
     data: sessionData,
@@ -166,6 +184,18 @@ export function ReviewPage() {
     loading: releaseDecisionsLoading,
     refresh: refreshReleaseDecisions
   } = useAsyncState(loadReleaseDecisions);
+  const {
+    data: promptCandidateData,
+    error: promptCandidateError,
+    loading: promptCandidatesLoading,
+    refresh: refreshPromptCandidates
+  } = useAsyncState(loadPromptCandidates);
+  const {
+    data: promptComparisonData,
+    error: promptComparisonError,
+    loading: promptComparisonsLoading,
+    refresh: refreshPromptComparisons
+  } = useAsyncState(loadPromptComparisons);
   const {
     data: providerStatusData,
     error: providerStatusError,
@@ -196,10 +226,14 @@ export function ReviewPage() {
     includeArchived: false
   });
   const [selectedEvalRunId, setSelectedEvalRunId] = useState<string | null>(null);
+  const [selectedPromptCandidateId, setSelectedPromptCandidateId] = useState<string | null>(null);
+  const [selectedPromptComparisonId, setSelectedPromptComparisonId] = useState<string | null>(null);
+  const [promptCandidateForm, setPromptCandidateForm] = useState<PromptCandidateFormState>(emptyPromptCandidateForm());
   const [releaseNote, setReleaseNote] = useState("");
   const [evalRunImportText, setEvalRunImportText] = useState("");
   const [saving, setSaving] = useState(false);
   const [runningEval, setRunningEval] = useState(false);
+  const [runningPromptComparison, setRunningPromptComparison] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -207,6 +241,8 @@ export function ReviewPage() {
   const evalCases = evalData ?? [];
   const evalRuns = evalRunData ?? [];
   const releaseDecisions = releaseDecisionData ?? [];
+  const promptCandidates = promptCandidateData ?? [];
+  const promptComparisons = promptComparisonData ?? [];
   const selectedSession = useMemo(
     () => sessions.find((item) => item.session.id === selectedSessionId) ?? sessions[0] ?? null,
     [selectedSessionId, sessions]
@@ -260,6 +296,20 @@ export function ReviewPage() {
   const selectedEvalRun = useMemo(
     () => evalRuns.find((item) => item.run.id === selectedEvalRunId) ?? evalRuns[0] ?? null,
     [evalRuns, selectedEvalRunId]
+  );
+  const selectedPromptCandidate = useMemo(
+    () =>
+      promptCandidates.find((candidate) => candidate.id === selectedPromptCandidateId) ??
+      promptCandidates.find((candidate) => candidate.status === "draft") ??
+      null,
+    [promptCandidates, selectedPromptCandidateId]
+  );
+  const selectedPromptComparison = useMemo(
+    () =>
+      promptComparisons.find((comparison) => comparison.id === selectedPromptComparisonId) ??
+      promptComparisons[0] ??
+      null,
+    [promptComparisons, selectedPromptComparisonId]
   );
 
   useEffect(() => {
@@ -452,6 +502,57 @@ export function ReviewPage() {
     }
   }
 
+  async function savePromptCandidate() {
+    setSaving(true);
+    setStatus(null);
+    try {
+      const candidate = await sendMessage<AICheckPromptCandidate>({
+        type: "review/createPromptCandidate",
+        payload: {
+          name: promptCandidateForm.name,
+          instructionPatch: promptCandidateForm.instructionPatch,
+          rationale: promptCandidateForm.rationale
+        } satisfies CreatePromptCandidateInput
+      });
+      setSelectedPromptCandidateId(candidate.id);
+      setPromptCandidateForm(emptyPromptCandidateForm());
+      setStatus(`Saved prompt candidate ${candidate.name}.`);
+      await refreshPromptCandidates();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save prompt candidate.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runPromptComparison() {
+    if (!selectedPromptCandidate) return;
+    setRunningPromptComparison(true);
+    setStatus(null);
+    try {
+      const comparison = await sendMessage<AICheckPromptComparison>({
+        type: "review/runPromptComparison",
+        payload: {
+          candidateId: selectedPromptCandidate.id,
+          filters: buildExperimentFilters(experimentForm),
+          mode: experimentForm.mode,
+          provider: experimentForm.provider,
+          model: experimentForm.model
+        } satisfies RunPromptComparisonInput
+      });
+      setSelectedPromptComparisonId(comparison.id);
+      setSelectedEvalRunId(comparison.candidateRunId);
+      setStatus(
+        `Candidate A/B finished: ${comparison.improvedCaseIds.length} improved, ${comparison.regressedCaseIds.length} regressed.`
+      );
+      await Promise.all([refreshPromptComparisons(), refreshEvalRuns()]);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not run Candidate Prompt A/B.");
+    } finally {
+      setRunningPromptComparison(false);
+    }
+  }
+
   async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
     if (!selectedEvalRun) return;
     setSaving(true);
@@ -480,6 +581,8 @@ export function ReviewPage() {
     (evalLoading && !evalData) ||
     (evalRunsLoading && !evalRunData) ||
     (releaseDecisionsLoading && !releaseDecisionData) ||
+    (promptCandidatesLoading && !promptCandidateData) ||
+    (promptComparisonsLoading && !promptComparisonData) ||
     (providerStatusLoading && !providerStatusData)
   ) {
     return <AppShell title="AI PM Review" subtitle="Loading local AI quality workspace..." />;
@@ -487,9 +590,21 @@ export function ReviewPage() {
 
   return (
     <AppShell title="AI PM Review" subtitle="Review history, curate evaluation cases, and keep the schema contract visible.">
-      {(sessionError || evalError || evalRunError || releaseDecisionError || providerStatusError) && (
+      {(sessionError ||
+        evalError ||
+        evalRunError ||
+        releaseDecisionError ||
+        promptCandidateError ||
+        promptComparisonError ||
+        providerStatusError) && (
         <p className="badge badge-danger">
-          {sessionError ?? evalError ?? evalRunError ?? releaseDecisionError ?? providerStatusError}
+          {sessionError ??
+            evalError ??
+            evalRunError ??
+            releaseDecisionError ??
+            promptCandidateError ??
+            promptComparisonError ??
+            providerStatusError}
         </p>
       )}
       {status && <p className="badge">{status}</p>}
@@ -652,18 +767,37 @@ export function ReviewPage() {
           releaseNote={releaseNote}
           importText={evalRunImportText}
           importing={importingEvalRun}
+          promptCandidateForm={promptCandidateForm}
+          promptCandidates={promptCandidates}
+          promptComparisons={promptComparisons}
           running={runningEval}
+          runningPromptComparison={runningPromptComparison}
           savingReleaseDecision={saving}
           runs={evalRuns}
+          selectedPromptCandidate={selectedPromptCandidate}
+          selectedPromptComparison={selectedPromptComparison}
           selectedRun={selectedEvalRun}
           setForm={setExperimentForm}
           setReleaseNote={setReleaseNote}
           setImportText={setEvalRunImportText}
+          setPromptCandidateForm={setPromptCandidateForm}
+          setSelectedPromptCandidateId={setSelectedPromptCandidateId}
+          setSelectedPromptComparisonId={setSelectedPromptComparisonId}
           setSelectedRunId={setSelectedEvalRunId}
           onCreateReleaseDecision={createReleaseDecision}
+          onCreatePromptCandidate={savePromptCandidate}
           onImportRun={importEvalRunArtifact}
-          onRefresh={() => void Promise.all([refreshEvalRuns(), refreshProviderStatus(), refreshReleaseDecisions()])}
+          onRefresh={() =>
+            void Promise.all([
+              refreshEvalRuns(),
+              refreshProviderStatus(),
+              refreshReleaseDecisions(),
+              refreshPromptCandidates(),
+              refreshPromptComparisons()
+            ])
+          }
           onRun={runExperiment}
+          onRunPromptComparison={runPromptComparison}
         />
       )}
 
@@ -679,21 +813,32 @@ function ExperimentLab({
   importText,
   importing,
   loading,
+  promptCandidateForm,
+  promptCandidates,
+  promptComparisons,
   providerStatus,
   releaseDecisions,
   releaseNote,
   running,
+  runningPromptComparison,
   savingReleaseDecision,
   runs,
+  selectedPromptCandidate,
+  selectedPromptComparison,
   selectedRun,
   setForm,
   setImportText,
+  setPromptCandidateForm,
   setReleaseNote,
+  setSelectedPromptCandidateId,
+  setSelectedPromptComparisonId,
   setSelectedRunId,
   onCreateReleaseDecision,
+  onCreatePromptCandidate,
   onImportRun,
   onRefresh,
-  onRun
+  onRun,
+  onRunPromptComparison
 }: {
   availableTags: string[];
   evalCases: AICheckCase[];
@@ -701,21 +846,32 @@ function ExperimentLab({
   importText: string;
   importing: boolean;
   loading: boolean;
+  promptCandidateForm: PromptCandidateFormState;
+  promptCandidates: AICheckPromptCandidate[];
+  promptComparisons: AICheckPromptComparison[];
   providerStatus: Partial<Record<ProviderId, boolean>>;
   releaseDecisions: AICheckReleaseDecision[];
   releaseNote: string;
   running: boolean;
+  runningPromptComparison: boolean;
   savingReleaseDecision: boolean;
   runs: AICheckEvalRunSummary[];
+  selectedPromptCandidate: AICheckPromptCandidate | null;
+  selectedPromptComparison: AICheckPromptComparison | null;
   selectedRun: AICheckEvalRunSummary | null;
   setForm: (value: ExperimentFormState | ((current: ExperimentFormState) => ExperimentFormState)) => void;
   setImportText: (value: string) => void;
+  setPromptCandidateForm: (value: PromptCandidateFormState | ((current: PromptCandidateFormState) => PromptCandidateFormState)) => void;
   setReleaseNote: (value: string) => void;
+  setSelectedPromptCandidateId: (value: string) => void;
+  setSelectedPromptComparisonId: (value: string) => void;
   setSelectedRunId: (value: string) => void;
   onCreateReleaseDecision: (decision: AICheckReleaseDecisionStatus) => void;
+  onCreatePromptCandidate: () => void;
   onImportRun: () => void;
   onRefresh: () => void;
   onRun: () => void;
+  onRunPromptComparison: () => void;
 }) {
   const matchingCaseCount = useMemo(
     () => evalCases.filter((evalCase) => caseMatchesExperiment(evalCase, buildExperimentFilters(form))).length,
@@ -941,6 +1097,81 @@ function ExperimentLab({
             <Upload size={16} /> {importing ? "Importing..." : "Import Run"}
           </button>
         </section>
+
+        <section className="stack compact-stack">
+          <span className="section-label">Candidate Prompt A/B</span>
+          <label className="stack compact-stack">
+            <span>Candidate</span>
+            <select
+              aria-label="Prompt candidate"
+              className="select"
+              value={selectedPromptCandidate?.id ?? ""}
+              onChange={(event) => setSelectedPromptCandidateId(event.target.value)}
+            >
+              <option value="">No candidate selected</option>
+              {promptCandidates.map((candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="stack compact-stack">
+            <span>Name</span>
+            <input
+              aria-label="Prompt candidate name"
+              className="input"
+              placeholder="Stricter bounded-purpose policy"
+              value={promptCandidateForm.name}
+              onChange={(event) => setPromptCandidateForm((current) => ({ ...current, name: event.target.value }))}
+            />
+          </label>
+          <label className="stack compact-stack">
+            <span>Patch</span>
+            <textarea
+              aria-label="Prompt candidate patch"
+              className="textarea"
+              placeholder="Additional instruction for this candidate arm"
+              value={promptCandidateForm.instructionPatch}
+              onChange={(event) =>
+                setPromptCandidateForm((current) => ({ ...current, instructionPatch: event.target.value }))
+              }
+            />
+          </label>
+          <label className="stack compact-stack">
+            <span>Rationale</span>
+            <textarea
+              aria-label="Prompt candidate rationale"
+              className="textarea"
+              placeholder="Which failure pattern is this candidate trying to fix?"
+              value={promptCandidateForm.rationale}
+              onChange={(event) => setPromptCandidateForm((current) => ({ ...current, rationale: event.target.value }))}
+            />
+          </label>
+          <div className="row wrap-row">
+            <button
+              className="btn btn-ghost"
+              disabled={promptCandidateForm.instructionPatch.trim().length === 0}
+              onClick={onCreatePromptCandidate}
+            >
+              <Save size={16} /> Save Candidate
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={
+                runningPromptComparison ||
+                !selectedPromptCandidate ||
+                form.provider === "mock" ||
+                !providerReady ||
+                matchingCaseCount === 0
+              }
+              onClick={onRunPromptComparison}
+            >
+              <BarChart3 size={16} /> {runningPromptComparison ? "Comparing..." : "Run A/B"}
+            </button>
+          </div>
+          {form.provider === "mock" && <p className="muted">Candidate A/B requires a BYOK provider.</p>}
+        </section>
       </aside>
 
       <section className="panel experiment-results-panel stack">
@@ -962,6 +1193,14 @@ function ExperimentLab({
 
         {selectedRun ? (
           <>
+            {selectedPromptComparison && (
+              <PromptComparisonSummary
+                comparison={selectedPromptComparison}
+                candidates={promptCandidates}
+                onSelectBaselineRun={setSelectedRunId}
+                onSelectCandidateRun={setSelectedRunId}
+              />
+            )}
             <div className="metric-grid">
               <MetricCard label="Pass rate" value={formatPercent(selectedRun.run.metrics.passRate)} />
               <MetricCard label="Passed" value={`${selectedRun.run.metrics.passed}/${selectedRun.run.metrics.total}`} />
@@ -1105,7 +1344,102 @@ function ExperimentLab({
             </button>
           ))
         )}
+        <div className="section-heading">
+          <span className="section-label">A/B history</span>
+          <h2>Comparisons</h2>
+        </div>
+        {promptComparisons.length === 0 ? (
+          <p className="muted">No candidate comparisons yet.</p>
+        ) : (
+          promptComparisons.map((comparison) => (
+            <button
+              className={
+                comparison.id === selectedPromptComparison?.id ? "eval-case-item eval-case-item-selected" : "eval-case-item"
+              }
+              key={comparison.id}
+              onClick={() => {
+                setSelectedPromptComparisonId(comparison.id);
+                setSelectedRunId(comparison.candidateRunId);
+              }}
+            >
+              <strong>{formatRecommendation(comparison.recommendation)}</strong>
+              <span>
+                {formatPercent(comparison.baselineMetrics.passRate)} to {formatPercent(comparison.candidateMetrics.passRate)}
+              </span>
+              <small>
+                {comparison.improvedCaseIds.length} improved · {comparison.regressedCaseIds.length} regressed ·{" "}
+                {formatDate(comparison.createdAt)}
+              </small>
+            </button>
+          ))
+        )}
       </aside>
+    </section>
+  );
+}
+
+function PromptComparisonSummary({
+  candidates,
+  comparison,
+  onSelectBaselineRun,
+  onSelectCandidateRun
+}: {
+  candidates: AICheckPromptCandidate[];
+  comparison: AICheckPromptComparison;
+  onSelectBaselineRun: (runId: string) => void;
+  onSelectCandidateRun: (runId: string) => void;
+}) {
+  const candidate = candidates.find((item) => item.id === comparison.candidateId);
+  return (
+    <section className="release-decision-card stack">
+      <div className="row space-between">
+        <div>
+          <span className="section-label">Candidate Prompt A/B</span>
+          <h3>{candidate?.name ?? comparison.candidateId}</h3>
+        </div>
+        <span className="badge">{formatRecommendation(comparison.recommendation)}</span>
+      </div>
+      <div className="metric-grid">
+        <MetricCard label="Baseline" value={formatPercent(comparison.baselineMetrics.passRate)} />
+        <MetricCard label="Candidate" value={formatPercent(comparison.candidateMetrics.passRate)} />
+        <MetricCard label="Improved" value={String(comparison.improvedCaseIds.length)} />
+        <MetricCard label="Regressed" value={String(comparison.regressedCaseIds.length)} />
+      </div>
+      <div className="row wrap-row">
+        <button className="btn btn-ghost" onClick={() => onSelectBaselineRun(comparison.baselineRunId)}>
+          Baseline Run
+        </button>
+        <button className="btn btn-ghost" onClick={() => onSelectCandidateRun(comparison.candidateRunId)}>
+          Candidate Run
+        </button>
+      </div>
+      <section className="stack compact-stack">
+        <span className="section-label">Textual Gradient</span>
+        <strong>{comparison.textualGradient.summary}</strong>
+        {comparison.textualGradient.failureClusters.length > 0 && (
+          <div className="metric-breakdown-grid">
+            {comparison.textualGradient.failureClusters.slice(0, 4).map((cluster) => (
+              <section className="metric-breakdown stack" key={cluster.label}>
+                <span className="section-label">{formatTag(cluster.label)}</span>
+                <strong>{cluster.cases} cases</strong>
+                <span>{cluster.direction}</span>
+              </section>
+            ))}
+          </div>
+        )}
+        <ul>
+          {comparison.textualGradient.suggestedPromptDirections.map((direction) => (
+            <li key={direction}>{direction}</li>
+          ))}
+        </ul>
+        <div className="release-decision-history">
+          {comparison.textualGradient.riskNotes.map((note) => (
+            <div className="release-decision-entry" key={note}>
+              <span>{note}</span>
+            </div>
+          ))}
+        </div>
+      </section>
     </section>
   );
 }
@@ -2467,6 +2801,14 @@ function emptyEvalForm(): EvalFormState {
   };
 }
 
+function emptyPromptCandidateForm(): PromptCandidateFormState {
+  return {
+    name: "",
+    instructionPatch: "",
+    rationale: ""
+  };
+}
+
 function formFromEvalCase(evalCase: AICheckCase): EvalFormState {
   const firstUserMessage = evalCase.input.messages.find((message) => message.role === "user")?.content ?? "";
   return {
@@ -2558,6 +2900,17 @@ function formatRunMode(mode: AICheckEvalRunMode): string {
 
 function formatReleaseDecision(decision: AICheckReleaseDecisionStatus): string {
   return decision === "approved" ? "Approved" : "Blocked";
+}
+
+function formatRecommendation(recommendation: AICheckPromptComparison["recommendation"]): string {
+  switch (recommendation) {
+    case "promote_candidate":
+      return "Promote candidate";
+    case "reject_candidate":
+      return "Reject candidate";
+    default:
+      return "Revise candidate";
+  }
 }
 
 function formatProvider(provider: "mock" | ProviderId): string {

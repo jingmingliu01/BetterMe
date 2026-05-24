@@ -330,6 +330,49 @@ export interface ImportEvalRunArtifactInput {
   artifact: AICheckEvalRunSummary;
 }
 
+export type AICheckPromptCandidateStatus = "draft" | "archived";
+
+export interface AICheckPromptCandidate {
+  id: string;
+  name: string;
+  status: AICheckPromptCandidateStatus;
+  instructionPatch: string;
+  rationale?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AICheckTextualGradient {
+  summary: string;
+  failureClusters: Array<{
+    label: string;
+    cases: number;
+    direction: string;
+  }>;
+  suggestedPromptDirections: string[];
+  riskNotes: string[];
+}
+
+export interface AICheckPromptComparison {
+  id: string;
+  candidateId: string;
+  baselineRunId: string;
+  candidateRunId: string;
+  mode: AICheckEvalRunMode;
+  provider: AICheckEvalRun["provider"];
+  model: string;
+  filters: AICheckEvalRunFilters;
+  baselineMetrics: AICheckEvalMetrics;
+  candidateMetrics: AICheckEvalMetrics;
+  improvedCaseIds: string[];
+  regressedCaseIds: string[];
+  unchangedFailedCaseIds: string[];
+  unchangedPassedCaseIds: string[];
+  recommendation: "promote_candidate" | "revise_candidate" | "reject_candidate";
+  textualGradient: AICheckTextualGradient;
+  createdAt: string;
+}
+
 export type AICheckReleaseDecisionStatus = "approved" | "blocked";
 
 export interface AICheckReleaseDecision {
@@ -442,6 +485,10 @@ export type ExtensionMessage =
   | { type: "review/listEvalRuns" }
   | { type: "review/runEvalExperiment"; payload: RunEvalExperimentInput }
   | { type: "review/importEvalRunArtifact"; payload: ImportEvalRunArtifactInput }
+  | { type: "review/listPromptCandidates" }
+  | { type: "review/createPromptCandidate"; payload: CreatePromptCandidateInput }
+  | { type: "review/listPromptComparisons" }
+  | { type: "review/runPromptComparison"; payload: RunPromptComparisonInput }
   | { type: "review/listReleaseDecisions" }
   | { type: "review/createReleaseDecision"; payload: CreateReleaseDecisionInput }
   | { type: "settings/update"; payload: Partial<UserSettings> }
@@ -483,6 +530,20 @@ export interface UpdateEvalCaseInput {
 }
 
 export interface RunEvalExperimentInput {
+  filters: AICheckEvalRunFilters;
+  mode?: AICheckEvalRunMode;
+  provider?: AICheckEvalRun["provider"];
+  model?: string;
+}
+
+export interface CreatePromptCandidateInput {
+  name: string;
+  instructionPatch: string;
+  rationale?: string;
+}
+
+export interface RunPromptComparisonInput {
+  candidateId: string;
   filters: AICheckEvalRunFilters;
   mode?: AICheckEvalRunMode;
   provider?: AICheckEvalRun["provider"];

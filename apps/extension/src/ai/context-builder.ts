@@ -121,9 +121,13 @@ export function buildProviderMessages(input: {
   round: AICheckRoundSnapshot;
   messages: Array<Pick<AICheckMessage, "role" | "content">>;
   turn: AICheckTurnState;
+  systemPromptAddendum?: string;
 }): ChatMessage[] {
+  const systemPrompt = input.systemPromptAddendum?.trim()
+    ? `${buildStaticContractPrompt()}\n<candidate_prompt_patch>\n${input.systemPromptAddendum.trim()}\n</candidate_prompt_patch>`
+    : buildStaticContractPrompt();
   return [
-    { role: "system", content: buildStaticContractPrompt() },
+    { role: "system", content: systemPrompt },
     { role: "user", content: buildTrustedRoundContext(input.round) },
     ...input.messages
       .filter((message) => message.role !== "system")
