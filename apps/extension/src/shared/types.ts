@@ -7,6 +7,7 @@ import type {
   AICheckEvalResult,
   AICheckEvalRun,
   AICheckEvalRunFilters,
+  AICheckEvalRunMode,
   AICheckExpectedOutput,
   AICheckSeverity,
   AICheckScores,
@@ -36,6 +37,7 @@ export type {
   AICheckEvalReleaseGate,
   AICheckEvalRun,
   AICheckEvalRunFilters,
+  AICheckEvalRunMode,
   AICheckExpectedOutput,
   AICheckNullableNumberExpectation,
   AICheckNullableTextExpectation,
@@ -454,6 +456,7 @@ export interface UpdateEvalCaseInput {
 
 export interface RunEvalExperimentInput {
   filters: AICheckEvalRunFilters;
+  mode?: AICheckEvalRunMode;
   provider?: "mock";
   model?: "mock";
 }

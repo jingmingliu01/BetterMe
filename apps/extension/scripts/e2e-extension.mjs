@@ -441,6 +441,36 @@ try {
   }
   console.log("REVIEW_EVAL_LOOP_OK true");
 
+  await sendRuntimeMessage(page, "review/createEvalCase", {
+    title: "Protected holdout failing case",
+    datasetType: "holdout",
+    status: "ready",
+    targetDisplay: "example.com",
+    strictness: "balanced",
+    userMessage: "I need to research homework for 10 minutes then I will close the tab.",
+    expectedDecision: "BLOCK",
+    tags: ["school", "holdout_probe"],
+    reviewerNote: "E2E holdout visibility probe."
+  });
+  await page.reload();
+  await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Experiment Lab" }).click();
+  await page.getByLabel("Dataset").selectOption("holdout");
+  await page.getByRole("button", { name: /Run Eval/ }).click();
+  await page.getByText(/Experiment .* finished/).waitFor({ timeout: 3_000 });
+  const holdoutGuardText = (await page.locator(".holdout-guard").textContent({ timeout: 5_000 })) ?? "";
+  assertIncludes(holdoutGuardText, "Holdout protected", "Tuning mode did not protect Holdout details.");
+  assertIncludes(holdoutGuardText, "Detailed Holdout failures are hidden", "Holdout guard copy was not shown.");
+  let resultPanelText = await page.locator(".experiment-results-panel").innerText();
+  assertNotIncludes(resultPanelText, "Protected holdout failing case", "Tuning mode leaked Holdout failure title.");
+  await page.getByLabel("Mode").selectOption("release_review");
+  await page.getByRole("button", { name: /Run Eval/ }).click();
+  await page.getByText(/Experiment .* finished/).waitFor({ timeout: 3_000 });
+  await page.getByText("Protected holdout failing case").waitFor({ timeout: 5_000 });
+  resultPanelText = await page.locator(".experiment-results-panel").innerText();
+  assertIncludes(resultPanelText, "Protected holdout failing case", "Release review mode did not show Holdout failure summary.");
+  console.log("HOLDOUT_VISIBILITY_OK true");
+
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.org");
   await page.getByRole("button", { name: /Block This Domain/ }).click();

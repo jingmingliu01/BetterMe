@@ -6,6 +6,7 @@ import type {
   AICheckEvalResult,
   AICheckEvalRun,
   AICheckEvalRunFilters,
+  AICheckEvalRunMode,
   AICheckExpectedOutput,
   AICheckNumberRangeExpectation,
   AICheckNullableTextExpectation,
@@ -34,7 +35,11 @@ export function filterEvalCasesForRun(cases: AICheckCase[], filters: AICheckEval
   });
 }
 
-export function runMockEvalExperiment(cases: AICheckCase[], filters: AICheckEvalRunFilters): {
+export function runMockEvalExperiment(
+  cases: AICheckCase[],
+  filters: AICheckEvalRunFilters,
+  mode: AICheckEvalRunMode = "tuning"
+): {
   run: AICheckEvalRun;
   results: AICheckEvalResult[];
 } {
@@ -52,6 +57,7 @@ export function runMockEvalExperiment(cases: AICheckCase[], filters: AICheckEval
     promptVersion: AI_CHECK_CURRENT_VERSIONS.promptVersion,
     outputSchemaVersion: AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion,
     evaluationSchemaVersion: AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion,
+    mode,
     providerMode: "mock",
     provider: "mock",
     model: "mock",

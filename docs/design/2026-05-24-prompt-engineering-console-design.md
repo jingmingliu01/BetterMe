@@ -155,6 +155,12 @@ Dataset type answers: how should this case be used in prompt engineering?
 - `regression`: prior failures and release-gating cases that must not regress.
 - `holdout`: hidden or limited-visibility cases used for final generalization checks.
 
+Holdout visibility rule:
+
+- `tuning` mode can run Holdout cases but should show aggregate metrics and release-gate status only.
+- `release_review` mode can show controlled Holdout failure summaries when the PM is making a release decision.
+- Routine prompt tuning should not expose Holdout case titles, tags, or failure reasons.
+
 Implementation has started with `status = "regression"` replaced by `datasetType = "regression"` in the evaluation schema and built-in fixtures. Because legacy data is not a constraint, this remains a direct model cleanup instead of a compatibility migration.
 
 ### Provenance and Lineage
@@ -191,6 +197,7 @@ First implementation should support the current Prompt Program only. Candidate P
 
 Minimum run inputs:
 
+- run mode: tuning or release review.
 - prompt program version.
 - provider.
 - model.
@@ -399,6 +406,7 @@ First implementation:
 ```ts
 interface AICheckExperimentRun {
   id: string;
+  mode: "tuning" | "release_review";
   promptProgramVersion: string;
   outputSchemaVersion: string;
   evaluationSchemaVersion: string;

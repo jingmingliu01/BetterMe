@@ -96,7 +96,7 @@ Dataset semantics:
 
 - `design`: intended product behavior and main path coverage.
 - `regression`: release-gating prior failures and cases that must not regress.
-- `holdout`: limited-visibility generalization checks.
+- `holdout`: limited-visibility generalization checks. Experiment Lab tuning mode should hide Holdout breakdowns and failure details; release review mode may show controlled failure summaries.
 
 Archive is the only delete behavior. PM Review should not hard-delete Evaluation Cases from the UI.
 

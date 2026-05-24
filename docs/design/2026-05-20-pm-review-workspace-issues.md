@@ -228,6 +228,7 @@ Resolution:
 - Eval runner supports status, dataset, and tag filters such as `--dataset=regression` and `--tag=unsafe_sensitive_advice`.
 - Eval runner rejects prompt/output-schema/evaluation-schema version mismatches by default and allows explicit legacy runs with `--include-legacy`.
 - PM Review Experiment Lab stores local mock-mode run history and shows release gate summary.
+- PM Review Experiment Lab protects Holdout details in tuning mode and reveals Holdout failure summaries only in release review mode.
 
 Remaining:
 

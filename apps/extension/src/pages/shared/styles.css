@@ -1482,7 +1482,8 @@ button {
 
 .metric-card,
 .metric-breakdown,
-.release-gate {
+.release-gate,
+.holdout-guard {
   padding: 12px;
   border: 1px solid rgba(29, 62, 46, 0.1);
   border-radius: 10px;
@@ -1538,6 +1539,16 @@ button {
 .release-gate-fail {
   border-color: rgba(151, 52, 52, 0.28);
   background: #fff0f0;
+}
+
+.holdout-guard {
+  border-color: rgba(53, 85, 118, 0.22);
+  background: #f1f6fa;
+  color: #405247;
+}
+
+.holdout-guard strong {
+  color: #173327;
 }
 
 .empty-state {

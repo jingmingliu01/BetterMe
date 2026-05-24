@@ -360,7 +360,7 @@ export async function listEvalRunSummaries(): Promise<AICheckEvalRunSummary[]> {
 
 export async function runEvalExperiment(input: RunEvalExperimentInput): Promise<AICheckEvalRunSummary> {
   const cases = await listEvalCases();
-  const summary = runMockEvalExperiment(cases, input.filters);
+  const summary = runMockEvalExperiment(cases, input.filters, input.mode ?? "tuning");
   await saveEvalRun(summary.run);
   await Promise.all(summary.results.map((result) => saveEvalResult(result)));
   return summary;

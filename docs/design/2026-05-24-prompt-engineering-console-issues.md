@@ -122,7 +122,7 @@ Update 2026-05-24:
 - Evaluation schema v3 separates `datasetType = design | regression | holdout` from `status = draft | ready | archived`.
 - Built-in fixtures now use `status = ready` with `datasetType = regression`.
 - Eval runner supports dataset filters.
-- Productized Experiment Lab dataset controls remain open.
+- Experiment Lab now exposes dataset controls and separates tuning mode from release review mode.
 
 ### ISSUE-005: Source mixes provenance and workflow
 
@@ -242,7 +242,7 @@ Mitigation:
 
 ### ISSUE-010: Holdout visibility rules are undefined
 
-Status: open
+Status: mostly mitigated
 
 Risk:
 
@@ -264,4 +264,7 @@ Mitigation:
 Update 2026-05-24:
 
 - Experiment Lab exposes dataset filtering, including holdout as a dataset type.
-- Detailed holdout failure visibility is not yet restricted, so holdout should not be populated with protected cases until visibility rules are implemented.
+- Eval runs now store `mode = tuning | release_review`.
+- Tuning mode hides Holdout breakdowns and failure details, leaving aggregate metrics and release gate status visible.
+- Release review mode can reveal Holdout failure summaries when the PM explicitly runs that mode.
+- Remaining polish: a richer release-review approval/note flow can be added later if Holdout debugging needs stronger process control.

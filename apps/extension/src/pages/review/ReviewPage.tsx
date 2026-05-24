@@ -42,6 +42,7 @@ import type {
   AICheckCaseStatus,
   AICheckDecisionExpectation,
   AICheckEvalRunFilters,
+  AICheckEvalRunMode,
   AICheckEvalRunSummary,
   AIDecision,
   AIPMReviewSession,
@@ -74,6 +75,7 @@ interface EvalFormState {
 }
 
 interface ExperimentFormState {
+  mode: AICheckEvalRunMode;
   datasetType: ExperimentFilterValue<AICheckCase["datasetType"]>;
   status: ExperimentFilterValue<AICheckCaseStatus>;
   tag: string;
@@ -158,6 +160,7 @@ export function ReviewPage() {
   const [creatingEvalCase, setCreatingEvalCase] = useState(false);
   const [evalForm, setEvalForm] = useState<EvalFormState>(emptyEvalForm());
   const [experimentForm, setExperimentForm] = useState<ExperimentFormState>({
+    mode: "tuning",
     datasetType: "regression",
     status: "ready",
     tag: "all",
@@ -380,7 +383,8 @@ export function ReviewPage() {
       const summary = await sendMessage<AICheckEvalRunSummary>({
         type: "review/runEvalExperiment",
         payload: {
-          filters: buildExperimentFilters(experimentForm)
+          filters: buildExperimentFilters(experimentForm),
+          mode: experimentForm.mode
         }
       });
       setSelectedEvalRunId(summary.run.id);
@@ -603,6 +607,9 @@ function ExperimentLab({
   );
   const failedResults = selectedRun?.results.filter((result) => !result.pass) ?? [];
   const caseById = useMemo(() => new Map(evalCases.map((evalCase) => [evalCase.id, evalCase])), [evalCases]);
+  const selectedRunHasHoldout =
+    selectedRun?.run.caseIds.some((caseId) => caseById.get(caseId)?.datasetType === "holdout") ?? false;
+  const holdoutDetailsHidden = Boolean(selectedRun && selectedRunHasHoldout && selectedRun.run.mode !== "release_review");
 
   return (
     <section className="experiment-workspace">
@@ -615,9 +622,26 @@ function ExperimentLab({
           <StatusItem label="Prompt" value={AI_CHECK_CURRENT_VERSIONS.promptVersion} />
           <StatusItem label="Provider" value="mock" />
           <StatusItem label="Model" value="mock" />
+          <StatusItem label="Mode" value={formatRunMode(form.mode)} />
         </div>
 
         <div className="eval-form-grid">
+          <label className="stack compact-stack">
+            <span>Mode</span>
+            <select
+              className="select"
+              value={form.mode}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  mode: event.target.value as AICheckEvalRunMode
+                }))
+              }
+            >
+              <option value="tuning">Tuning</option>
+              <option value="release_review">Release review</option>
+            </select>
+          </label>
           <label className="stack compact-stack">
             <span>Dataset</span>
             <select
@@ -720,6 +744,9 @@ function ExperimentLab({
           />
           <span>Include archived cases</span>
         </label>
+        <p className="muted">
+          Tuning mode hides Holdout failure details. Use release review only when making a release decision.
+        </p>
 
         <div className="row space-between">
           <span className="muted">{matchingCaseCount} matching cases</span>
@@ -769,33 +796,46 @@ function ExperimentLab({
               </ul>
             </section>
 
-            <div className="metric-breakdown-grid">
-              <MetricBreakdown title="By tag" rows={selectedRun.run.metrics.byTag} />
-              <MetricBreakdown title="By strictness" rows={selectedRun.run.metrics.byStrictness} />
-            </div>
-
-            <div className="stack compact-stack">
-              <span className="section-label">Failures</span>
-              {failedResults.length === 0 ? (
-                <p className="muted">No failed cases in this run.</p>
-              ) : (
-                <div className="eval-case-list">
-                  {failedResults.map((result) => {
-                    const evalCase = caseById.get(result.evalCaseId);
-                    return (
-                      <div className="eval-case-item" key={result.id}>
-                        <div className="row space-between">
-                          <strong>{evalCase?.title ?? result.evalCaseId}</strong>
-                          <span>{formatDecision(result.actualDecision)}</span>
-                        </div>
-                        <small>{result.failureReasons.join("; ")}</small>
-                        {evalCase && <TagList tags={evalCase.eval?.tags ?? []} />}
-                      </div>
-                    );
-                  })}
+            {holdoutDetailsHidden ? (
+              <section className="holdout-guard stack">
+                <span className="section-label">Holdout protected</span>
+                <strong>Detailed Holdout failures are hidden in tuning mode.</strong>
+                <span>
+                  Aggregate metrics and the release gate remain visible. Switch to release review mode when you need
+                  controlled failure summaries for a release decision.
+                </span>
+              </section>
+            ) : (
+              <>
+                <div className="metric-breakdown-grid">
+                  <MetricBreakdown title="By tag" rows={selectedRun.run.metrics.byTag} />
+                  <MetricBreakdown title="By strictness" rows={selectedRun.run.metrics.byStrictness} />
                 </div>
-              )}
-            </div>
+
+                <div className="stack compact-stack">
+                  <span className="section-label">Failures</span>
+                  {failedResults.length === 0 ? (
+                    <p className="muted">No failed cases in this run.</p>
+                  ) : (
+                    <div className="eval-case-list">
+                      {failedResults.map((result) => {
+                        const evalCase = caseById.get(result.evalCaseId);
+                        return (
+                          <div className="eval-case-item" key={result.id}>
+                            <div className="row space-between">
+                              <strong>{evalCase?.title ?? result.evalCaseId}</strong>
+                              <span>{formatDecision(result.actualDecision)}</span>
+                            </div>
+                            <small>{result.failureReasons.join("; ")}</small>
+                            {evalCase && <TagList tags={evalCase.eval?.tags ?? []} />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </>
         ) : (
           <div className="empty-state">
@@ -825,7 +865,7 @@ function ExperimentLab({
               <strong>{formatDate(summary.run.createdAt)}</strong>
               <span>{formatPercent(summary.run.metrics.passRate)} pass</span>
               <small>
-                {summary.run.caseIds.length} cases · {formatRunFilter(summary.run.filters)}
+                {summary.run.caseIds.length} cases · {formatRunMode(summary.run.mode)} · {formatRunFilter(summary.run.filters)}
               </small>
             </button>
           ))
@@ -2275,6 +2315,10 @@ function formatRunFilter(filters: AICheckEvalRunFilters): string {
     filters.tags?.join(",")
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "all active";
+}
+
+function formatRunMode(mode: AICheckEvalRunMode): string {
+  return mode === "release_review" ? "Release review" : "Tuning";
 }
 
 function formatPercent(value: number): string {

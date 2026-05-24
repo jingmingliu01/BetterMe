@@ -298,6 +298,8 @@ export interface AICheckEvalRunFilters {
   includeArchived?: boolean;
 }
 
+export type AICheckEvalRunMode = "tuning" | "release_review";
+
 export interface AICheckEvalMetricBreakdown {
   key: string;
   passed: number;
@@ -332,6 +334,7 @@ export interface AICheckEvalRun {
   promptVersion: string;
   outputSchemaVersion: string;
   evaluationSchemaVersion: string;
+  mode: AICheckEvalRunMode;
   providerMode: "mock" | "byok";
   provider: "mock" | "openai" | "deepseek" | "kimi";
   model: string;
