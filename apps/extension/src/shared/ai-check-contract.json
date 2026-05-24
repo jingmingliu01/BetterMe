@@ -40,6 +40,82 @@
     "maxAssistantTurns": 5,
     "maxSessionSeconds": 600
   },
+  "promptProgram": {
+    "decisionPolicyRules": [
+      {
+        "id": "clear_intention_allow",
+        "label": "Clear intention can allow",
+        "rule": "Intentional behavior with a specific purpose, time boundary, and exit plan usually maps to clear_intention and ALLOW.",
+        "rationale": "BetterMe should reward deliberate, bounded use instead of blocking all access.",
+        "riskIfIgnored": "The model may over-block legitimate short tasks or breaks."
+      },
+      {
+        "id": "vague_impulse_ask_or_cooldown",
+        "label": "Vague impulse needs friction",
+        "rule": "Boredom, stress, escape, loneliness, or habit without a time boundary usually maps to insufficient_reason and ASK_MORE or AI_COOLDOWN.",
+        "rationale": "Unbounded emotional reasons are the main risk pattern for impulsive browsing.",
+        "riskIfIgnored": "The model may over-allow vague reasons that should receive clarification or a pause."
+      },
+      {
+        "id": "repeated_pattern_cooldown_or_block",
+        "label": "Repeated patterns escalate",
+        "rule": "Repeated boredom, escape, stress, or habit in relevant pattern memory usually maps to repeated_excuse and AI_COOLDOWN or BLOCK.",
+        "rationale": "Long-term pattern memory should raise intervention strength without confusing it with same-session repetition.",
+        "riskIfIgnored": "The model may underreact to recurring behavior already known locally."
+      },
+      {
+        "id": "sensitive_impulse_blocks",
+        "label": "Sensitive impulse is high risk",
+        "rule": "Sensitive or explicit targets combined with impulsive, lonely, bored, or repeated behavior usually map to high_risk_pattern and BLOCK or AI_COOLDOWN.",
+        "rationale": "Sensitive domains need stricter handling when the reason signals impulse or vulnerability.",
+        "riskIfIgnored": "The model may give unsafe or over-permissive sensitive-content advice."
+      },
+      {
+        "id": "same_session_not_memory",
+        "label": "Same-session repetition is separate",
+        "rule": "Same-session repetition is not long-term repetition unless relevant pattern memory supports it.",
+        "rationale": "The model should not invent long-term history from one conversation.",
+        "riskIfIgnored": "The model may over-block or mislabel repeated_excuse without evidence."
+      },
+      {
+        "id": "cooldown_when_pause_needed",
+        "label": "Cooldown when pause helps",
+        "rule": "Use AI_COOLDOWN when the user should pause before deciding.",
+        "rationale": "AI cooldown is a terminal pause outcome, separate from allowing or holding a block.",
+        "riskIfIgnored": "The model may choose ASK_MORE or BLOCK when a bounded pause is the intended intervention."
+      },
+      {
+        "id": "block_clear_impulse_or_high_risk_repeat",
+        "label": "Block clear impulse or high-risk repeat",
+        "rule": "Use BLOCK when the reason is clearly impulsive or repeats a high-risk pattern.",
+        "rationale": "Some requests should stay blocked instead of becoming a cooldown or unlock.",
+        "riskIfIgnored": "The model may under-block obvious high-risk behavior."
+      },
+      {
+        "id": "allow_only_specific_bounded",
+        "label": "Allow only specific bounded intent",
+        "rule": "Use ALLOW only when the user's reason is intentional, specific, and bounded.",
+        "rationale": "ALLOW creates temporary access, so the model needs clear evidence of deliberate use.",
+        "riskIfIgnored": "The model may over-allow broad or vague access requests."
+      }
+    ],
+    "scoringRules": [
+      {
+        "id": "independent_scores",
+        "label": "Scores are independent",
+        "rule": "scores.repeatedReason, scores.impulse, and scores.deliberateness must each be independent 0-100 ratings.",
+        "rationale": "Each score is evaluated independently in PM Review and regression analysis.",
+        "riskIfIgnored": "The model may create misleading scores that trade off against each other."
+      },
+      {
+        "id": "scores_not_percentages",
+        "label": "Scores are not percentages",
+        "rule": "They are not percentages and do not need to sum to 100.",
+        "rationale": "The three dimensions represent separate signals, not a distribution.",
+        "riskIfIgnored": "The model may distort reason quality to make scores add up."
+      }
+    ]
+  },
   "enums": {
     "decisions": [
       "ALLOW",

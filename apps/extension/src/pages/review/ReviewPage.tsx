@@ -23,9 +23,12 @@ import {
   AI_CHECK_CURRENT_VERSIONS,
   AI_CHECK_DATASET_TYPES,
   AI_CHECK_DECISIONS,
+  AI_CHECK_DECISION_POLICY_RULES,
   AI_CHECK_EVALUATION_SCHEMA_VERSIONS,
   AI_CHECK_OUTPUT_SCHEMA_VERSIONS,
+  AI_CHECK_PROMPT_PROGRAM,
   AI_CHECK_PROMPT_VERSIONS,
+  AI_CHECK_SCORING_RULES,
   AI_CHECK_STRICTNESS_LEVELS
 } from "../../shared/ai-check-contract";
 import { PROVIDERS } from "../../shared/constants";
@@ -80,7 +83,7 @@ import type {
 import "../shared/styles.css";
 
 type ReviewArea = "history" | "eval" | "experiment" | "schema";
-type SchemaManualTab = "messages" | "output" | "evaluation";
+type SchemaManualTab = "messages" | "rubric" | "output" | "evaluation";
 type ExperimentFilterValue<T extends string> = "all" | T;
 
 interface EvalFormState {
@@ -2713,7 +2716,7 @@ function SchemaReference({
       />
 
       <div className="schema-manual-tabs" role="tablist" aria-label="Schema reference views">
-        {(["messages", "output", "evaluation"] as SchemaManualTab[]).map((tab) => (
+        {(["messages", "rubric", "output", "evaluation"] as SchemaManualTab[]).map((tab) => (
           <button
             key={tab}
             className={activeTab === tab ? "schema-manual-tab schema-manual-tab-active" : "schema-manual-tab"}
@@ -2727,6 +2730,7 @@ function SchemaReference({
       </div>
 
       {activeTab === "messages" && <ProviderMessagesReference focus="system" />}
+      {activeTab === "rubric" && <PromptProgramReference />}
       {activeTab === "output" && (
         <SchemaSectionReference
           kind="output"
@@ -2929,6 +2933,48 @@ function ContractSuggestionBacklog({
         <StatusItem label="Validation" value="Update eval assertions or fixtures, then run the AI Check contract and eval gates." />
       </div>
     </section>
+  );
+}
+
+function PromptProgramReference() {
+  return (
+    <div className="schema-workspace schema-workspace-reference">
+      <section className="panel schema-tree-panel schema-visual-panel stack">
+        <div className="section-heading">
+          <span className="section-label">Prompt Program Rubric</span>
+          <h2>Decision Policy</h2>
+        </div>
+        <p className="muted">
+          These rules come from `AI_CHECK_CONTRACT.promptProgram.decisionPolicyRules` and are injected into the system
+          prompt as the decision policy block.
+        </p>
+        <div className="schema-guidance stack">
+          {AI_CHECK_DECISION_POLICY_RULES.map((rule) => (
+            <StatusItem key={rule.id} label={rule.label} value={rule.rule} />
+          ))}
+        </div>
+      </section>
+
+      <section className="panel schema-example-panel stack">
+        <div className="section-heading">
+          <span className="section-label">Prompt Program Rubric</span>
+          <h2>Scoring Rules</h2>
+        </div>
+        <p className="muted">
+          Scoring guidance is contract-backed so eval diagnostics and provider instructions use the same interpretation.
+        </p>
+        <div className="schema-guidance stack">
+          {AI_CHECK_SCORING_RULES.map((rule) => (
+            <StatusItem key={rule.id} label={rule.label} value={rule.rule} />
+          ))}
+        </div>
+        <div className="contract-version-chip">
+          <span>Source</span>
+          <strong>{AI_CHECK_PROMPT_PROGRAM.decisionPolicyRules.length + AI_CHECK_PROMPT_PROGRAM.scoringRules.length} rules</strong>
+          <code>AI_CHECK_CONTRACT.promptProgram</code>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -3516,6 +3562,8 @@ function formatSchemaManualTab(tab: SchemaManualTab): string {
   switch (tab) {
     case "messages":
       return "Provider Messages";
+    case "rubric":
+      return "Prompt Program";
     case "output":
       return "Output";
     case "evaluation":

@@ -161,6 +161,7 @@ Implemented now:
 - Schema Reference shows accepted Prompt Program Suggestions as a contract-first backlog with reminders to update `ai-check-contract.json`, generated references, eval assertions or fixtures, and linked docs.
 - PM can create `ContractChangePlan` artifacts from accepted suggestions. Plans record prompt/rubric/schema/evaluation targets and required implementation surfaces without mutating the runtime prompt or source contract.
 - PM can move Contract Change Plans through `draft`, `ready`, `applied`, or `rejected`; `applied` requires an implementation note and records the current prompt/output/evaluation versions.
+- `ai-check-contract.json` now owns the Prompt Program rubric under `promptProgram`. Generated constants feed both the provider system prompt and Schema Reference's Prompt Program tab.
 - PM can create named Experiment Workspaces and link selected runs, Candidate Prompt comparisons, Prompt Program Suggestions, release decisions, and promotions into one reviewable artifact set.
 - PM can add explicit Experiment Arms for baseline, current prompt, candidate prompt, or variant definitions, optionally linked to a Prompt Candidate and/or eval run.
 - PM can promote a recommended candidate only when it has no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
@@ -169,7 +170,7 @@ Implemented now:
 
 Still remaining:
 
-- Applying accepted rubric/schema suggestions into `ai-check-contract.json`, generated references, eval assertions, and docs through explicit source-code contract changes after a Contract Change Plan is reviewed.
+- Applying concrete accepted schema suggestions that require output/evaluation schema version bumps, fixture updates, and parser/eval assertion changes.
 
 ## Validation Status
 
@@ -193,6 +194,7 @@ Implementation validation performed:
 - `test:e2e` includes Prompt Program Suggestions coverage: Experiment Lab asks a BYOK provider for prompt patch/rubric/schema suggestions from Textual Gradient and persists them in `promptProgramSuggestions`.
 - `test:e2e` includes Prompt Program Suggestion review coverage: PM Review accepts and rejects individual suggestion items and persists review state for the contract-first handoff.
 - `test:e2e` includes Contract-first backlog coverage (`PROMPT_PROGRAM_BACKLOG_OK true`): accepted Prompt Program Suggestions appear in Schema Reference with contract-source guidance.
+- `test:e2e` includes Prompt Program Contract Reference coverage (`PROMPT_PROGRAM_CONTRACT_REFERENCE_OK true`): Schema Reference shows contract-backed decision policy and scoring rules from `AI_CHECK_CONTRACT.promptProgram`.
 - `test:e2e` includes Contract Change Plan coverage (`CONTRACT_CHANGE_PLAN_OK true`): Schema Reference creates a non-mutating plan from an accepted suggestion, persists its targets and required implementation surfaces, then records ready/applied lifecycle state with implementation note and contract versions.
 - `test:e2e` includes Experiment Workspace coverage (`EXPERIMENT_WORKSPACE_OK true`): PM Review creates a named workspace, adds an explicit candidate arm, and links run, comparison, and suggestion artifacts.
 - `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
@@ -310,6 +312,14 @@ Pending implementation validation:
 - Schema Reference now lets PM mark a Contract Change Plan as ready, applied, or rejected.
 - Applied plans require an implementation note and store the current prompt, output schema, and evaluation schema versions as handoff evidence.
 - Issues document was updated because applied status now has explicit evidence fields, while remaining intentionally unable to mutate or verify source-code changes by itself.
+
+2026-05-24 Prompt Program rubric contract update:
+
+- `ai-check-contract.json` now includes `promptProgram.decisionPolicyRules` and `promptProgram.scoringRules`.
+- `generate-ai-check-contract.mjs` exports those rules as generated TypeScript constants.
+- `prompt.ts` injects decision policy and scoring rules from generated contract constants instead of hard-coded prompt text.
+- Schema Reference has a Prompt Program tab that shows the same contract-backed decision policy and scoring rules.
+- Issues document was updated because Contract Reference now covers the prompt rubric/policy surface directly.
 
 2026-05-24 Experiment Workspace update:
 

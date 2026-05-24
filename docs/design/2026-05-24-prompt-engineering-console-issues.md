@@ -256,6 +256,7 @@ Update 2026-05-24:
 - The backlog is intentionally non-mutating; stale-contract risk is still handled by requiring explicit `ai-check-contract.json` changes and validation before any suggestion is considered applied.
 - Accepted suggestions can now become `ContractChangePlan` artifacts. This reduces handoff loss, but does not close stale-contract risk because the actual source contract still changes only through a normal code/doc implementation slice.
 - Contract Change Plans can now move to ready, applied, or rejected. Applied plans require an implementation note and record current prompt/output/evaluation versions, but this remains handoff evidence rather than automatic source verification.
+- Prompt Program decision policy and scoring rules now live under `ai-check-contract.json.promptProgram`, are generated into TypeScript constants, feed the provider system prompt, and render in Schema Reference.
 
 Risk:
 
@@ -272,6 +273,7 @@ Mitigation:
 - Keep `ai-check-contract.json` as the starting point for schema/policy changes.
 - Use Contract Change Plans as the handoff object between PM review and implementation.
 - Require implementation notes before marking a plan applied.
+- Keep prompt policy/rubric text in `AI_CHECK_CONTRACT.promptProgram`, not hard-coded only in `prompt.ts`.
 - Extend generated references when Prompt Program shape expands.
 - Keep contract validation in every implementation slice.
 

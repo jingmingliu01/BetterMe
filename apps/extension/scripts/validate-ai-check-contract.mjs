@@ -36,6 +36,7 @@ function validateContract() {
   checkVersionRegistry("outputSchemaVersion", "outputSchemas");
   checkVersionRegistry("evaluationSchemaVersion", "evaluationSchemas");
   validateEnums();
+  validatePromptProgram();
   validatePmReviewErrorTypes();
   validateSchemas();
   validateGeneratedSections();
@@ -72,6 +73,30 @@ function validateEnums() {
     if (duplicates.length > 0) {
       errors.push(`enums.${name} contains duplicate values: ${[...new Set(duplicates)].join(", ")}`);
     }
+  }
+}
+
+function validatePromptProgram() {
+  validatePromptProgramRules("promptProgram.decisionPolicyRules", contract.promptProgram?.decisionPolicyRules);
+  validatePromptProgramRules("promptProgram.scoringRules", contract.promptProgram?.scoringRules);
+}
+
+function validatePromptProgramRules(label, rules) {
+  if (!Array.isArray(rules) || rules.length === 0) {
+    errors.push(`${label} must be a non-empty array.`);
+    return;
+  }
+  const ids = new Set();
+  for (const [index, rule] of rules.entries()) {
+    for (const key of ["id", "label", "rule", "rationale", "riskIfIgnored"]) {
+      if (typeof rule?.[key] !== "string" || rule[key].trim().length === 0) {
+        errors.push(`${label}[${index}] must include non-empty ${key}.`);
+      }
+    }
+    if (ids.has(rule.id)) {
+      errors.push(`${label} contains duplicate id ${rule.id}.`);
+    }
+    ids.add(rule.id);
   }
 }
 

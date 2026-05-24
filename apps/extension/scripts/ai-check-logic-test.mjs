@@ -11,9 +11,11 @@ try {
   const { normalizeAICooldownSeconds } = await server.ssrLoadModule("/src/shared/constants.ts");
   const {
     AI_CHECK_CONTRACT,
+    AI_CHECK_DECISION_POLICY_RULES,
     AI_CHECK_DECISIONS,
     AI_CHECK_OUTPUT_EXAMPLE,
-    AI_CHECK_OUTPUT_SCHEMA_SUMMARY
+    AI_CHECK_OUTPUT_SCHEMA_SUMMARY,
+    AI_CHECK_SCORING_RULES
   } = await server.ssrLoadModule("/src/shared/ai-check-contract.ts");
   const { buildStaticContractPrompt, buildStaticContractPromptParts } = await server.ssrLoadModule("/src/ai/prompt.ts");
   const {
@@ -71,10 +73,14 @@ try {
       .join("\n")
   );
   assert.ok(promptParts.some((part) => part.sourcePaths?.includes("AI_CHECK_CONTRACT.enums.decisions")));
+  assert.ok(promptParts.some((part) => part.sourcePaths?.includes("AI_CHECK_CONTRACT.promptProgram.decisionPolicyRules")));
+  assert.ok(promptParts.some((part) => part.sourcePaths?.includes("AI_CHECK_CONTRACT.promptProgram.scoringRules")));
   assert.ok(promptParts.some((part) => part.sourcePaths?.includes("AI_CHECK_CONTRACT.sections.output.example")));
   assert.ok(prompt.includes("<betterme_system_contract>"));
   assert.ok(prompt.includes(`<output_example>\n${JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE, null, 2)}\n</output_example>`));
   assert.ok(prompt.includes(`<output_schema_summary>\n${AI_CHECK_OUTPUT_SCHEMA_SUMMARY}\n</output_schema_summary>`));
+  assert.ok(prompt.includes(`<decision_policy>\n${AI_CHECK_DECISION_POLICY_RULES.map((rule) => `- ${rule.rule}`).join("\n")}\n</decision_policy>`));
+  assert.ok(prompt.includes(`<scoring_rules>\n${AI_CHECK_SCORING_RULES.map((rule) => rule.rule).join("\n")}\n</scoring_rules>`));
   assert.ok(prompt.includes(`<decision_values>\n${AI_CHECK_DECISIONS.join(", ")}\n</decision_values>`));
   assert.ok(!prompt.includes("Assistant turn count before this response"));
 

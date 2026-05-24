@@ -755,6 +755,11 @@ try {
   await page.getByText("1 accepted suggestions").waitFor({ timeout: 5_000 });
   await page.getByText("Bounded break rubric").waitFor({ timeout: 5_000 });
   await page.getByText("Update apps/extension/src/shared/ai-check-contract.json first.").waitFor({ timeout: 5_000 });
+  await page.getByRole("tab", { name: "Prompt Program" }).click();
+  await page.getByRole("heading", { name: "Decision Policy" }).waitFor({ timeout: 5_000 });
+  await page.getByText("AI_CHECK_CONTRACT.promptProgram", { exact: true }).waitFor({ timeout: 5_000 });
+  await page.getByText("Use ALLOW only when the user's reason is intentional, specific, and bounded.").waitFor({ timeout: 5_000 });
+  console.log("PROMPT_PROGRAM_CONTRACT_REFERENCE_OK true");
   console.log("PROMPT_PROGRAM_BACKLOG_OK true");
   await page.getByRole("button", { name: "Create plan for Bounded break rubric" }).click();
   await page.getByText("Contract change plan created: Bounded break rubric.").waitFor({ timeout: 5_000 });

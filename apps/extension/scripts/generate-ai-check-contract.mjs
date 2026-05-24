@@ -72,6 +72,19 @@ export interface AICheckContractSection {
   promptSchema?: unknown;
 }
 
+export interface AICheckPromptProgramRule {
+  id: string;
+  label: string;
+  rule: string;
+  rationale: string;
+  riskIfIgnored: string;
+}
+
+export interface AICheckPromptProgramContract {
+  decisionPolicyRules: AICheckPromptProgramRule[];
+  scoringRules: AICheckPromptProgramRule[];
+}
+
 export type AICheckContractSchemaNode =
   | { type: "string"; required: boolean; nullable?: boolean }
   | { type: "number"; required: boolean; nullable?: boolean; min?: number; max?: number }
@@ -114,6 +127,7 @@ export interface AICheckContract {
     maxAssistantTurns: number;
     maxSessionSeconds: number;
   };
+  promptProgram: AICheckPromptProgramContract;
   enums: {
     decisions: AIDecision[];
     decisionReasonCategories: DecisionReasonCategory[];
@@ -378,6 +392,9 @@ export const AI_CHECK_BAD_CASE_ERROR_TYPES = AI_CHECK_CONTRACT.pmReview.errorTyp
 export const AI_CHECK_COMMON_TAGS = AI_CHECK_CONTRACT.pmReview.commonTags;
 export const AI_CHECK_CASE_SETS = AI_CHECK_CONTRACT.pmReview.caseSets;
 export const AI_CHECK_SESSION_POLICY = AI_CHECK_CONTRACT.sessionPolicy;
+export const AI_CHECK_PROMPT_PROGRAM = AI_CHECK_CONTRACT.promptProgram;
+export const AI_CHECK_DECISION_POLICY_RULES = AI_CHECK_PROMPT_PROGRAM.decisionPolicyRules;
+export const AI_CHECK_SCORING_RULES = AI_CHECK_PROMPT_PROGRAM.scoringRules;
 
 export const AI_CHECK_INPUT_FIELD_REFERENCE = AI_CHECK_CONTRACT.sections.input.fields;
 export const AI_CHECK_OUTPUT_FIELD_REFERENCE = AI_CHECK_CONTRACT.sections.output.fields;

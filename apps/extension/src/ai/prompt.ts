@@ -2,9 +2,11 @@ import {
   AI_CHECK_CONTRACT,
   AI_CHECK_BEHAVIOR_REASON_CATEGORIES,
   AI_CHECK_DECISION_REASON_CATEGORIES,
+  AI_CHECK_DECISION_POLICY_RULES,
   AI_CHECK_DECISIONS,
   AI_CHECK_OUTPUT_EXAMPLE,
-  AI_CHECK_OUTPUT_SCHEMA_SUMMARY
+  AI_CHECK_OUTPUT_SCHEMA_SUMMARY,
+  AI_CHECK_SCORING_RULES
 } from "../shared/ai-check-contract";
 
 export interface PromptPart {
@@ -58,12 +60,18 @@ export function buildStaticContractPromptParts(): PromptPart[] {
     staticPromptPart(
       "<category_semantics>\ndecisionReasonCategory explains why this decision is being made now.\nmemoryUpdate.behaviorReasonCategory describes the user's underlying behavior pattern for future memory.\n</category_semantics>"
     ),
-    staticPromptPart(
-      "<decision_policy>\n- Intentional behavior with a specific purpose, time boundary, and exit plan usually maps to clear_intention and ALLOW.\n- Boredom, stress, escape, loneliness, or habit without a time boundary usually maps to insufficient_reason and ASK_MORE or AI_COOLDOWN.\n- Repeated boredom, escape, stress, or habit in relevant pattern memory usually maps to repeated_excuse and AI_COOLDOWN or BLOCK.\n- Sensitive or explicit targets combined with impulsive, lonely, bored, or repeated behavior usually map to high_risk_pattern and BLOCK or AI_COOLDOWN.\n- Same-session repetition is not long-term repetition unless relevant pattern memory supports it.\n- Use AI_COOLDOWN when the user should pause before deciding.\n- Use BLOCK when the reason is clearly impulsive or repeats a high-risk pattern.\n- Use ALLOW only when the user's reason is intentional, specific, and bounded.\n</decision_policy>"
-    ),
-    staticPromptPart(
-      "<scoring_rules>\nscores.repeatedReason, scores.impulse, and scores.deliberateness must each be independent 0-100 ratings.\nThey are not percentages and do not need to sum to 100.\n</scoring_rules>"
-    ),
+    dynamicPromptPart({
+      text: `<decision_policy>\n${AI_CHECK_DECISION_POLICY_RULES.map((rule) => `- ${rule.rule}`).join("\n")}\n</decision_policy>`,
+      sourcePaths: ["AI_CHECK_CONTRACT.promptProgram.decisionPolicyRules"],
+      value: AI_CHECK_DECISION_POLICY_RULES,
+      meaning: "Keeps the model's policy rubric aligned with the contract-backed Prompt Program."
+    }),
+    dynamicPromptPart({
+      text: `<scoring_rules>\n${AI_CHECK_SCORING_RULES.map((rule) => rule.rule).join("\n")}\n</scoring_rules>`,
+      sourcePaths: ["AI_CHECK_CONTRACT.promptProgram.scoringRules"],
+      value: AI_CHECK_SCORING_RULES,
+      meaning: "Keeps score interpretation aligned with PM Review and eval diagnostics."
+    }),
     dynamicPromptPart({
       text: `<output_example>\n${JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE, null, 2)}\n</output_example>`,
       sourcePaths: ["AI_CHECK_CONTRACT.sections.output.example"],

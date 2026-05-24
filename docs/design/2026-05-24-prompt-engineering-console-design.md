@@ -417,6 +417,8 @@ Textual Gradient is diagnosis only. It can summarize failure clusters and sugges
 
 Accepted Prompt Program Suggestions can produce a `ContractChangePlan` artifact. This artifact is an auditable implementation plan, not a runtime mutation. It references the accepted suggestion item, records target areas such as prompt, rubric, schema, or evaluation, and lists the surfaces that must change together: `ai-check-contract.json`, generated references, eval assertions or fixtures, and linked docs. A plan can be `draft`, `ready`, `applied`, or `rejected`, but `applied` is only valid after the corresponding source-code contract change has been made and validated through the normal gates. Marking a plan as applied requires an implementation note and records the prompt, output schema, and evaluation schema versions that were current at the handoff.
 
+The Prompt Program rubric lives in `ai-check-contract.json` under `promptProgram`. Decision policy rules and scoring rules are generated into TypeScript constants, injected into the provider system prompt, and shown in Contract Reference. This makes rubric/policy changes source-controlled contract changes instead of hidden `prompt.ts` edits.
+
 Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, the candidate run does not fail the release gate, and Design, Regression, and Holdout coverage are all present and passing. Promotion records the candidate patch as a local active prompt version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
 
 ### Contract Reference
@@ -428,6 +430,7 @@ It should show:
 - accepted Prompt Program Suggestions as a contract-first backlog.
 - Contract Change Plans created from accepted suggestions.
 - provider messages.
+- prompt program rubric and scoring rules.
 - input schema.
 - output schema.
 - evaluation schema.
