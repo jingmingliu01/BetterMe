@@ -58,6 +58,7 @@ import type {
   AIPMReviewSession,
   BadCaseErrorType,
   BadCaseReview,
+  AddExperimentArmInput,
   CreateEvalCaseInput,
   CreateExperimentInput,
   CreatePromptCandidateInput,
@@ -104,6 +105,14 @@ interface ExperimentFormState {
   strictness: ExperimentFilterValue<StrictnessLevel>;
   expectedDecision: ExperimentFilterValue<AIDecision>;
   includeArchived: boolean;
+}
+
+interface ExperimentArmFormState {
+  name: string;
+  kind: AddExperimentArmInput["kind"];
+  promptCandidateId: string;
+  runId: string;
+  notes: string;
 }
 
 interface PromptCandidateFormState {
@@ -266,6 +275,7 @@ export function ReviewPage() {
   const [selectedExperimentId, setSelectedExperimentId] = useState<string | null>(null);
   const [experimentName, setExperimentName] = useState("");
   const [experimentNotes, setExperimentNotes] = useState("");
+  const [experimentArmForm, setExperimentArmForm] = useState<ExperimentArmFormState>(emptyExperimentArmForm());
   const [selectedPromptCandidateId, setSelectedPromptCandidateId] = useState<string | null>(null);
   const [selectedPromptComparisonId, setSelectedPromptComparisonId] = useState<string | null>(null);
   const [promptCandidateForm, setPromptCandidateForm] = useState<PromptCandidateFormState>(emptyPromptCandidateForm());
@@ -735,6 +745,32 @@ export function ReviewPage() {
     }
   }
 
+  async function addExperimentArm() {
+    if (!selectedExperiment) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const experiment = await sendMessage<AICheckExperiment>({
+        type: "review/addExperimentArm",
+        payload: {
+          experimentId: selectedExperiment.id,
+          name: experimentArmForm.name,
+          kind: experimentArmForm.kind,
+          promptCandidateId: experimentArmForm.promptCandidateId || undefined,
+          runId: experimentArmForm.runId || undefined,
+          notes: experimentArmForm.notes
+        } satisfies AddExperimentArmInput
+      });
+      setExperimentArmForm(emptyExperimentArmForm());
+      setStatus(`Added arm to ${experiment.name}.`);
+      await refreshExperiments();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not add experiment arm.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
     if (!selectedEvalRun) return;
     setSaving(true);
@@ -953,6 +989,7 @@ export function ReviewPage() {
           evalCases={evalCases}
           form={experimentForm}
           loading={evalRunsLoading}
+          experimentArmForm={experimentArmForm}
           experimentName={experimentName}
           experimentNotes={experimentNotes}
           experiments={experiments}
@@ -980,6 +1017,7 @@ export function ReviewPage() {
           selectedPromptComparison={selectedPromptComparison}
           selectedRun={selectedEvalRun}
           selectedExperiment={selectedExperiment}
+          setExperimentArmForm={setExperimentArmForm}
           setForm={setExperimentForm}
           setExperimentName={setExperimentName}
           setExperimentNotes={setExperimentNotes}
@@ -991,6 +1029,7 @@ export function ReviewPage() {
           setSelectedPromptComparisonId={setSelectedPromptComparisonId}
           setSelectedExperimentId={setSelectedExperimentId}
           setSelectedRunId={setSelectedEvalRunId}
+          onAddExperimentArm={addExperimentArm}
           onCreateReleaseDecision={createReleaseDecision}
           onCreateExperiment={createExperimentWorkspace}
           onCreatePromptCandidate={savePromptCandidate}
@@ -1025,6 +1064,7 @@ export function ReviewPage() {
 function ExperimentLab({
   availableTags,
   evalCases,
+  experimentArmForm,
   experimentName,
   experimentNotes,
   experiments,
@@ -1054,6 +1094,7 @@ function ExperimentLab({
   selectedPromptComparison,
   selectedExperiment,
   selectedRun,
+  setExperimentArmForm,
   setExperimentName,
   setExperimentNotes,
   setForm,
@@ -1065,6 +1106,7 @@ function ExperimentLab({
   setSelectedPromptComparisonId,
   setSelectedExperimentId,
   setSelectedRunId,
+  onAddExperimentArm,
   onCreateReleaseDecision,
   onCreateExperiment,
   onCreatePromptCandidate,
@@ -1080,6 +1122,7 @@ function ExperimentLab({
 }: {
   availableTags: string[];
   evalCases: AICheckCase[];
+  experimentArmForm: ExperimentArmFormState;
   experimentName: string;
   experimentNotes: string;
   experiments: AICheckExperiment[];
@@ -1109,6 +1152,7 @@ function ExperimentLab({
   selectedPromptComparison: AICheckPromptComparison | null;
   selectedExperiment: AICheckExperiment | null;
   selectedRun: AICheckEvalRunSummary | null;
+  setExperimentArmForm: (value: ExperimentArmFormState | ((current: ExperimentArmFormState) => ExperimentArmFormState)) => void;
   setExperimentName: (value: string) => void;
   setExperimentNotes: (value: string) => void;
   setForm: (value: ExperimentFormState | ((current: ExperimentFormState) => ExperimentFormState)) => void;
@@ -1120,6 +1164,7 @@ function ExperimentLab({
   setSelectedPromptComparisonId: (value: string) => void;
   setSelectedExperimentId: (value: string) => void;
   setSelectedRunId: (value: string) => void;
+  onAddExperimentArm: () => void;
   onCreateReleaseDecision: (decision: AICheckReleaseDecisionStatus) => void;
   onCreateExperiment: () => void;
   onCreatePromptCandidate: () => void;
@@ -1215,16 +1260,96 @@ function ExperimentLab({
           {selectedExperiment && (
             <>
               <div className="metric-grid">
+                <MetricCard label="Arms" value={String(selectedExperiment.arms?.length ?? 0)} />
                 <MetricCard label="Runs" value={String(selectedExperiment.artifactIds.runIds.length)} />
                 <MetricCard label="Comparisons" value={String(selectedExperiment.artifactIds.comparisonIds.length)} />
                 <MetricCard label="Suggestions" value={String(selectedExperiment.artifactIds.suggestionIds.length)} />
-                <MetricCard
-                  label="Decisions"
-                  value={String(
-                    selectedExperiment.artifactIds.releaseDecisionIds.length + selectedExperiment.artifactIds.promotionIds.length
-                  )}
-                />
               </div>
+              <label className="stack compact-stack">
+                <span>Arm name</span>
+                <input
+                  aria-label="Experiment arm name"
+                  className="input"
+                  placeholder="Candidate with stricter bounded-break rubric"
+                  value={experimentArmForm.name}
+                  onChange={(event) => setExperimentArmForm((current) => ({ ...current, name: event.target.value }))}
+                />
+              </label>
+              <label className="stack compact-stack">
+                <span>Arm kind</span>
+                <select
+                  aria-label="Experiment arm kind"
+                  className="select"
+                  value={experimentArmForm.kind}
+                  onChange={(event) =>
+                    setExperimentArmForm((current) => ({
+                      ...current,
+                      kind: event.target.value as ExperimentArmFormState["kind"]
+                    }))
+                  }
+                >
+                  <option value="baseline">Baseline</option>
+                  <option value="current_prompt">Current prompt</option>
+                  <option value="candidate_prompt">Candidate prompt</option>
+                  <option value="variant">Variant</option>
+                </select>
+              </label>
+              <label className="stack compact-stack">
+                <span>Arm candidate</span>
+                <select
+                  aria-label="Experiment arm candidate"
+                  className="select"
+                  value={experimentArmForm.promptCandidateId}
+                  onChange={(event) => setExperimentArmForm((current) => ({ ...current, promptCandidateId: event.target.value }))}
+                >
+                  <option value="">No candidate</option>
+                  {promptCandidates.map((candidate) => (
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="stack compact-stack">
+                <span>Arm run</span>
+                <select
+                  aria-label="Experiment arm run"
+                  className="select"
+                  value={experimentArmForm.runId}
+                  onChange={(event) => setExperimentArmForm((current) => ({ ...current, runId: event.target.value }))}
+                >
+                  <option value="">No run</option>
+                  {runs.map((summary) => (
+                    <option key={summary.run.id} value={summary.run.id}>
+                      {formatDate(summary.run.createdAt)} · {formatPercent(summary.run.metrics.passRate)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="stack compact-stack">
+                <span>Arm notes</span>
+                <textarea
+                  aria-label="Experiment arm notes"
+                  className="textarea"
+                  placeholder="What hypothesis does this arm test?"
+                  value={experimentArmForm.notes}
+                  onChange={(event) => setExperimentArmForm((current) => ({ ...current, notes: event.target.value }))}
+                />
+              </label>
+              <button className="btn btn-ghost" disabled={experimentArmForm.name.trim().length === 0} onClick={onAddExperimentArm}>
+                <Plus size={16} /> Add Arm
+              </button>
+              {(selectedExperiment.arms ?? []).length > 0 && (
+                <div className="release-decision-history">
+                  {selectedExperiment.arms.map((arm) => (
+                    <div className="release-decision-entry" key={arm.id}>
+                      <strong>{arm.name}</strong>
+                      <span>{formatTag(arm.kind)}</span>
+                      {arm.notes && <small>{arm.notes}</small>}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="row wrap-row">
                 <button className="btn btn-ghost" disabled={!selectedRun} onClick={() => onLinkExperimentArtifact("run", selectedRun?.run.id)}>
                   Link Run
@@ -1704,7 +1829,7 @@ function ExperimentLab({
               <strong>{experiment.name}</strong>
               <span>{formatStatusLabel(experiment.status)}</span>
               <small>
-                {experiment.artifactIds.runIds.length} runs · {experiment.artifactIds.comparisonIds.length} comparisons ·{" "}
+                {(experiment.arms ?? []).length} arms · {experiment.artifactIds.runIds.length} runs · {experiment.artifactIds.comparisonIds.length} comparisons ·{" "}
                 {experiment.artifactIds.suggestionIds.length} suggestions
               </small>
             </button>
@@ -3394,6 +3519,16 @@ function emptyPromptCandidateForm(): PromptCandidateFormState {
     name: "",
     instructionPatch: "",
     rationale: ""
+  };
+}
+
+function emptyExperimentArmForm(): ExperimentArmFormState {
+  return {
+    name: "",
+    kind: "candidate_prompt",
+    promptCandidateId: "",
+    runId: "",
+    notes: ""
   };
 }
 

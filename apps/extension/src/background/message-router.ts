@@ -47,6 +47,7 @@ import {
   startAndSendAICheckMessage
 } from "../ai/ai-check-session-service";
 import {
+  addExperimentArm,
   archiveEvalCase,
   createExperiment,
   createReleaseDecision,
@@ -370,6 +371,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listExperiments());
       case "review/createExperiment":
         return ok(await createExperiment(message.payload));
+      case "review/addExperimentArm":
+        return ok(await addExperimentArm(message.payload));
       case "review/linkExperimentArtifact":
         return ok(await linkExperimentArtifact(message.payload));
       case "data/export":

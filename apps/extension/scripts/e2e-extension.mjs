@@ -762,6 +762,12 @@ try {
   await page.getByLabel("Experiment workspace notes").fill("Collect baseline, candidate, and suggestion artifacts.");
   await page.getByRole("button", { name: /Save Workspace/ }).click();
   await page.getByText("Experiment workspace saved: E2E multi-arm workspace.").waitFor({ timeout: 5_000 });
+  await page.getByLabel("Experiment arm name").fill("E2E candidate arm");
+  await page.getByLabel("Experiment arm kind").selectOption("candidate_prompt");
+  await page.getByLabel("Experiment arm candidate").selectOption({ label: "E2E stricter candidate" });
+  await page.getByLabel("Experiment arm notes").fill("Candidate arm for bounded break comparison.");
+  await page.getByRole("button", { name: "Add Arm" }).click();
+  await page.getByText("Added arm to E2E multi-arm workspace.").waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: "Link Run" }).click();
   await page.getByText("Linked run to E2E multi-arm workspace.").waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: "Link A/B" }).click();
@@ -772,6 +778,9 @@ try {
   const latestExperiment = experiments.find((experiment) => experiment.name === "E2E multi-arm workspace");
   if (
     !latestExperiment ||
+    latestExperiment.arms?.length !== 1 ||
+    latestExperiment.arms[0]?.name !== "E2E candidate arm" ||
+    latestExperiment.arms[0]?.kind !== "candidate_prompt" ||
     latestExperiment.artifactIds.runIds.length !== 1 ||
     latestExperiment.artifactIds.comparisonIds.length !== 1 ||
     latestExperiment.artifactIds.suggestionIds.length !== 1

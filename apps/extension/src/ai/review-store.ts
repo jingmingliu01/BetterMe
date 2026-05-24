@@ -17,6 +17,7 @@ import type {
   AICheckEvalRunSummary,
   AICheckExperiment,
   AICheckExperimentArtifactKind,
+  AICheckExperimentArm,
   AICheckPromptCandidate,
   AICheckPromptComparison,
   AICheckPromptPromotion,
@@ -32,6 +33,7 @@ import type {
   BehaviorEvent,
   BehaviorReasonCategory,
   CheckpointDecision,
+  AddExperimentArmInput,
   CreateExperimentInput,
   CreateReleaseDecisionInput,
   CreateEvalCaseInput,
@@ -848,6 +850,7 @@ export async function createExperiment(input: CreateExperimentInput): Promise<AI
     name: input.name.trim() || "Untitled experiment",
     status: "active",
     notes: input.notes?.trim() || undefined,
+    arms: [],
     artifactIds: {
       runIds: [],
       comparisonIds: [],
@@ -860,6 +863,42 @@ export async function createExperiment(input: CreateExperimentInput): Promise<AI
   };
   await putRecord("experiments", experiment);
   return experiment;
+}
+
+export async function addExperimentArm(input: AddExperimentArmInput): Promise<AICheckExperiment> {
+  const experiment = await getRecord<AICheckExperiment>("experiments", input.experimentId);
+  if (!experiment) {
+    throw new Error("Experiment not found.");
+  }
+  if (input.promptCandidateId) {
+    const candidate = await getRecord<AICheckPromptCandidate>("promptCandidates", input.promptCandidateId);
+    if (!candidate || candidate.status === "archived") {
+      throw new Error("Prompt candidate not found.");
+    }
+  }
+  if (input.runId) {
+    const run = await getRecord<AICheckEvalRun>("evalRuns", input.runId);
+    if (!run) {
+      throw new Error("Eval run not found.");
+    }
+  }
+  const createdAt = nowIso();
+  const arm: AICheckExperimentArm = {
+    id: createId("experimentarm"),
+    name: input.name.trim() || formatExperimentArmKind(input.kind),
+    kind: input.kind,
+    promptCandidateId: input.promptCandidateId || undefined,
+    runId: input.runId || undefined,
+    notes: input.notes?.trim() || undefined,
+    createdAt
+  };
+  const updated: AICheckExperiment = {
+    ...experiment,
+    arms: [...(experiment.arms ?? []), arm],
+    updatedAt: createdAt
+  };
+  await putRecord("experiments", updated);
+  return updated;
 }
 
 export async function linkExperimentArtifact(input: LinkExperimentArtifactInput): Promise<AICheckExperiment> {
@@ -875,6 +914,10 @@ export async function linkExperimentArtifact(input: LinkExperimentArtifactInput)
   };
   await putRecord("experiments", updated);
   return updated;
+}
+
+function formatExperimentArmKind(kind: AICheckExperimentArm["kind"]): string {
+  return kind.replace(/_/g, " ");
 }
 
 async function assertExperimentArtifactExists(kind: AICheckExperimentArtifactKind, id: string): Promise<void> {

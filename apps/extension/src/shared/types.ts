@@ -443,12 +443,24 @@ export interface AICheckReleaseDecision {
 }
 
 export type AICheckExperimentStatus = "draft" | "active" | "archived";
+export type AICheckExperimentArmKind = "baseline" | "current_prompt" | "candidate_prompt" | "variant";
+
+export interface AICheckExperimentArm {
+  id: string;
+  name: string;
+  kind: AICheckExperimentArmKind;
+  promptCandidateId?: string;
+  runId?: string;
+  notes?: string;
+  createdAt: string;
+}
 
 export interface AICheckExperiment {
   id: string;
   name: string;
   status: AICheckExperimentStatus;
   notes?: string;
+  arms: AICheckExperimentArm[];
   artifactIds: {
     runIds: string[];
     comparisonIds: string[];
@@ -567,6 +579,7 @@ export type ExtensionMessage =
   | { type: "review/createReleaseDecision"; payload: CreateReleaseDecisionInput }
   | { type: "review/listExperiments" }
   | { type: "review/createExperiment"; payload: CreateExperimentInput }
+  | { type: "review/addExperimentArm"; payload: AddExperimentArmInput }
   | { type: "review/linkExperimentArtifact"; payload: LinkExperimentArtifactInput }
   | { type: "settings/update"; payload: Partial<UserSettings> }
   | { type: "provider/saveApiKey"; payload: { provider: ProviderId; apiKey: string } }
@@ -659,6 +672,15 @@ export interface CreateReleaseDecisionInput {
 
 export interface CreateExperimentInput {
   name: string;
+  notes?: string;
+}
+
+export interface AddExperimentArmInput {
+  experimentId: string;
+  name: string;
+  kind: AICheckExperimentArmKind;
+  promptCandidateId?: string;
+  runId?: string;
   notes?: string;
 }
 

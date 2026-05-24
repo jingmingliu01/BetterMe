@@ -180,7 +180,7 @@ Update 2026-05-24:
 - Provider-mode UI runs now use saved BYOK keys, provider-config model allowlists, runtime provider messages, and the shared parser/validator.
 - PM Review now stores first-slice Release Decisions against selected runs, including approve/block, gate status, metrics, provider/model, versions, and PM note.
 - CLI runner now writes the same `AICheckEvalRunSummary` run/result artifact used by PM Review, and Experiment Lab can import it into local run history.
-- Experiment Lab now persists named Experiment Workspaces that link existing runs, Candidate Prompt comparisons, Prompt Program Suggestions, release decisions, and promotions without duplicating those authoritative artifacts.
+- Experiment Lab now persists named Experiment Workspaces with explicit arms and links to existing runs, Candidate Prompt comparisons, Prompt Program Suggestions, release decisions, and promotions without duplicating those authoritative artifacts.
 
 ### ISSUE-007: Candidate Prompt A/B can cause scope creep
 
