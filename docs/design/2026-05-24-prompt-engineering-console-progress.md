@@ -13,7 +13,7 @@ Rule: when this document changes, check the design and issues documents for requ
 
 Phase 1, Phase 2, and the first Phase 3 Experiment Lab slice are partially implemented in the AI Check contract, review-store conversion path, PM Review UI, eval fixtures, eval runner, and local run/result stores.
 
-This document set remains the scaffold for the larger Prompt Engineering Console implementation. The current code change does not yet implement provider-mode UI runs, Candidate Prompt A/B, or Textual Gradient.
+This document set remains the scaffold for the larger Prompt Engineering Console implementation. The current code change does not yet implement Candidate Prompt A/B or Textual Gradient.
 
 ## Product Decisions Locked
 
@@ -48,7 +48,7 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 - New conversion uses original round snapshot pattern memory instead of reloading current pattern memory.
 - Built-in fixture cases and local editable eval cases are unified in Case Library; built-in edits still use local override behavior rather than an explicit read-only badge.
 - Dataset split exists in the contract and fixtures. Experiment Lab now protects Holdout details in tuning mode and exposes them only in release review mode.
-- Experiment Run is persisted and visible in PM Review for mock-mode current Prompt Program runs.
+- Experiment Run is persisted and visible in PM Review for mock-mode and provider-mode current Prompt Program runs.
 - Release Gate exists as an Experiment Lab result summary, not yet as a full release decision workflow.
 
 ## Planned Phases
@@ -123,14 +123,14 @@ Implemented now:
 - Experiment Lab tab exists in PM Review.
 - PM can select dataset, status, tag, strictness, expected decision, and archived-case inclusion.
 - PM can choose tuning or release review mode.
+- PM can choose mock mode or a saved BYOK provider/model for provider-mode UI runs.
 - Running an experiment stores an `AICheckEvalRun` plus per-case `AICheckEvalResult` rows locally.
 - Metrics show pass rate, failed categories, tag/strictness breakdowns, failures, run history, and release gate summary.
 - Tuning mode hides Holdout breakdowns and failure details while preserving aggregate metrics and release gate status.
-- First slice is mock-mode/current Prompt Program only, keeping Candidate Prompt A/B out of scope.
+- First slice runs the current Prompt Program only, keeping Candidate Prompt A/B out of scope.
 
 Still remaining:
 
-- Provider-mode UI runs with selected provider/model.
 - CLI and UI shared persistence for provider-mode eval runs.
 - More explicit release decision object and promotion flow.
 
@@ -159,10 +159,11 @@ Implementation validation performed:
 - Browser smoke check passed: PM Review rendered, Evaluation Cases showed 42 cases, Experiment Lab ran 42/42 and saved a PASS release-gate run.
 - `test:ai-check` includes focused coverage that selecting turn 2 excludes turn 3+ from replayable eval input.
 - `test:e2e` includes Holdout visibility coverage: tuning mode hides Holdout failure details, release review mode reveals the failure summary.
+- `test:e2e` includes provider-mode Experiment Lab coverage: saved BYOK provider, runtime provider messages, BYOK run metadata, and one focused passing provider run.
 
 Pending implementation validation:
 
-- Provider-mode Experiment Lab validation after provider UI runs are added.
+- Provider-mode CLI/UI shared persistence validation after the shared persistence path is added.
 
 ## Synchronization Note
 
@@ -200,6 +201,13 @@ Pending implementation validation:
 - Experiment Lab tuning mode now hides Holdout breakdowns and failure details.
 - Release review mode can reveal Holdout failure summaries for explicit release decisions.
 - Issues document was updated because Holdout visibility is now productized at the first-slice level. Design document was updated to record the mode rule.
+
+2026-05-24 provider-mode Experiment Lab update:
+
+- Added Experiment Lab provider/model controls.
+- Provider-mode UI runs use saved local BYOK keys, provider-config model allowlists, runtime provider messages, and the shared response parser/validator.
+- Provider-mode runs persist with `providerMode = byok`, provider id, model, run metrics, and per-case results.
+- Issues document was updated because provider-mode UI runs moved from open gap to implemented first-slice behavior. Design document was updated to clarify provider/model selection.
 
 ## Update Checklist
 

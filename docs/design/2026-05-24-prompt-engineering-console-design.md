@@ -320,6 +320,8 @@ First implementation scope:
 - show metrics and failures.
 - show release gate summary.
 
+Provider/model selection uses the same BYOK provider configuration and runtime provider-message builder as AI Check. Mock mode remains the default for fast daily tuning; provider mode is used when the PM wants to validate actual model behavior with a saved local provider key.
+
 Second implementation scope:
 
 - Candidate Prompt A/B.

@@ -175,9 +175,10 @@ Mitigation:
 
 Update 2026-05-24:
 
-- Experiment Lab now persists mock-mode current Prompt Program runs and per-case results locally.
+- Experiment Lab now persists mock-mode and provider-mode current Prompt Program runs and per-case results locally.
 - PM Review shows run history, metrics, failed cases, and release gate summary.
-- Provider-mode UI runs, CLI/UI shared persistence, and a full release decision object remain open.
+- Provider-mode UI runs now use saved BYOK keys, provider-config model allowlists, runtime provider messages, and the shared parser/validator.
+- CLI/UI shared persistence and a full release decision object remain open.
 
 ### ISSUE-007: Candidate Prompt A/B can cause scope creep
 

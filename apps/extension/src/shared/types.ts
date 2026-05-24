@@ -457,8 +457,8 @@ export interface UpdateEvalCaseInput {
 export interface RunEvalExperimentInput {
   filters: AICheckEvalRunFilters;
   mode?: AICheckEvalRunMode;
-  provider?: "mock";
-  model?: "mock";
+  provider?: AICheckEvalRun["provider"];
+  model?: string;
 }
 
 export interface ExtensionResult<T> {

@@ -1,5 +1,7 @@
 import { createId, nowIso } from "../shared/id";
 import { AI_CHECK_CURRENT_VERSIONS } from "../shared/ai-check-contract";
+import { buildProviderMessages, buildRoundSnapshotFromCaseInput, buildTurnStateFromCaseInput } from "./context-builder";
+import { requestCheckpointDecision } from "./provider-client";
 import type {
   AICheckCase,
   AICheckEvalMetrics,
@@ -13,6 +15,7 @@ import type {
   AICheckTextExpectation,
   AIDecision,
   CheckpointDecision,
+  ProviderId,
   StrictnessLevel
 } from "../shared/types";
 
@@ -39,18 +42,51 @@ export function runMockEvalExperiment(
   cases: AICheckCase[],
   filters: AICheckEvalRunFilters,
   mode: AICheckEvalRunMode = "tuning"
-): {
+): Promise<{
   run: AICheckEvalRun;
   results: AICheckEvalResult[];
-} {
-  const selectedCases = filterEvalCasesForRun(cases, filters);
+}> {
+  return runEvalExperimentForCases(cases, { filters, mode, provider: "mock", model: "mock" });
+}
+
+export async function runEvalExperimentForCases(
+  cases: AICheckCase[],
+  input: {
+    filters: AICheckEvalRunFilters;
+    mode?: AICheckEvalRunMode;
+    provider?: AICheckEvalRun["provider"];
+    model?: string;
+    apiKey?: string;
+  }
+): Promise<{
+  run: AICheckEvalRun;
+  results: AICheckEvalResult[];
+}> {
+  const mode = input.mode ?? "tuning";
+  const provider = input.provider ?? "mock";
+  const model = input.model ?? "mock";
+  const selectedCases = filterEvalCasesForRun(cases, input.filters);
   if (selectedCases.length === 0) {
     throw new Error("No evaluation cases match this experiment filter.");
+  }
+  if (provider !== "mock" && !input.apiKey) {
+    throw new Error("Provider-mode eval requires a saved provider API key.");
   }
 
   const createdAt = nowIso();
   const runId = createId("evalrun");
-  const results = selectedCases.map((testCase) => runMockEvalCase(testCase, runId, createdAt));
+  const results: AICheckEvalResult[] = [];
+  for (const testCase of selectedCases) {
+    results.push(
+      await runEvalCase(testCase, {
+        runId,
+        createdAt,
+        provider,
+        model,
+        apiKey: input.apiKey
+      })
+    );
+  }
   const metrics = buildEvalMetrics(selectedCases, results);
   const run: AICheckEvalRun = {
     id: runId,
@@ -58,10 +94,10 @@ export function runMockEvalExperiment(
     outputSchemaVersion: AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion,
     evaluationSchemaVersion: AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion,
     mode,
-    providerMode: "mock",
-    provider: "mock",
-    model: "mock",
-    filters,
+    providerMode: provider === "mock" ? "mock" : "byok",
+    provider,
+    model,
+    filters: input.filters,
     caseIds: selectedCases.map((testCase) => testCase.id),
     metrics,
     createdAt
@@ -69,19 +105,57 @@ export function runMockEvalExperiment(
   return { run, results };
 }
 
-function runMockEvalCase(testCase: AICheckCase, runId: string, createdAt: string): AICheckEvalResult {
-  const actual = mockDecision(testCase.input);
+async function runEvalCase(
+  testCase: AICheckCase,
+  input: {
+    runId: string;
+    createdAt: string;
+    provider: AICheckEvalRun["provider"];
+    model: string;
+    apiKey?: string;
+  }
+): Promise<AICheckEvalResult> {
+  const actual =
+    input.provider === "mock"
+      ? mockDecision(testCase.input)
+      : await providerDecision(testCase, {
+          provider: input.provider,
+          model: input.model,
+          apiKey: input.apiKey ?? ""
+        });
   const failureReasons = evaluateExpectedOutput(actual, testCase.eval?.expectedOutput ?? {});
+  const rawProvider = (actual as Partial<CheckpointDecision>).rawProvider;
   return {
     id: createId("evalresult"),
-    runId,
+    runId: input.runId,
     evalCaseId: testCase.id,
     actualDecision: actual.decision,
     pass: failureReasons.length === 0,
     failureReasons,
-    rawProvider: JSON.stringify(actual, null, 2),
-    createdAt
+    rawProvider: rawProvider ?? JSON.stringify(actual, null, 2),
+    createdAt: input.createdAt
   };
+}
+
+async function providerDecision(
+  testCase: AICheckCase,
+  input: { provider: ProviderId; model: string; apiKey: string }
+): Promise<CheckpointDecision> {
+  const round = buildRoundSnapshotFromCaseInput(testCase.input, { sessionId: `eval_${testCase.id}` });
+  const turn = buildTurnStateFromCaseInput(testCase.input);
+  return requestCheckpointDecision({
+    provider: input.provider,
+    model: input.model,
+    apiKey: input.apiKey,
+    messages: buildProviderMessages({
+      round,
+      messages: testCase.input.messages,
+      turn
+    }),
+    sessionId: `eval_${testCase.id}`,
+    strictness: testCase.input.strictness,
+    isFinalTurn: turn.isFinalTurn
+  });
 }
 
 function evaluateExpectedOutput(actual: MockDecision, expected: AICheckExpectedOutput): string[] {

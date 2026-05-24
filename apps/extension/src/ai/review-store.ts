@@ -1,8 +1,10 @@
 import { AI_CHECK_CURRENT_VERSIONS, AI_CHECK_SESSION_POLICY } from "../shared/ai-check-contract";
+import { PROVIDERS } from "../shared/constants";
 import { createId, nowIso } from "../shared/id";
+import { loadDecryptedApiKey } from "../storage/crypto-key-store";
 import { BUILT_IN_AI_CHECK_CASES } from "./built-in-eval-cases";
 import { deriveDecisionPointSnapshotFromHistory } from "./decision-point-snapshot";
-import { runMockEvalExperiment } from "./eval-engine";
+import { runEvalExperimentForCases } from "./eval-engine";
 import type {
   AICheckCase,
   AICheckCaseInput,
@@ -360,7 +362,23 @@ export async function listEvalRunSummaries(): Promise<AICheckEvalRunSummary[]> {
 
 export async function runEvalExperiment(input: RunEvalExperimentInput): Promise<AICheckEvalRunSummary> {
   const cases = await listEvalCases();
-  const summary = runMockEvalExperiment(cases, input.filters, input.mode ?? "tuning");
+  const provider = input.provider ?? "mock";
+  const providerConfig = provider === "mock" ? null : PROVIDERS.find((item) => item.id === provider);
+  const model = input.model ?? providerConfig?.defaultModel ?? "mock";
+  if (providerConfig && !providerConfig.models.includes(model)) {
+    throw new Error("Selected model is not available for this provider.");
+  }
+  const apiKey = providerConfig ? await loadDecryptedApiKey(providerConfig.id) : undefined;
+  if (providerConfig && !apiKey) {
+    throw new Error(`Save a ${providerConfig.label} API key before running provider-mode evals.`);
+  }
+  const summary = await runEvalExperimentForCases(cases, {
+    filters: input.filters,
+    mode: input.mode ?? "tuning",
+    provider,
+    model,
+    apiKey: apiKey ?? undefined
+  });
   await saveEvalRun(summary.run);
   await Promise.all(summary.results.map((result) => saveEvalResult(result)));
   return summary;

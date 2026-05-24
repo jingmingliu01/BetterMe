@@ -455,7 +455,7 @@ try {
   await page.reload();
   await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: "Experiment Lab" }).click();
-  await page.getByLabel("Dataset").selectOption("holdout");
+  await page.getByLabel("Experiment dataset", { exact: true }).selectOption("holdout");
   await page.getByRole("button", { name: /Run Eval/ }).click();
   await page.getByText(/Experiment .* finished/).waitFor({ timeout: 3_000 });
   const holdoutGuardText = (await page.locator(".holdout-guard").textContent({ timeout: 5_000 })) ?? "";
@@ -463,13 +463,64 @@ try {
   assertIncludes(holdoutGuardText, "Detailed Holdout failures are hidden", "Holdout guard copy was not shown.");
   let resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertNotIncludes(resultPanelText, "Protected holdout failing case", "Tuning mode leaked Holdout failure title.");
-  await page.getByLabel("Mode").selectOption("release_review");
+  await page.getByLabel("Experiment mode", { exact: true }).selectOption("release_review");
   await page.getByRole("button", { name: /Run Eval/ }).click();
   await page.getByText(/Experiment .* finished/).waitFor({ timeout: 3_000 });
   await page.getByText("Protected holdout failing case").waitFor({ timeout: 5_000 });
   resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertIncludes(resultPanelText, "Protected holdout failing case", "Release review mode did not show Holdout failure summary.");
   console.log("HOLDOUT_VISIBILITY_OK true");
+
+  await sendRuntimeMessage(page, "review/createEvalCase", {
+    title: "Provider mode passing case",
+    datasetType: "design",
+    status: "ready",
+    targetDisplay: "example.com",
+    strictness: "balanced",
+    userMessage: "I need to research homework for 10 minutes then I will close the tab.",
+    expectedDecision: "ALLOW",
+    tags: ["provider_probe"],
+    reviewerNote: "E2E provider-mode Experiment Lab probe."
+  });
+  await queueProviderResponses(serviceWorker, [
+    buildProviderDecision({
+      decision: "ALLOW",
+      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
+      decisionReasonCategory: "clear_intention",
+      unlockMinutes: 5,
+      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
+      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
+    })
+  ]);
+  const providerRequestCountBefore = (await getProviderRequestLog(serviceWorker)).length;
+  await page.reload();
+  await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Experiment Lab" }).click();
+  await page.getByLabel("Experiment provider", { exact: true }).selectOption("openai");
+  await page.getByLabel("Experiment mode", { exact: true }).selectOption("tuning");
+  await page.getByLabel("Experiment dataset", { exact: true }).selectOption("design");
+  await page.getByLabel("Experiment tag", { exact: true }).selectOption("provider_probe");
+  await page.getByRole("button", { name: /Run Eval/ }).click();
+  await page.getByText(/Experiment .* finished/).waitFor({ timeout: 5_000 });
+  resultPanelText = await page.locator(".experiment-results-panel").innerText();
+  assertIncludes(resultPanelText, "1/1", "Provider-mode run did not pass the focused probe case.");
+  const experimentProviderRequests = await getProviderRequestLog(serviceWorker);
+  if (experimentProviderRequests.length !== providerRequestCountBefore + 1) {
+    throw new Error(`Provider-mode eval did not send exactly one provider request: ${experimentProviderRequests.length}`);
+  }
+  const latestProviderRequest = experimentProviderRequests.at(-1);
+  if (!latestProviderRequest?.messages?.some((message) => message.content.includes("<trusted_round_context>"))) {
+    throw new Error("Provider-mode eval did not use the runtime provider message builder.");
+  }
+  const evalRuns = await getIndexedDbRecords(page, "evalRuns");
+  const providerEvalRun = evalRuns
+    .filter((run) => run.provider === "openai")
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+    .at(-1);
+  if (providerEvalRun?.provider !== "openai" || providerEvalRun?.providerMode !== "byok") {
+    throw new Error(`Provider-mode eval run metadata is wrong: ${JSON.stringify(providerEvalRun)}`);
+  }
+  console.log("PROVIDER_MODE_EXPERIMENT_OK true");
 
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.org");

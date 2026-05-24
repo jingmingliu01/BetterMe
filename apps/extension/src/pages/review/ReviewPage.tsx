@@ -27,6 +27,7 @@ import {
   AI_CHECK_PROMPT_VERSIONS,
   AI_CHECK_STRICTNESS_LEVELS
 } from "../../shared/ai-check-contract";
+import { PROVIDERS } from "../../shared/constants";
 import {
   buildRoundSnapshot,
   buildTrustedRoundContextParts,
@@ -49,6 +50,7 @@ import type {
   BadCaseErrorType,
   BadCaseReview,
   CreateEvalCaseInput,
+  ProviderId,
   StrictnessLevel,
   AICheckSchemaFieldReference,
   UpdateEvalCaseInput
@@ -76,6 +78,8 @@ interface EvalFormState {
 
 interface ExperimentFormState {
   mode: AICheckEvalRunMode;
+  provider: "mock" | ProviderId;
+  model: string;
   datasetType: ExperimentFilterValue<AICheckCase["datasetType"]>;
   status: ExperimentFilterValue<AICheckCaseStatus>;
   tag: string;
@@ -129,6 +133,7 @@ export function ReviewPage() {
   const loadSessions = useCallback(() => sendMessage<AIPMReviewSession[]>({ type: "review/listSessions" }), []);
   const loadEvalCases = useCallback(() => sendMessage<AICheckCase[]>({ type: "review/listEvalCases" }), []);
   const loadEvalRuns = useCallback(() => sendMessage<AICheckEvalRunSummary[]>({ type: "review/listEvalRuns" }), []);
+  const loadProviderStatus = useCallback(() => sendMessage<Record<ProviderId, boolean>>({ type: "provider/status" }), []);
   const {
     data: sessionData,
     error: sessionError,
@@ -147,6 +152,12 @@ export function ReviewPage() {
     loading: evalRunsLoading,
     refresh: refreshEvalRuns
   } = useAsyncState(loadEvalRuns);
+  const {
+    data: providerStatusData,
+    error: providerStatusError,
+    loading: providerStatusLoading,
+    refresh: refreshProviderStatus
+  } = useAsyncState(loadProviderStatus);
   const [area, setArea] = useState<ReviewArea>("history");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
@@ -161,6 +172,8 @@ export function ReviewPage() {
   const [evalForm, setEvalForm] = useState<EvalFormState>(emptyEvalForm());
   const [experimentForm, setExperimentForm] = useState<ExperimentFormState>({
     mode: "tuning",
+    provider: "mock",
+    model: "mock",
     datasetType: "regression",
     status: "ready",
     tag: "all",
@@ -384,7 +397,9 @@ export function ReviewPage() {
         type: "review/runEvalExperiment",
         payload: {
           filters: buildExperimentFilters(experimentForm),
-          mode: experimentForm.mode
+          mode: experimentForm.mode,
+          provider: experimentForm.provider,
+          model: experimentForm.model
         }
       });
       setSelectedEvalRunId(summary.run.id);
@@ -399,13 +414,20 @@ export function ReviewPage() {
     }
   }
 
-  if ((sessionsLoading && !sessionData) || (evalLoading && !evalData) || (evalRunsLoading && !evalRunData)) {
+  if (
+    (sessionsLoading && !sessionData) ||
+    (evalLoading && !evalData) ||
+    (evalRunsLoading && !evalRunData) ||
+    (providerStatusLoading && !providerStatusData)
+  ) {
     return <AppShell title="AI PM Review" subtitle="Loading local AI quality workspace..." />;
   }
 
   return (
     <AppShell title="AI PM Review" subtitle="Review history, curate evaluation cases, and keep the schema contract visible.">
-      {(sessionError || evalError || evalRunError) && <p className="badge badge-danger">{sessionError ?? evalError ?? evalRunError}</p>}
+      {(sessionError || evalError || evalRunError || providerStatusError) && (
+        <p className="badge badge-danger">{sessionError ?? evalError ?? evalRunError ?? providerStatusError}</p>
+      )}
       {status && <p className="badge">{status}</p>}
       <nav className="review-area-tabs" aria-label="PM Review areas">
         <AreaButton active={area === "history"} icon={<History size={16} />} label="History Cases" onClick={() => setArea("history")} />
@@ -561,12 +583,13 @@ export function ReviewPage() {
           evalCases={evalCases}
           form={experimentForm}
           loading={evalRunsLoading}
+          providerStatus={providerStatusData ?? {}}
           running={runningEval}
           runs={evalRuns}
           selectedRun={selectedEvalRun}
           setForm={setExperimentForm}
           setSelectedRunId={setSelectedEvalRunId}
-          onRefresh={() => void refreshEvalRuns()}
+          onRefresh={() => void Promise.all([refreshEvalRuns(), refreshProviderStatus()])}
           onRun={runExperiment}
         />
       )}
@@ -581,6 +604,7 @@ function ExperimentLab({
   evalCases,
   form,
   loading,
+  providerStatus,
   running,
   runs,
   selectedRun,
@@ -593,6 +617,7 @@ function ExperimentLab({
   evalCases: AICheckCase[];
   form: ExperimentFormState;
   loading: boolean;
+  providerStatus: Partial<Record<ProviderId, boolean>>;
   running: boolean;
   runs: AICheckEvalRunSummary[];
   selectedRun: AICheckEvalRunSummary | null;
@@ -610,6 +635,9 @@ function ExperimentLab({
   const selectedRunHasHoldout =
     selectedRun?.run.caseIds.some((caseId) => caseById.get(caseId)?.datasetType === "holdout") ?? false;
   const holdoutDetailsHidden = Boolean(selectedRun && selectedRunHasHoldout && selectedRun.run.mode !== "release_review");
+  const providerReady = form.provider === "mock" || Boolean(providerStatus[form.provider]);
+  const selectedProviderConfig = form.provider === "mock" ? null : PROVIDERS.find((provider) => provider.id === form.provider);
+  const availableModels = form.provider === "mock" ? ["mock"] : selectedProviderConfig?.models ?? [];
 
   return (
     <section className="experiment-workspace">
@@ -620,15 +648,55 @@ function ExperimentLab({
         </div>
         <div className="status-list">
           <StatusItem label="Prompt" value={AI_CHECK_CURRENT_VERSIONS.promptVersion} />
-          <StatusItem label="Provider" value="mock" />
-          <StatusItem label="Model" value="mock" />
+          <StatusItem label="Provider" value={formatProvider(form.provider)} />
+          <StatusItem label="Model" value={form.model} />
           <StatusItem label="Mode" value={formatRunMode(form.mode)} />
         </div>
 
         <div className="eval-form-grid">
           <label className="stack compact-stack">
+            <span>Provider</span>
+            <select
+              aria-label="Experiment provider"
+              className="select"
+              value={form.provider}
+              onChange={(event) => {
+                const provider = event.target.value as ExperimentFormState["provider"];
+                const providerConfig = provider === "mock" ? null : PROVIDERS.find((item) => item.id === provider);
+                setForm((current) => ({
+                  ...current,
+                  provider,
+                  model: provider === "mock" ? "mock" : providerConfig?.defaultModel ?? current.model
+                }));
+              }}
+            >
+              <option value="mock">Mock</option>
+              {PROVIDERS.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="stack compact-stack">
+            <span>Model</span>
+            <select
+              aria-label="Experiment model"
+              className="select"
+              value={form.model}
+              onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))}
+            >
+              {availableModels.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="stack compact-stack">
             <span>Mode</span>
             <select
+              aria-label="Experiment mode"
               className="select"
               value={form.mode}
               onChange={(event) =>
@@ -645,6 +713,7 @@ function ExperimentLab({
           <label className="stack compact-stack">
             <span>Dataset</span>
             <select
+              aria-label="Experiment dataset"
               className="select"
               value={form.datasetType}
               onChange={(event) =>
@@ -665,6 +734,7 @@ function ExperimentLab({
           <label className="stack compact-stack">
             <span>Status</span>
             <select
+              aria-label="Experiment status"
               className="select"
               value={form.status}
               onChange={(event) =>
@@ -682,6 +752,7 @@ function ExperimentLab({
           <label className="stack compact-stack">
             <span>Strictness</span>
             <select
+              aria-label="Experiment strictness"
               className="select"
               value={form.strictness}
               onChange={(event) =>
@@ -702,6 +773,7 @@ function ExperimentLab({
           <label className="stack compact-stack">
             <span>Expected</span>
             <select
+              aria-label="Experiment expected decision"
               className="select"
               value={form.expectedDecision}
               onChange={(event) =>
@@ -724,6 +796,7 @@ function ExperimentLab({
         <label className="stack compact-stack">
           <span>Tag</span>
           <select
+            aria-label="Experiment tag"
             className="select"
             value={form.tag}
             onChange={(event) => setForm((current) => ({ ...current, tag: event.target.value }))}
@@ -747,10 +820,13 @@ function ExperimentLab({
         <p className="muted">
           Tuning mode hides Holdout failure details. Use release review only when making a release decision.
         </p>
+        {!providerReady && (
+          <p className="badge badge-warn">Save a {selectedProviderConfig?.label ?? "provider"} key in Settings before provider-mode runs.</p>
+        )}
 
         <div className="row space-between">
           <span className="muted">{matchingCaseCount} matching cases</span>
-          <button className="btn btn-primary" disabled={running || matchingCaseCount === 0} onClick={onRun}>
+          <button className="btn btn-primary" disabled={running || matchingCaseCount === 0 || !providerReady} onClick={onRun}>
             <FlaskConical size={16} /> {running ? "Running..." : "Run Eval"}
           </button>
         </div>
@@ -865,7 +941,8 @@ function ExperimentLab({
               <strong>{formatDate(summary.run.createdAt)}</strong>
               <span>{formatPercent(summary.run.metrics.passRate)} pass</span>
               <small>
-                {summary.run.caseIds.length} cases · {formatRunMode(summary.run.mode)} · {formatRunFilter(summary.run.filters)}
+                {summary.run.caseIds.length} cases · {formatProvider(summary.run.provider)} · {summary.run.model} ·{" "}
+                {formatRunMode(summary.run.mode)} · {formatRunFilter(summary.run.filters)}
               </small>
             </button>
           ))
@@ -2319,6 +2396,11 @@ function formatRunFilter(filters: AICheckEvalRunFilters): string {
 
 function formatRunMode(mode: AICheckEvalRunMode): string {
   return mode === "release_review" ? "Release review" : "Tuning";
+}
+
+function formatProvider(provider: "mock" | ProviderId): string {
+  if (provider === "mock") return "Mock";
+  return PROVIDERS.find((item) => item.id === provider)?.label ?? provider;
 }
 
 function formatPercent(value: number): string {
