@@ -9,6 +9,7 @@ import type {
   AICheckCase,
   AICheckCaseInput,
   AICheckContractChangePlan,
+  AICheckContractChangePlanAppliedEvidence,
   AICheckContractChangePlanTarget,
   AICheckDatasetType,
   AICheckDecisionPointSnapshot,
@@ -675,10 +676,15 @@ export async function updateContractChangePlan(input: UpdateContractChangePlanIn
   if (input.status === "applied" && !implementationNote) {
     throw new Error("Applied contract change plans require an implementation note.");
   }
+  const appliedEvidence = input.appliedEvidence ?? plan.appliedEvidence;
+  if (input.status === "applied" && !isCompleteContractChangeAppliedEvidence(appliedEvidence)) {
+    throw new Error("Applied contract change plans require complete contract, reference, eval, docs, and validation evidence.");
+  }
   const updated: AICheckContractChangePlan = {
     ...plan,
     status: input.status,
     implementationNote,
+    appliedEvidence: input.status === "applied" ? appliedEvidence : plan.appliedEvidence,
     reviewedAt: now,
     appliedAt: input.status === "applied" ? now : plan.appliedAt,
     appliedVersions:
@@ -694,9 +700,22 @@ export async function updateContractChangePlan(input: UpdateContractChangePlanIn
   if (input.status === "rejected") {
     updated.appliedAt = undefined;
     updated.appliedVersions = undefined;
+    updated.appliedEvidence = undefined;
   }
   await putRecord("contractChangePlans", updated);
   return updated;
+}
+
+function isCompleteContractChangeAppliedEvidence(
+  evidence: AICheckContractChangePlanAppliedEvidence | undefined
+): evidence is AICheckContractChangePlanAppliedEvidence {
+  return Boolean(
+    evidence?.contractSourceUpdated &&
+      evidence.generatedReferencesUpdated &&
+      evidence.evalCoverageUpdated &&
+      evidence.linkedDocsUpdated &&
+      evidence.validationSummary.trim()
+  );
 }
 
 export async function promotePromptCandidate(input: PromotePromptCandidateInput): Promise<AICheckPromptPromotion> {

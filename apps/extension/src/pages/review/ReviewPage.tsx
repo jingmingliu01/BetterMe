@@ -48,6 +48,7 @@ import type {
   AICheckCase,
   AICheckCaseStatus,
   AICheckContractChangePlan,
+  AICheckContractChangePlanAppliedEvidence,
   AICheckDecisionExpectation,
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
@@ -106,6 +107,26 @@ interface EvalFormState {
   hasExplicitDuration: EvidenceExpectationValue;
   hasReturnPlan: EvidenceExpectationValue;
   archivedReason: string;
+}
+
+function emptyContractChangePlanAppliedEvidence(): AICheckContractChangePlanAppliedEvidence {
+  return {
+    contractSourceUpdated: false,
+    generatedReferencesUpdated: false,
+    evalCoverageUpdated: false,
+    linkedDocsUpdated: false,
+    validationSummary: ""
+  };
+}
+
+function isContractChangePlanAppliedEvidenceComplete(evidence: AICheckContractChangePlanAppliedEvidence): boolean {
+  return Boolean(
+    evidence.contractSourceUpdated &&
+      evidence.generatedReferencesUpdated &&
+      evidence.evalCoverageUpdated &&
+      evidence.linkedDocsUpdated &&
+      evidence.validationSummary.trim()
+  );
 }
 
 interface ExperimentFormState {
@@ -316,6 +337,9 @@ export function ReviewPage() {
   const [creatingContractChangePlanItemId, setCreatingContractChangePlanItemId] = useState<string | null>(null);
   const [updatingContractChangePlanId, setUpdatingContractChangePlanId] = useState<string | null>(null);
   const [contractChangePlanNotes, setContractChangePlanNotes] = useState<Record<string, string>>({});
+  const [contractChangePlanEvidence, setContractChangePlanEvidence] = useState<
+    Record<string, AICheckContractChangePlanAppliedEvidence>
+  >({});
   const [promotingPromptCandidate, setPromotingPromptCandidate] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -766,6 +790,10 @@ export function ReviewPage() {
         ...current,
         [plan.id]: plan.implementationNote ?? ""
       }));
+      setContractChangePlanEvidence((current) => ({
+        ...current,
+        [plan.id]: plan.appliedEvidence ?? emptyContractChangePlanAppliedEvidence()
+      }));
       await refreshContractChangePlans();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not update contract change plan.");
@@ -1159,6 +1187,7 @@ export function ReviewPage() {
       {area === "schema" && (
         <SchemaReference
           contractChangePlanNotes={contractChangePlanNotes}
+          contractChangePlanEvidence={contractChangePlanEvidence}
           contractChangePlans={contractChangePlans}
           creatingContractChangePlanItemId={creatingContractChangePlanItemId}
           onCreateContractChangePlan={createContractChangePlan}
@@ -1166,6 +1195,12 @@ export function ReviewPage() {
             setContractChangePlanNotes((current) => ({
               ...current,
               [planId]: note
+            }))
+          }
+          onSetContractChangePlanEvidence={(planId, evidence) =>
+            setContractChangePlanEvidence((current) => ({
+              ...current,
+              [planId]: evidence
             }))
           }
           onUpdateContractChangePlan={updateContractChangePlan}
@@ -2728,19 +2763,23 @@ function EvalCaseDetail({
 }
 
 function SchemaReference({
+  contractChangePlanEvidence,
   contractChangePlanNotes,
   contractChangePlans,
   creatingContractChangePlanItemId,
   onCreateContractChangePlan,
+  onSetContractChangePlanEvidence,
   onSetContractChangePlanNote,
   onUpdateContractChangePlan,
   promptProgramSuggestions,
   updatingContractChangePlanId
 }: {
+  contractChangePlanEvidence: Record<string, AICheckContractChangePlanAppliedEvidence>;
   contractChangePlanNotes: Record<string, string>;
   contractChangePlans: AICheckContractChangePlan[];
   creatingContractChangePlanItemId: string | null;
   onCreateContractChangePlan: (input: CreateContractChangePlanInput) => void;
+  onSetContractChangePlanEvidence: (planId: string, evidence: AICheckContractChangePlanAppliedEvidence) => void;
   onSetContractChangePlanNote: (planId: string, note: string) => void;
   onUpdateContractChangePlan: (input: UpdateContractChangePlanInput) => void;
   promptProgramSuggestions: AICheckPromptProgramSuggestion[];
@@ -2802,10 +2841,12 @@ function SchemaReference({
       </div>
 
       <ContractSuggestionBacklog
+        contractChangePlanEvidence={contractChangePlanEvidence}
         contractChangePlanNotes={contractChangePlanNotes}
         contractChangePlans={contractChangePlans}
         creatingContractChangePlanItemId={creatingContractChangePlanItemId}
         onCreateContractChangePlan={onCreateContractChangePlan}
+        onSetContractChangePlanEvidence={onSetContractChangePlanEvidence}
         onSetContractChangePlanNote={onSetContractChangePlanNote}
         onUpdateContractChangePlan={onUpdateContractChangePlan}
         promptProgramSuggestions={promptProgramSuggestions}
@@ -2891,19 +2932,23 @@ function VersionChip({ label, source, value }: { label: string; source: string; 
 }
 
 function ContractSuggestionBacklog({
+  contractChangePlanEvidence,
   contractChangePlanNotes,
   contractChangePlans,
   creatingContractChangePlanItemId,
   onCreateContractChangePlan,
+  onSetContractChangePlanEvidence,
   onSetContractChangePlanNote,
   onUpdateContractChangePlan,
   promptProgramSuggestions,
   updatingContractChangePlanId
 }: {
+  contractChangePlanEvidence: Record<string, AICheckContractChangePlanAppliedEvidence>;
   contractChangePlanNotes: Record<string, string>;
   contractChangePlans: AICheckContractChangePlan[];
   creatingContractChangePlanItemId: string | null;
   onCreateContractChangePlan: (input: CreateContractChangePlanInput) => void;
+  onSetContractChangePlanEvidence: (planId: string, evidence: AICheckContractChangePlanAppliedEvidence) => void;
   onSetContractChangePlanNote: (planId: string, note: string) => void;
   onUpdateContractChangePlan: (input: UpdateContractChangePlanInput) => void;
   promptProgramSuggestions: AICheckPromptProgramSuggestion[];
@@ -2943,66 +2988,148 @@ function ContractSuggestionBacklog({
               {item.reviewNote && <small>{item.reviewNote}</small>}
               {plan ? (
                 <div className="stack">
-                  <span className="badge badge-success">Plan {formatTag(plan.status)}</span>
-                  <small>{plan.targets.map(formatTag).join(" + ")}</small>
-                  {plan.requiredSurfaces.map((surface) => (
-                    <small key={surface}>{surface}</small>
-                  ))}
-                  {plan.appliedVersions && (
-                    <small>
-                      Applied against {plan.appliedVersions.promptVersion} / {plan.appliedVersions.outputSchemaVersion} /{" "}
-                      {plan.appliedVersions.evaluationSchemaVersion}
-                    </small>
-                  )}
-                  <textarea
-                    aria-label={`Contract plan note for ${plan.title}`}
-                    className="textarea"
-                    onChange={(event) => onSetContractChangePlanNote(plan.id, event.target.value)}
-                    placeholder="Implementation note, validation evidence, or rejection reason"
-                    rows={3}
-                    value={contractChangePlanNotes[plan.id] ?? plan.implementationNote ?? ""}
-                  />
-                  <div className="schema-manual-tabs">
-                    <button
-                      className="btn btn-ghost"
-                      disabled={updatingContractChangePlanId === plan.id || plan.status === "ready"}
-                      onClick={() =>
-                        onUpdateContractChangePlan({
-                          id: plan.id,
-                          status: "ready",
-                          implementationNote: contractChangePlanNotes[plan.id]
-                        })
-                      }
-                    >
-                      Mark Ready
-                    </button>
-                    <button
-                      className="btn btn-primary"
-                      disabled={updatingContractChangePlanId === plan.id || plan.status === "applied"}
-                      onClick={() =>
-                        onUpdateContractChangePlan({
-                          id: plan.id,
-                          status: "applied",
-                          implementationNote: contractChangePlanNotes[plan.id]
-                        })
-                      }
-                    >
-                      Mark Applied
-                    </button>
-                    <button
-                      className="btn btn-ghost"
-                      disabled={updatingContractChangePlanId === plan.id || plan.status === "rejected"}
-                      onClick={() =>
-                        onUpdateContractChangePlan({
-                          id: plan.id,
-                          status: "rejected",
-                          implementationNote: contractChangePlanNotes[plan.id]
-                        })
-                      }
-                    >
-                      Reject Plan
-                    </button>
-                  </div>
+                  {(() => {
+                    const appliedEvidence =
+                      contractChangePlanEvidence[plan.id] ?? plan.appliedEvidence ?? emptyContractChangePlanAppliedEvidence();
+                    const appliedEvidenceComplete = isContractChangePlanAppliedEvidenceComplete(appliedEvidence);
+                    const appliedEvidenceLocked = plan.status === "applied";
+                    const implementationNote = contractChangePlanNotes[plan.id] ?? plan.implementationNote ?? "";
+                    const canMarkApplied = Boolean(implementationNote.trim()) && appliedEvidenceComplete;
+                    const setEvidence = (patch: Partial<AICheckContractChangePlanAppliedEvidence>) =>
+                      onSetContractChangePlanEvidence(plan.id, {
+                        ...appliedEvidence,
+                        ...patch
+                      });
+                    return (
+                      <>
+                        <span className="badge badge-success">Plan {formatTag(plan.status)}</span>
+                        <small>{plan.targets.map(formatTag).join(" + ")}</small>
+                        {plan.requiredSurfaces.map((surface) => (
+                          <small key={surface}>{surface}</small>
+                        ))}
+                        {plan.appliedVersions && (
+                          <small>
+                            Applied against {plan.appliedVersions.promptVersion} / {plan.appliedVersions.outputSchemaVersion} /{" "}
+                            {plan.appliedVersions.evaluationSchemaVersion}
+                          </small>
+                        )}
+                        {plan.appliedEvidence && (
+                          <small>
+                            Evidence: contract, generated reference, eval coverage, docs, and validation recorded.
+                          </small>
+                        )}
+                        <textarea
+                          aria-label={`Contract plan note for ${plan.title}`}
+                          className="textarea"
+                          onChange={(event) => onSetContractChangePlanNote(plan.id, event.target.value)}
+                          placeholder="Implementation note, validation evidence, or rejection reason"
+                          rows={3}
+                          value={implementationNote}
+                        />
+                        <div className="stack compact-stack">
+                          <span className="section-label">Applied evidence checklist</span>
+                          <label className="checkbox-row">
+                            <input
+                              aria-label={`Contract plan evidence ${plan.title} contract source`}
+                              checked={appliedEvidence.contractSourceUpdated}
+                              disabled={appliedEvidenceLocked}
+                              onChange={(event) => setEvidence({ contractSourceUpdated: event.target.checked })}
+                              type="checkbox"
+                            />
+                            <span>Contract source updated</span>
+                          </label>
+                          <label className="checkbox-row">
+                            <input
+                              aria-label={`Contract plan evidence ${plan.title} generated references`}
+                              checked={appliedEvidence.generatedReferencesUpdated}
+                              disabled={appliedEvidenceLocked}
+                              onChange={(event) => setEvidence({ generatedReferencesUpdated: event.target.checked })}
+                              type="checkbox"
+                            />
+                            <span>Generated references updated</span>
+                          </label>
+                          <label className="checkbox-row">
+                            <input
+                              aria-label={`Contract plan evidence ${plan.title} eval coverage`}
+                              checked={appliedEvidence.evalCoverageUpdated}
+                              disabled={appliedEvidenceLocked}
+                              onChange={(event) => setEvidence({ evalCoverageUpdated: event.target.checked })}
+                              type="checkbox"
+                            />
+                            <span>Eval assertions or fixtures updated</span>
+                          </label>
+                          <label className="checkbox-row">
+                            <input
+                              aria-label={`Contract plan evidence ${plan.title} linked docs`}
+                              checked={appliedEvidence.linkedDocsUpdated}
+                              disabled={appliedEvidenceLocked}
+                              onChange={(event) => setEvidence({ linkedDocsUpdated: event.target.checked })}
+                              type="checkbox"
+                            />
+                            <span>Linked design/progress/issues docs updated</span>
+                          </label>
+                          <textarea
+                            aria-label={`Contract plan validation summary for ${plan.title}`}
+                            className="textarea"
+                            disabled={appliedEvidenceLocked}
+                            onChange={(event) => setEvidence({ validationSummary: event.target.value })}
+                            placeholder="Commands or evidence proving contract, eval, and docs are aligned"
+                            rows={2}
+                            value={appliedEvidence.validationSummary}
+                          />
+                          {!canMarkApplied && (
+                            <small>Complete the implementation note and every evidence item before marking this plan applied.</small>
+                          )}
+                        </div>
+                        <div className="schema-manual-tabs">
+                          <button
+                            className="btn btn-ghost"
+                            disabled={updatingContractChangePlanId === plan.id || plan.status === "ready"}
+                            onClick={() =>
+                              onUpdateContractChangePlan({
+                                id: plan.id,
+                                status: "ready",
+                                implementationNote: contractChangePlanNotes[plan.id]
+                              })
+                            }
+                          >
+                            Mark Ready
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            disabled={
+                              updatingContractChangePlanId === plan.id ||
+                              plan.status === "applied" ||
+                              !canMarkApplied
+                            }
+                            onClick={() =>
+                              onUpdateContractChangePlan({
+                                id: plan.id,
+                                status: "applied",
+                                implementationNote: contractChangePlanNotes[plan.id],
+                                appliedEvidence
+                              })
+                            }
+                          >
+                            Mark Applied
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            disabled={updatingContractChangePlanId === plan.id || plan.status === "rejected"}
+                            onClick={() =>
+                              onUpdateContractChangePlan({
+                                id: plan.id,
+                                status: "rejected",
+                                implementationNote: contractChangePlanNotes[plan.id]
+                              })
+                            }
+                          >
+                            Reject Plan
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
                 <button

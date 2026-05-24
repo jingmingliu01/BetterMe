@@ -249,14 +249,14 @@ Update 2026-05-24:
 
 ### ISSUE-009: Contract Reference can become stale if Prompt Program expands
 
-Status: open
+Status: partially mitigated
 
 Update 2026-05-24:
 
 - Contract Reference now includes accepted Prompt Program Suggestions as a visible backlog so accepted rubric/schema ideas are less likely to be lost outside the contract workflow.
 - The backlog is intentionally non-mutating; stale-contract risk is still handled by requiring explicit `ai-check-contract.json` changes and validation before any suggestion is considered applied.
 - Accepted suggestions can now become `ContractChangePlan` artifacts. This reduces handoff loss, but does not close stale-contract risk because the actual source contract still changes only through a normal code/doc implementation slice.
-- Contract Change Plans can now move to ready, applied, or rejected. Applied plans require an implementation note and record current prompt/output/evaluation versions, but this remains handoff evidence rather than automatic source verification.
+- Contract Change Plans can now move to ready, applied, or rejected. Applied plans require an implementation note, structured evidence for contract source, generated references, eval coverage, linked docs, and validation, and record current prompt/output/evaluation versions. This remains handoff evidence rather than automatic source verification.
 - Prompt Program decision policy and scoring rules now live under `ai-check-contract.json.promptProgram`, are generated into TypeScript constants, feed the provider system prompt, and render in Contract Reference.
 - Evaluation schema v4 now captures input evidence expectations for explicit duration and return-task plans, with checks in both shared and CLI eval runners.
 - PM Review now exposes expected input evidence controls while authoring or editing Evaluation Cases.
@@ -276,7 +276,7 @@ Mitigation:
 
 - Keep `ai-check-contract.json` as the starting point for schema/policy changes.
 - Use Contract Change Plans as the handoff object between PM review and implementation.
-- Require implementation notes before marking a plan applied.
+- Require implementation notes and complete applied-evidence checklists before marking a plan applied.
 - Keep prompt policy/rubric text in `AI_CHECK_CONTRACT.promptProgram`, not hard-coded only in `prompt.ts`.
 - Version evaluation semantics when adding new expected-evidence fields and migrate active fixtures in the same change.
 - Keep Evaluation Case authoring controls in sync with new evaluation-schema expectation fields.

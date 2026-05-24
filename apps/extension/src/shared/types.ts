@@ -430,6 +430,14 @@ export interface AICheckPromptProgramSuggestion {
 export type AICheckContractChangePlanStatus = "draft" | "ready" | "applied" | "rejected";
 export type AICheckContractChangePlanTarget = "prompt" | "rubric" | "schema" | "evaluation";
 
+export interface AICheckContractChangePlanAppliedEvidence {
+  contractSourceUpdated: boolean;
+  generatedReferencesUpdated: boolean;
+  evalCoverageUpdated: boolean;
+  linkedDocsUpdated: boolean;
+  validationSummary: string;
+}
+
 export interface AICheckContractChangePlan {
   id: string;
   suggestionId: string;
@@ -440,6 +448,7 @@ export interface AICheckContractChangePlan {
   summary: string;
   requiredSurfaces: string[];
   implementationNote?: string;
+  appliedEvidence?: AICheckContractChangePlanAppliedEvidence;
   appliedVersions?: {
     promptVersion: string;
     outputSchemaVersion: string;
@@ -703,6 +712,7 @@ export interface UpdateContractChangePlanInput {
   id: string;
   status: Extract<AICheckContractChangePlanStatus, "ready" | "applied" | "rejected">;
   implementationNote?: string;
+  appliedEvidence?: AICheckContractChangePlanAppliedEvidence;
 }
 
 export interface PromotePromptCandidateInput {

@@ -852,6 +852,26 @@ try {
   await page.getByLabel("Contract plan note for Bounded break rubric").fill("Applied after contract-source validation.");
   await page.getByRole("button", { name: "Mark Ready" }).click();
   await page.getByText("Contract change plan marked ready.").waitFor({ timeout: 5_000 });
+  let incompleteAppliedEvidenceRejected = false;
+  try {
+    await sendRuntimeMessage(page, "review/updateContractChangePlan", {
+      id: latestPlan.id,
+      status: "applied",
+      implementationNote: "Applied without structured evidence."
+    });
+  } catch (error) {
+    incompleteAppliedEvidenceRejected = String(error).includes("complete contract, reference, eval, docs, and validation evidence");
+  }
+  if (!incompleteAppliedEvidenceRejected) {
+    throw new Error("Contract change plan applied without complete structured evidence.");
+  }
+  await page.getByLabel("Contract plan evidence Bounded break rubric contract source").check();
+  await page.getByLabel("Contract plan evidence Bounded break rubric generated references").check();
+  await page.getByLabel("Contract plan evidence Bounded break rubric eval coverage").check();
+  await page.getByLabel("Contract plan evidence Bounded break rubric linked docs").check();
+  await page
+    .getByLabel("Contract plan validation summary for Bounded break rubric")
+    .fill("Ran check:ai-check-contract, eval:ai-check, typecheck, build, and e2e.");
   await page.getByRole("button", { name: "Mark Applied" }).click();
   await page.getByText("Contract change plan marked applied.").waitFor({ timeout: 5_000 });
   const updatedContractChangePlans = await getIndexedDbRecords(page, "contractChangePlans");
@@ -859,6 +879,11 @@ try {
   if (
     appliedPlan?.status !== "applied" ||
     appliedPlan.implementationNote !== "Applied after contract-source validation." ||
+    !appliedPlan.appliedEvidence?.contractSourceUpdated ||
+    !appliedPlan.appliedEvidence.generatedReferencesUpdated ||
+    !appliedPlan.appliedEvidence.evalCoverageUpdated ||
+    !appliedPlan.appliedEvidence.linkedDocsUpdated ||
+    !appliedPlan.appliedEvidence.validationSummary.includes("check:ai-check-contract") ||
     !appliedPlan.appliedAt ||
     !appliedPlan.appliedVersions?.promptVersion ||
     !appliedPlan.appliedVersions?.outputSchemaVersion ||

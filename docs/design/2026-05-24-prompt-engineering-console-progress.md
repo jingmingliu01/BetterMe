@@ -329,6 +329,13 @@ Pending implementation validation:
 - Applied plans require an implementation note and store the current prompt, output schema, and evaluation schema versions as handoff evidence.
 - Issues document was updated because applied status now has explicit evidence fields, while remaining intentionally unable to mutate or verify source-code changes by itself.
 
+2026-05-24 Contract Change Plan evidence update:
+
+- Applied plans now require structured evidence that contract source, generated references, eval assertions or fixtures, linked docs, and validation were handled.
+- Contract Reference exposes the applied-evidence checklist and validation-summary field next to each plan.
+- `updateContractChangePlan` rejects applied status unless all evidence fields are complete.
+- Issues document was updated from open to partially mitigated because the stale-contract risk now has a stronger product guard, while true source verification still depends on the normal implementation and validation gates.
+
 2026-05-24 Prompt Program rubric contract update:
 
 - `ai-check-contract.json` now includes `promptProgram.decisionPolicyRules` and `promptProgram.scoringRules`.
