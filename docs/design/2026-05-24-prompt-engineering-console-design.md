@@ -367,11 +367,25 @@ interface AICheckPromptComparison {
   textualGradient: AICheckTextualGradient;
   createdAt: string;
 }
+
+interface AICheckPromptPromotion {
+  id: string;
+  candidateId: string;
+  comparisonId: string;
+  promptVersion: string;
+  baselineRunId: string;
+  candidateRunId: string;
+  instructionPatch: string;
+  note?: string;
+  createdAt: string;
+}
 ```
 
 The baseline run and candidate run both remain standard `AICheckEvalRun` rows. The comparison artifact binds them together. Candidate runs append the candidate patch to the static system prompt inside a `<candidate_prompt_patch>` block, while preserving the normal trusted Round Context, Conversation, and Turn Context order.
 
 Textual Gradient is diagnosis only. It can summarize failure clusters and suggested prompt directions, but it must not directly mutate the current Prompt Program or approve a candidate.
+
+Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, and the candidate run does not fail the release gate. Promotion records the candidate patch as a local active prompt version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
 
 ### Contract Reference
 
@@ -529,12 +543,14 @@ First implemented slice:
 - Run provider-mode A/B by executing one baseline run and one candidate run against the same filters.
 - Persist the comparison artifact linking baseline and candidate runs.
 - Show improved/regressed counts, recommendation, and Textual Gradient diagnosis.
+- Promote a passing candidate into the active local Prompt Program through an audited promotion artifact.
+- Freeze the promoted prompt version on new AI Check sessions and inject its patch into runtime provider messages.
 
 Still later:
 
-- Promotion flow that changes the active Prompt Program version.
 - Richer multi-arm experiment management.
 - LLM-assisted candidate generation from Textual Gradient notes.
+- Stronger release gate requiring explicit Design, Regression, and Holdout coverage before promotion.
 
 ## Validation Expectations
 

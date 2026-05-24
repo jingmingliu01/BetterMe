@@ -54,12 +54,14 @@ import {
   createBadCaseReview,
   createPromptCandidate,
   importEvalRunArtifact,
+  listPromptPromotions,
   listEvalCases,
   listEvalRunSummaries,
   listPromptCandidates,
   listPromptComparisons,
   listReleaseDecisions,
   listReviewSessions,
+  promotePromptCandidate,
   runPromptComparison,
   runEvalExperiment,
   updateEvalCase,
@@ -341,6 +343,10 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listPromptComparisons());
       case "review/runPromptComparison":
         return ok(await runPromptComparison(message.payload));
+      case "review/listPromptPromotions":
+        return ok(await listPromptPromotions());
+      case "review/promotePromptCandidate":
+        return ok(await promotePromptCandidate(message.payload));
       case "review/listReleaseDecisions":
         return ok(await listReleaseDecisions());
       case "review/createReleaseDecision":
@@ -354,6 +360,7 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
           evalRuns: await listEvalRunSummaries(),
           promptCandidates: await listPromptCandidates(),
           promptComparisons: await listPromptComparisons(),
+          promptPromotions: await listPromptPromotions(),
           releaseDecisions: await listReleaseDecisions()
         });
       case "data/deleteAll":

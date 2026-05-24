@@ -13,7 +13,7 @@ Rule: when this document changes, check the design and issues documents for requ
 
 Phase 1, Phase 2, and the first Phase 3 Experiment Lab slice are partially implemented in the AI Check contract, review-store conversion path, PM Review UI, eval fixtures, eval runner, local run/result stores, and CLI run artifact import/export path.
 
-This document set remains the scaffold for the larger Prompt Engineering Console implementation. Candidate Prompt A/B and Textual Gradient now have a first Phase 4 implementation, but prompt promotion is still pending.
+This document set remains the scaffold for the larger Prompt Engineering Console implementation. Candidate Prompt A/B, Textual Gradient, and a guarded local promotion flow now have a first Phase 4 implementation.
 
 ## Product Decisions Locked
 
@@ -155,10 +155,12 @@ Implemented now:
 - Candidate provider messages append the patch inside `<candidate_prompt_patch>` while keeping the normal provider-message order.
 - PM Review persists `promptCandidates` and `promptComparisons`.
 - Comparison view shows baseline vs candidate pass rate, improved/regressed counts, recommendation, and Textual Gradient clusters/directions/risk notes.
+- PM can promote a recommended candidate with no regressions and a non-failing candidate release gate.
+- Promotion creates a `promptPromotions` audit record and makes that candidate patch the active local Prompt Program for new AI Check sessions.
+- Runtime AI Check freezes the promoted prompt version on session start and injects the promoted patch into provider messages.
 
 Still remaining:
 
-- Candidate promotion flow that can create a new active Prompt Program version.
 - LLM-assisted candidate generation from Textual Gradient.
 - Stronger release gate requiring explicit Design, Regression, and Holdout coverage before promotion.
 
@@ -180,6 +182,7 @@ Implementation validation performed:
 - CLI `eval:ai-check -- --output=...` writes the shared run artifact; shape validation confirmed the artifact has one run and 42 linked results.
 - `test:e2e` includes Eval Run artifact import coverage: Experiment Lab imports a run artifact and persists matching `evalRuns`/`evalResults` records.
 - `test:e2e` includes Candidate Prompt A/B coverage: Experiment Lab saves a candidate, runs baseline/candidate provider calls, injects `<candidate_prompt_patch>`, persists comparison regression/recommendation, and shows Textual Gradient.
+- `test:e2e` includes Prompt Promotion coverage: PM Review promotes a passing candidate, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
 
 Pending implementation validation:
 
@@ -248,6 +251,13 @@ Pending implementation validation:
 - Experiment Lab now saves draft candidate prompt patches, runs provider-mode baseline/candidate comparisons, and stores comparison artifacts.
 - Textual Gradient now summarizes comparison failures into clusters, directions, and risk notes.
 - Issues document was updated because Candidate Prompt A/B and Textual Gradient moved from deferred to first-slice implemented, with promotion still open. Design document was updated to document the narrower candidate/comparison artifact model.
+
+2026-05-24 Candidate Promotion update:
+
+- Added Prompt Promotion local store and review APIs.
+- Experiment Lab now lets PM promote only candidates that have a promotion recommendation, no regressions, and a non-failing candidate release gate.
+- New AI Check sessions now freeze the active promoted prompt version and use the promoted patch in runtime provider messages.
+- Issues document was updated because candidate promotion moved from open to first-slice implemented. Design document was updated to document the promotion artifact and runtime activation rule.
 
 ## Update Checklist
 

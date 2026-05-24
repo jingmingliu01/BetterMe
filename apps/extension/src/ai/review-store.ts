@@ -16,6 +16,7 @@ import type {
   AICheckEvalRunSummary,
   AICheckPromptCandidate,
   AICheckPromptComparison,
+  AICheckPromptPromotion,
   AICheckReleaseDecision,
   AICheckMessage,
   AICheckSession,
@@ -30,6 +31,7 @@ import type {
   CreateEvalCaseInput,
   CreatePromptCandidateInput,
   ImportEvalRunArtifactInput,
+  PromotePromptCandidateInput,
   RunEvalExperimentInput,
   RunPromptComparisonInput,
   StrictnessLevel,
@@ -405,6 +407,21 @@ export async function listPromptComparisons(): Promise<AICheckPromptComparison[]
   return comparisons.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+export async function listPromptPromotions(): Promise<AICheckPromptPromotion[]> {
+  const promotions = await getAllRecords<AICheckPromptPromotion>("promptPromotions");
+  return promotions.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function getActivePromptPromotion(): Promise<AICheckPromptPromotion | null> {
+  return (await listPromptPromotions())[0] ?? null;
+}
+
+export async function getPromptPromotionByVersion(promptVersion: string | undefined): Promise<AICheckPromptPromotion | null> {
+  if (!promptVersion) return null;
+  const promotions = await getAllRecords<AICheckPromptPromotion>("promptPromotions");
+  return promotions.find((promotion) => promotion.promptVersion === promptVersion) ?? null;
+}
+
 export async function runPromptComparison(input: RunPromptComparisonInput): Promise<AICheckPromptComparison> {
   const candidate = await getRecord<AICheckPromptCandidate>("promptCandidates", input.candidateId);
   if (!candidate || candidate.status === "archived") {
@@ -463,6 +480,40 @@ export async function runPromptComparison(input: RunPromptComparisonInput): Prom
   });
   await putRecord("promptComparisons", comparison);
   return comparison;
+}
+
+export async function promotePromptCandidate(input: PromotePromptCandidateInput): Promise<AICheckPromptPromotion> {
+  const comparison = await getRecord<AICheckPromptComparison>("promptComparisons", input.comparisonId);
+  if (!comparison) {
+    throw new Error("Prompt comparison not found.");
+  }
+  if (comparison.recommendation !== "promote_candidate") {
+    throw new Error("Only comparisons recommended for promotion can be promoted.");
+  }
+  if (comparison.regressedCaseIds.length > 0) {
+    throw new Error("Cannot promote a candidate with regressed cases.");
+  }
+  if (comparison.candidateMetrics.releaseGate.status === "fail") {
+    throw new Error("Cannot promote a candidate when the candidate release gate failed.");
+  }
+  const candidate = await getRecord<AICheckPromptCandidate>("promptCandidates", comparison.candidateId);
+  if (!candidate || candidate.status === "archived") {
+    throw new Error("Prompt candidate not found.");
+  }
+  const createdAt = nowIso();
+  const promotion: AICheckPromptPromotion = {
+    id: createId("promptpromotion"),
+    candidateId: candidate.id,
+    comparisonId: comparison.id,
+    promptVersion: `${AI_CHECK_PROMPT_VERSION}+promotion:${candidate.id}:${createdAt.replace(/[-:.TZ]/g, "")}`,
+    baselineRunId: comparison.baselineRunId,
+    candidateRunId: comparison.candidateRunId,
+    instructionPatch: candidate.instructionPatch,
+    note: input.note?.trim() || undefined,
+    createdAt
+  };
+  await putRecord("promptPromotions", promotion);
+  return promotion;
 }
 
 export async function listReleaseDecisions(): Promise<AICheckReleaseDecision[]> {

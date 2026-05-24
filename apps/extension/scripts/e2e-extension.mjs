@@ -661,6 +661,66 @@ try {
   }
   console.log("CANDIDATE_PROMPT_AB_OK true");
 
+  await queueProviderResponses(serviceWorker, [
+    buildProviderDecision({
+      decision: "BLOCK",
+      userFacingMessage: "Stay blocked for now.",
+      decisionReasonCategory: "high_risk_pattern",
+      scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
+      memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
+    }),
+    buildProviderDecision({
+      decision: "ALLOW",
+      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
+      decisionReasonCategory: "clear_intention",
+      unlockMinutes: 5,
+      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
+      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
+    })
+  ]);
+  await page.getByLabel("Prompt candidate name").fill("E2E promoted candidate");
+  await page.getByLabel("Prompt candidate patch").fill("For this candidate, allow bounded homework requests.");
+  await page.getByLabel("Prompt candidate rationale").fill("Probe candidate promotion handling.");
+  await page.getByRole("button", { name: /Save Candidate/ }).click();
+  await page.getByText("Saved prompt candidate E2E promoted candidate.").waitFor({ timeout: 3_000 });
+  await page.getByRole("button", { name: /Run A\/B/ }).click();
+  await page.getByText(/Candidate A\/B finished: 1 improved, 0 regressed/).waitFor({ timeout: 8_000 });
+  await page.getByLabel("Prompt promotion note").fill("Promote the bounded homework patch.");
+  await page.getByRole("button", { name: "Promote Candidate", exact: true }).click();
+  await page.getByText(/Promoted prompt program/).waitFor({ timeout: 3_000 });
+  const promptPromotions = await getIndexedDbRecords(page, "promptPromotions");
+  const latestPromotion = promptPromotions.at(-1);
+  if (!latestPromotion?.promptVersion || latestPromotion.note !== "Promote the bounded homework patch.") {
+    throw new Error(`Prompt promotion was not persisted: ${JSON.stringify(promptPromotions)}`);
+  }
+  await queueProviderResponses(serviceWorker, [
+    buildProviderDecision({
+      decision: "ALLOW",
+      userFacingMessage: "Your promoted prompt program is active.",
+      decisionReasonCategory: "clear_intention",
+      unlockMinutes: 5,
+      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
+      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
+    })
+  ]);
+  const runtimeProviderRequestCountBefore = (await getProviderRequestLog(serviceWorker)).length;
+  await sendRuntimeMessage(page, "ai/startAndSend", {
+    targetId: await getBlockedTargetId(page, "example.com"),
+    content: "I need to research homework for 10 minutes then I will close the tab."
+  });
+  const runtimeProviderRequests = await getProviderRequestLog(serviceWorker);
+  if (runtimeProviderRequests.length !== runtimeProviderRequestCountBefore + 1) {
+    throw new Error("Promoted prompt runtime probe did not send exactly one provider request.");
+  }
+  if (!runtimeProviderRequests.at(-1)?.messages?.some((message) => message.content.includes("allow bounded homework requests"))) {
+    throw new Error("Runtime AI Check did not use the promoted prompt patch.");
+  }
+  const promotedSessions = await getIndexedDbRecords(page, "aiCheckSessions");
+  if (!promotedSessions.some((session) => session.promptVersion === latestPromotion.promptVersion)) {
+    throw new Error("Runtime AI Check did not freeze the promoted prompt version on the session.");
+  }
+  console.log("PROMPT_PROMOTION_OK true");
+
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.org");
   await page.getByRole("button", { name: /Block This Domain/ }).click();
@@ -716,7 +776,7 @@ async function getBehaviorEvents(page) {
 
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 9);
+    const request = indexedDB.open("betterme-db", 10);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -734,7 +794,7 @@ async function getIndexedDbRecords(page, storeName) {
 async function putIndexedDbRecord(page, storeName, record) {
   return page.evaluate(
     async ({ selectedStore, selectedRecord }) => {
-      const request = indexedDB.open("betterme-db", 9);
+      const request = indexedDB.open("betterme-db", 10);
       const db = await new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

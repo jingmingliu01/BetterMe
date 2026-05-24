@@ -373,6 +373,18 @@ export interface AICheckPromptComparison {
   createdAt: string;
 }
 
+export interface AICheckPromptPromotion {
+  id: string;
+  candidateId: string;
+  comparisonId: string;
+  promptVersion: string;
+  baselineRunId: string;
+  candidateRunId: string;
+  instructionPatch: string;
+  note?: string;
+  createdAt: string;
+}
+
 export type AICheckReleaseDecisionStatus = "approved" | "blocked";
 
 export interface AICheckReleaseDecision {
@@ -489,6 +501,8 @@ export type ExtensionMessage =
   | { type: "review/createPromptCandidate"; payload: CreatePromptCandidateInput }
   | { type: "review/listPromptComparisons" }
   | { type: "review/runPromptComparison"; payload: RunPromptComparisonInput }
+  | { type: "review/listPromptPromotions" }
+  | { type: "review/promotePromptCandidate"; payload: PromotePromptCandidateInput }
   | { type: "review/listReleaseDecisions" }
   | { type: "review/createReleaseDecision"; payload: CreateReleaseDecisionInput }
   | { type: "settings/update"; payload: Partial<UserSettings> }
@@ -548,6 +562,11 @@ export interface RunPromptComparisonInput {
   mode?: AICheckEvalRunMode;
   provider?: AICheckEvalRun["provider"];
   model?: string;
+}
+
+export interface PromotePromptCandidateInput {
+  comparisonId: string;
+  note?: string;
 }
 
 export interface CreateReleaseDecisionInput {

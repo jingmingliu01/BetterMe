@@ -25,7 +25,13 @@ import { appendBehaviorEvent } from "../storage/behavior-events";
 import { createBlockHoldUntilNextDay, createTemporaryUnlock } from "../blocking/unlocks";
 import { loadDecryptedApiKey } from "../storage/crypto-key-store";
 import { getTargetKey } from "../blocking/target-parser";
-import { AI_CHECK_PROMPT_VERSION, AI_CHECK_EVALUATION_SCHEMA_VERSION, AI_CHECK_OUTPUT_SCHEMA_VERSION } from "./review-store";
+import {
+  AI_CHECK_PROMPT_VERSION,
+  AI_CHECK_EVALUATION_SCHEMA_VERSION,
+  AI_CHECK_OUTPUT_SCHEMA_VERSION,
+  getActivePromptPromotion,
+  getPromptPromotionByVersion
+} from "./review-store";
 
 export async function startAICheckSession(
   target: BlockedTarget,
@@ -34,6 +40,7 @@ export async function startAICheckSession(
   const now = new Date();
   const strictness = settings?.strictness ?? "balanced";
   const patternMemorySnapshot = await listPatternMemory(target.display);
+  const activePromptPromotion = await getActivePromptPromotion();
   const sessionId = createId("session");
   const roundSnapshot = buildRoundSnapshot({
     sessionId,
@@ -42,6 +49,7 @@ export async function startAICheckSession(
     strictness,
     maxAssistantTurns: AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
     patternMemorySnapshot,
+    promptVersion: activePromptPromotion?.promptVersion,
     provider: settings ? { id: settings.provider, model: settings.model } : undefined,
     createdAt: now.toISOString()
   });
@@ -56,7 +64,7 @@ export async function startAICheckSession(
     assistantTurnCount: 0,
     maxAssistantTurns: AI_CHECK_SESSION_MAX_ASSISTANT_TURNS,
     strictness,
-    promptVersion: AI_CHECK_PROMPT_VERSION,
+    promptVersion: roundSnapshot.versions.promptVersion,
     outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
     evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION,
     roundSnapshot
@@ -210,6 +218,7 @@ export async function sendAICheckMessage(input: {
   }
 
   const messages = [...bundle.messages, userMessage];
+  const promptPromotion = await getPromptPromotionByVersion(roundSnapshot.versions.promptVersion);
   const llmMessages = buildProviderMessages({
     round: roundSnapshot,
     messages,
@@ -218,7 +227,8 @@ export async function sendAICheckMessage(input: {
       nextAssistantTurn,
       maxAssistantTurns: roundSnapshot.maxAssistantTurns,
       isFinalTurn
-    }
+    },
+    systemPromptAddendum: promptPromotion?.instructionPatch
   });
 
   let decision: CheckpointDecision;
@@ -323,6 +333,7 @@ async function ensureRoundSnapshot(session: AICheckSession, settings: UserSettin
     strictness,
     maxAssistantTurns: session.maxAssistantTurns,
     patternMemorySnapshot,
+    promptVersion: session.promptVersion,
     provider: { id: settings.provider, model: settings.model },
     createdAt: session.startedAt
   });

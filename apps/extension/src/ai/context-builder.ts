@@ -60,6 +60,7 @@ export function buildRoundSnapshot(input: {
   strictness: StrictnessLevel;
   maxAssistantTurns: number;
   patternMemorySnapshot: PatternMemory[];
+  promptVersion?: string;
   provider?: {
     id: ProviderId;
     model: string;
@@ -77,7 +78,7 @@ export function buildRoundSnapshot(input: {
     unlockCapMinutes: STRICTNESS_UNLOCK_CAP_MINUTES[input.strictness],
     patternMemorySnapshot: input.patternMemorySnapshot.slice(0, 5),
     versions: {
-      promptVersion: AI_CHECK_CURRENT_VERSIONS.promptVersion,
+      promptVersion: input.promptVersion ?? AI_CHECK_CURRENT_VERSIONS.promptVersion,
       outputSchemaVersion: AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion,
       evaluationSchemaVersion: AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion
     },

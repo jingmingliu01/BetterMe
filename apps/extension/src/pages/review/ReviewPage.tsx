@@ -48,6 +48,7 @@ import type {
   AICheckEvalRunSummary,
   AICheckPromptCandidate,
   AICheckPromptComparison,
+  AICheckPromptPromotion,
   AICheckReleaseDecision,
   AICheckReleaseDecisionStatus,
   AIDecision,
@@ -57,6 +58,7 @@ import type {
   CreateEvalCaseInput,
   CreatePromptCandidateInput,
   ImportEvalRunArtifactInput,
+  PromotePromptCandidateInput,
   ProviderId,
   RunPromptComparisonInput,
   StrictnessLevel,
@@ -159,6 +161,10 @@ export function ReviewPage() {
     () => sendMessage<AICheckPromptComparison[]>({ type: "review/listPromptComparisons" }),
     []
   );
+  const loadPromptPromotions = useCallback(
+    () => sendMessage<AICheckPromptPromotion[]>({ type: "review/listPromptPromotions" }),
+    []
+  );
   const loadProviderStatus = useCallback(() => sendMessage<Record<ProviderId, boolean>>({ type: "provider/status" }), []);
   const {
     data: sessionData,
@@ -197,6 +203,12 @@ export function ReviewPage() {
     refresh: refreshPromptComparisons
   } = useAsyncState(loadPromptComparisons);
   const {
+    data: promptPromotionData,
+    error: promptPromotionError,
+    loading: promptPromotionsLoading,
+    refresh: refreshPromptPromotions
+  } = useAsyncState(loadPromptPromotions);
+  const {
     data: providerStatusData,
     error: providerStatusError,
     loading: providerStatusLoading,
@@ -229,11 +241,13 @@ export function ReviewPage() {
   const [selectedPromptCandidateId, setSelectedPromptCandidateId] = useState<string | null>(null);
   const [selectedPromptComparisonId, setSelectedPromptComparisonId] = useState<string | null>(null);
   const [promptCandidateForm, setPromptCandidateForm] = useState<PromptCandidateFormState>(emptyPromptCandidateForm());
+  const [promptPromotionNote, setPromptPromotionNote] = useState("");
   const [releaseNote, setReleaseNote] = useState("");
   const [evalRunImportText, setEvalRunImportText] = useState("");
   const [saving, setSaving] = useState(false);
   const [runningEval, setRunningEval] = useState(false);
   const [runningPromptComparison, setRunningPromptComparison] = useState(false);
+  const [promotingPromptCandidate, setPromotingPromptCandidate] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -243,6 +257,7 @@ export function ReviewPage() {
   const releaseDecisions = releaseDecisionData ?? [];
   const promptCandidates = promptCandidateData ?? [];
   const promptComparisons = promptComparisonData ?? [];
+  const promptPromotions = promptPromotionData ?? [];
   const selectedSession = useMemo(
     () => sessions.find((item) => item.session.id === selectedSessionId) ?? sessions[0] ?? null,
     [selectedSessionId, sessions]
@@ -311,6 +326,7 @@ export function ReviewPage() {
       null,
     [promptComparisons, selectedPromptComparisonId]
   );
+  const activePromptPromotion = promptPromotions[0] ?? null;
 
   useEffect(() => {
     if (!selectedSession) return;
@@ -553,6 +569,28 @@ export function ReviewPage() {
     }
   }
 
+  async function promoteSelectedPromptCandidate() {
+    if (!selectedPromptComparison) return;
+    setPromotingPromptCandidate(true);
+    setStatus(null);
+    try {
+      const promotion = await sendMessage<AICheckPromptPromotion>({
+        type: "review/promotePromptCandidate",
+        payload: {
+          comparisonId: selectedPromptComparison.id,
+          note: promptPromotionNote
+        } satisfies PromotePromptCandidateInput
+      });
+      setPromptPromotionNote("");
+      setStatus(`Promoted prompt program ${promotion.promptVersion}.`);
+      await refreshPromptPromotions();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not promote prompt candidate.");
+    } finally {
+      setPromotingPromptCandidate(false);
+    }
+  }
+
   async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
     if (!selectedEvalRun) return;
     setSaving(true);
@@ -583,6 +621,7 @@ export function ReviewPage() {
     (releaseDecisionsLoading && !releaseDecisionData) ||
     (promptCandidatesLoading && !promptCandidateData) ||
     (promptComparisonsLoading && !promptComparisonData) ||
+    (promptPromotionsLoading && !promptPromotionData) ||
     (providerStatusLoading && !providerStatusData)
   ) {
     return <AppShell title="AI PM Review" subtitle="Loading local AI quality workspace..." />;
@@ -596,6 +635,7 @@ export function ReviewPage() {
         releaseDecisionError ||
         promptCandidateError ||
         promptComparisonError ||
+        promptPromotionError ||
         providerStatusError) && (
         <p className="badge badge-danger">
           {sessionError ??
@@ -604,6 +644,7 @@ export function ReviewPage() {
             releaseDecisionError ??
             promptCandidateError ??
             promptComparisonError ??
+            promptPromotionError ??
             providerStatusError}
         </p>
       )}
@@ -767,9 +808,13 @@ export function ReviewPage() {
           releaseNote={releaseNote}
           importText={evalRunImportText}
           importing={importingEvalRun}
+          activePromptPromotion={activePromptPromotion}
           promptCandidateForm={promptCandidateForm}
           promptCandidates={promptCandidates}
           promptComparisons={promptComparisons}
+          promptPromotionNote={promptPromotionNote}
+          promptPromotions={promptPromotions}
+          promotingPromptCandidate={promotingPromptCandidate}
           running={runningEval}
           runningPromptComparison={runningPromptComparison}
           savingReleaseDecision={saving}
@@ -781,19 +826,22 @@ export function ReviewPage() {
           setReleaseNote={setReleaseNote}
           setImportText={setEvalRunImportText}
           setPromptCandidateForm={setPromptCandidateForm}
+          setPromptPromotionNote={setPromptPromotionNote}
           setSelectedPromptCandidateId={setSelectedPromptCandidateId}
           setSelectedPromptComparisonId={setSelectedPromptComparisonId}
           setSelectedRunId={setSelectedEvalRunId}
           onCreateReleaseDecision={createReleaseDecision}
           onCreatePromptCandidate={savePromptCandidate}
           onImportRun={importEvalRunArtifact}
+          onPromotePromptCandidate={promoteSelectedPromptCandidate}
           onRefresh={() =>
             void Promise.all([
               refreshEvalRuns(),
               refreshProviderStatus(),
               refreshReleaseDecisions(),
               refreshPromptCandidates(),
-              refreshPromptComparisons()
+              refreshPromptComparisons(),
+              refreshPromptPromotions()
             ])
           }
           onRun={runExperiment}
@@ -812,10 +860,14 @@ function ExperimentLab({
   form,
   importText,
   importing,
+  activePromptPromotion,
   loading,
   promptCandidateForm,
   promptCandidates,
   promptComparisons,
+  promptPromotionNote,
+  promptPromotions,
+  promotingPromptCandidate,
   providerStatus,
   releaseDecisions,
   releaseNote,
@@ -829,6 +881,7 @@ function ExperimentLab({
   setForm,
   setImportText,
   setPromptCandidateForm,
+  setPromptPromotionNote,
   setReleaseNote,
   setSelectedPromptCandidateId,
   setSelectedPromptComparisonId,
@@ -836,6 +889,7 @@ function ExperimentLab({
   onCreateReleaseDecision,
   onCreatePromptCandidate,
   onImportRun,
+  onPromotePromptCandidate,
   onRefresh,
   onRun,
   onRunPromptComparison
@@ -845,10 +899,14 @@ function ExperimentLab({
   form: ExperimentFormState;
   importText: string;
   importing: boolean;
+  activePromptPromotion: AICheckPromptPromotion | null;
   loading: boolean;
   promptCandidateForm: PromptCandidateFormState;
   promptCandidates: AICheckPromptCandidate[];
   promptComparisons: AICheckPromptComparison[];
+  promptPromotionNote: string;
+  promptPromotions: AICheckPromptPromotion[];
+  promotingPromptCandidate: boolean;
   providerStatus: Partial<Record<ProviderId, boolean>>;
   releaseDecisions: AICheckReleaseDecision[];
   releaseNote: string;
@@ -862,6 +920,7 @@ function ExperimentLab({
   setForm: (value: ExperimentFormState | ((current: ExperimentFormState) => ExperimentFormState)) => void;
   setImportText: (value: string) => void;
   setPromptCandidateForm: (value: PromptCandidateFormState | ((current: PromptCandidateFormState) => PromptCandidateFormState)) => void;
+  setPromptPromotionNote: (value: string) => void;
   setReleaseNote: (value: string) => void;
   setSelectedPromptCandidateId: (value: string) => void;
   setSelectedPromptComparisonId: (value: string) => void;
@@ -869,6 +928,7 @@ function ExperimentLab({
   onCreateReleaseDecision: (decision: AICheckReleaseDecisionStatus) => void;
   onCreatePromptCandidate: () => void;
   onImportRun: () => void;
+  onPromotePromptCandidate: () => void;
   onRefresh: () => void;
   onRun: () => void;
   onRunPromptComparison: () => void;
@@ -901,6 +961,7 @@ function ExperimentLab({
         </div>
         <div className="status-list">
           <StatusItem label="Prompt" value={AI_CHECK_CURRENT_VERSIONS.promptVersion} />
+          <StatusItem label="Active patch" value={activePromptPromotion ? activePromptPromotion.promptVersion : "None"} />
           <StatusItem label="Provider" value={formatProvider(form.provider)} />
           <StatusItem label="Model" value={form.model} />
           <StatusItem label="Mode" value={formatRunMode(form.mode)} />
@@ -1197,8 +1258,13 @@ function ExperimentLab({
               <PromptComparisonSummary
                 comparison={selectedPromptComparison}
                 candidates={promptCandidates}
+                promotions={promptPromotions}
+                promotionNote={promptPromotionNote}
+                promoting={promotingPromptCandidate}
                 onSelectBaselineRun={setSelectedRunId}
                 onSelectCandidateRun={setSelectedRunId}
+                onPromote={onPromotePromptCandidate}
+                setPromotionNote={setPromptPromotionNote}
               />
             )}
             <div className="metric-grid">
@@ -1381,15 +1447,32 @@ function ExperimentLab({
 function PromptComparisonSummary({
   candidates,
   comparison,
+  promotions,
+  promotionNote,
+  promoting,
   onSelectBaselineRun,
-  onSelectCandidateRun
+  onSelectCandidateRun,
+  onPromote,
+  setPromotionNote
 }: {
   candidates: AICheckPromptCandidate[];
   comparison: AICheckPromptComparison;
+  promotions: AICheckPromptPromotion[];
+  promotionNote: string;
+  promoting: boolean;
   onSelectBaselineRun: (runId: string) => void;
   onSelectCandidateRun: (runId: string) => void;
+  onPromote: () => void;
+  setPromotionNote: (value: string) => void;
 }) {
   const candidate = candidates.find((item) => item.id === comparison.candidateId);
+  const promotion = promotions.find((item) => item.comparisonId === comparison.id) ?? null;
+  const canPromote =
+    comparison.recommendation === "promote_candidate" &&
+    comparison.regressedCaseIds.length === 0 &&
+    comparison.candidateMetrics.releaseGate.status !== "fail" &&
+    !promotion &&
+    !promoting;
   return (
     <section className="release-decision-card stack">
       <div className="row space-between">
@@ -1413,6 +1496,32 @@ function PromptComparisonSummary({
           Candidate Run
         </button>
       </div>
+      <section className="stack compact-stack">
+        <span className="section-label">Promotion</span>
+        {promotion ? (
+          <div className="release-decision-entry">
+            <strong>{promotion.promptVersion}</strong>
+            <span>{formatDate(promotion.createdAt)}</span>
+            {promotion.note && <small>{promotion.note}</small>}
+          </div>
+        ) : (
+          <>
+            <textarea
+              aria-label="Prompt promotion note"
+              className="textarea"
+              placeholder="Why should this candidate become the active local Prompt Program?"
+              value={promotionNote}
+              onChange={(event) => setPromotionNote(event.target.value)}
+            />
+            <button className="btn btn-primary" disabled={!canPromote} onClick={onPromote}>
+              Promote Candidate
+            </button>
+            {!canPromote && (
+              <p className="muted">Promotion requires a promote recommendation, no regressions, and a passing candidate gate.</p>
+            )}
+          </>
+        )}
+      </section>
       <section className="stack compact-stack">
         <span className="section-label">Textual Gradient</span>
         <strong>{comparison.textualGradient.summary}</strong>
