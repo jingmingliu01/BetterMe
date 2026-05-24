@@ -611,9 +611,9 @@ First implemented slice:
 - Require passing Design, Regression, and Holdout dataset coverage before promotion.
 - Freeze the promoted Prompt Program version on new AI Check sessions and inject its patch into runtime provider messages.
 
-Still later:
+Implemented contract-first workflow:
 
-- Applying accepted rubric/schema suggestions through contract-first implementation workflows.
+- Accepted rubric/schema suggestions become Contract Change Plans with required surfaces, creation-time versions, structured evidence, target-specific version gates, and the Prompt Console audit folded into `check:ai-check-contract`.
 
 ## Validation Expectations
 

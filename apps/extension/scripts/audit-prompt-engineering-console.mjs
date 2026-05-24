@@ -54,6 +54,9 @@ async function auditDocs() {
   if (/Status: (open|partially mitigated|mostly mitigated)/.test(issues)) {
     errors.push("Prompt Engineering Console issues doc still has open, partially mitigated, or mostly mitigated status.");
   }
+  if (/Status: first slice implemented|Still later:/.test(`${design}\n${progress}`)) {
+    errors.push("Prompt Engineering Console docs still describe implemented scope as first-slice or still-later work.");
+  }
   for (const required of [
     "Legacy local PM Review data does not need to be preserved as a design constraint.",
     "Evaluation Case should be one decision point, not a whole session.",

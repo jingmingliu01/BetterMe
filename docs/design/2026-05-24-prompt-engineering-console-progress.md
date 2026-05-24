@@ -11,9 +11,9 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-Phase 1, Phase 2, the Phase 3 Experiment Lab first slice, and the Phase 4 Candidate Prompt/Textual Gradient first slice are implemented enough to support the current Prompt Engineering Console workflow, with future contract-change application work intentionally left as explicit code/doc implementation slices.
+Phase 1, Phase 2, the Phase 3 Experiment Lab first slice, and the Phase 4 Candidate Prompt/Textual Gradient workflow are implemented enough to support the current Prompt Engineering Console workflow. Future accepted contract changes remain explicit code/doc implementation slices tracked through version-gated Contract Change Plans.
 
-This document set remains the scaffold for the larger Prompt Engineering Console implementation. Candidate Prompt A/B, Textual Gradient, and a guarded local promotion flow now have a first Phase 4 implementation.
+This document set remains the scaffold for the Prompt Engineering Console implementation. Candidate Prompt A/B, Textual Gradient, Prompt Program Suggestions, Contract Change Plans, Experiment Workspaces, and guarded local promotion now have implemented product flows.
 
 ## Product Decisions Locked
 
@@ -144,7 +144,7 @@ Still remaining:
 
 ### Phase 4: Candidate Prompt and Textual Gradient
 
-Status: first slice implemented
+Status: implemented
 
 Scope:
 
@@ -179,7 +179,7 @@ Implemented now:
 
 Still remaining:
 
-- Applying any future output-schema changes remains a separate contract-first implementation slice when such a schema change is actually accepted.
+- None for the Prompt Engineering Console foundation. Applying a future accepted output-schema change remains a concrete contract/code/docs implementation task tracked by a version-gated Contract Change Plan.
 
 ## Validation Status
 
