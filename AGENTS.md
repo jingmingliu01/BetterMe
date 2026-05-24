@@ -38,7 +38,10 @@
 - Evaluation cases must use the unified `AICheckCase { input, output?, eval? }` shape.
 - Evaluation expectations should live under `eval.expectedOutput` as an output-shaped mirror; do not add root-level eval assertion fields unless they cannot be tied to a model output field.
 - Do not hard-delete Evaluation Cases from PM Review; archive them with `status = "archived"` and `archivedAt`.
-- Regression Cases are Evaluation Cases with `status = "regression"` and no `archivedAt`.
+- Lifecycle status is `draft | ready | archived`; do not use status for regression or holdout membership.
+- Regression Cases are ready Evaluation Cases with `datasetType = "regression"` and no `archivedAt`.
+- Holdout Cases are Evaluation Cases with `datasetType = "holdout"` and limited-visibility rules before protected holdout data is added.
+- Evaluation case origin is represented by `provenance`; do not reintroduce root-level case `source`.
 - Provider-mode evals must reuse the runtime AI Check prompt/message builder instead of maintaining a separate eval-only prompt.
 - Provider messages should keep the cache-friendly order: static System Prompt, trusted Round Context, append-only Conversation, then trusted Turn Context.
 - Round Context values, including strictness and policy snapshots, should stay fixed for the active AI Check round; Settings changes apply to the next round.

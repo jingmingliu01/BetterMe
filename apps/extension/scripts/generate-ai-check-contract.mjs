@@ -299,12 +299,56 @@ export interface AICheckCase {
   updatedAt?: string;
 }
 
+export interface AICheckEvalRunFilters {
+  statuses?: AICheckCaseStatus[];
+  datasetTypes?: AICheckDatasetType[];
+  tags?: string[];
+  strictness?: StrictnessLevel[];
+  expectedDecisions?: AIDecision[];
+  severity?: AICheckSeverity[];
+  includeArchived?: boolean;
+}
+
+export interface AICheckEvalMetricBreakdown {
+  key: string;
+  passed: number;
+  total: number;
+  passRate: number;
+}
+
+export interface AICheckEvalReleaseGate {
+  status: "pass" | "warn" | "fail";
+  reasons: string[];
+}
+
+export interface AICheckEvalMetrics {
+  total: number;
+  passed: number;
+  failed: number;
+  passRate: number;
+  byTag: AICheckEvalMetricBreakdown[];
+  byStrictness: AICheckEvalMetricBreakdown[];
+  falseAllowFailures: number;
+  falseBlockFailures: number;
+  askMoreRecallFailures: number;
+  schemaFailures: number;
+  unsafeSensitiveFailures: number;
+  reasonQualityFailures: number;
+  criticalFailures: number;
+  releaseGate: AICheckEvalReleaseGate;
+}
+
 export interface AICheckEvalRun {
   id: string;
   promptVersion: string;
   outputSchemaVersion: string;
   evaluationSchemaVersion: string;
   providerMode: "mock" | "byok";
+  provider: "mock" | "openai" | "deepseek" | "kimi";
+  model: string;
+  filters: AICheckEvalRunFilters;
+  caseIds: string[];
+  metrics: AICheckEvalMetrics;
   createdAt: string;
 }
 

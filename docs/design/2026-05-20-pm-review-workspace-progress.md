@@ -14,7 +14,7 @@ Rule: when this document changes, check the design and issues documents for requ
 
 First implementation slice is in progress and locally implemented.
 
-PM Review now has a local AI quality workspace shape with History Cases, Evaluation Cases, and Schema Reference areas. Evaluation Cases can be created, edited, promoted to `regression`, filtered through built-in case sets/tags/search, and archived instead of hard-deleted.
+PM Review now has a local AI quality workspace shape with History Cases, Evaluation Cases, Experiment Lab, and Schema Reference areas. Evaluation Cases can be created, edited, assigned to `datasetType = regression`, filtered through built-in case sets/tags/search, archived instead of hard-deleted, and evaluated through local mock-mode experiment runs.
 
 Schema Reference now acts as an AI Check Contract Manual centered on the provider `messages[]` request, plus Output and Evaluation views from shared contract references.
 
@@ -22,13 +22,14 @@ Schema Reference now acts as an AI Check Contract Manual centered on the provide
 
 - Current PM Review page at `review.html`.
 - History Case list from local AI Check sessions.
-- Session detail with transcript and latest decision JSON.
+- Session detail with transcript, selectable decision points, model output JSON, and stored decision record.
 - Bad-case marking with expected decision, error types, and reviewer note.
 - Conversion from bad case to unified Evaluation Case.
 - Unified `AICheckCase { input, output?, eval? }` schema.
-- Built-in eval fixtures in the unified schema.
-- Local `eval:ai-check` runner with tag reporting.
-- `AICheckCase.status` lifecycle field: `draft`, `ready`, `regression`, `archived`.
+- Built-in eval fixtures in the unified schema, visible in Case Library.
+- Local `eval:ai-check` runner with tag reporting and dataset filtering.
+- `AICheckCase.status` lifecycle field: `draft`, `ready`, `archived`.
+- `AICheckCase.datasetType` experiment-purpose field: `design`, `regression`, `holdout`.
 - Archive metadata: `archivedAt`, `archivedReason`.
 - Background review messages for create, update, list, and archive Evaluation Cases.
 - Top-level PM Review areas: History Cases, Evaluation Cases, Schema Reference.
@@ -37,11 +38,11 @@ Schema Reference now acts as an AI Check Contract Manual centered on the provide
 - Schema Reference descriptor rendered in PM Review as an expandable JSON-shaped tree with a complete example output.
 - AI Check contract source at `apps/extension/src/shared/ai-check-contract.json`.
 - Prompt builder, parser enum values, eval runner provider schema, schema examples, version constants, and PM Review field reference derive from the shared contract.
-- PM Review statuses, source options, bad-case error types, common tags, built-in case sets, and AI Check session policy derive from the shared contract.
+- PM Review statuses, dataset/provenance options, bad-case error types, common tags, built-in case sets, and AI Check session policy derive from the shared contract.
 - Runtime and eval provider metadata derive from `apps/extension/src/shared/provider-config.json`.
 - Provider-mode evals reuse the runtime AI Check message builder.
-- `AGENTS.md` rules for schema synchronization, unified Evaluation Case shape, archive behavior, and Regression Case semantics.
-- Eval runner default exclusion of archived cases and status/tag filters such as `--status=regression`.
+- `AGENTS.md` rules for schema synchronization, unified Evaluation Case shape, archive behavior, dataset semantics, and Regression Case semantics.
+- Eval runner default exclusion of archived cases and status/tag/dataset filters such as `--dataset=regression`.
 
 ## Planned Scope
 
@@ -94,12 +95,12 @@ Schema Reference now acts as an AI Check Contract Manual centered on the provide
 
 ### Phase 4: Regression Workflow
 
-- Done: treat Regression Cases as Evaluation Cases with `status = regression` and no `archivedAt`.
-- Done: add default Regression Suite filter/case set.
+- Done: treat Regression Cases as Evaluation Cases with `status = ready`, `datasetType = regression`, and no `archivedAt`.
+- Done: add default Regression Dataset filter/case set.
 - Done: exclude archived cases from default eval runs.
-- Done: add eval runner status/tag filters for regression-style runs.
-- Later: surface latest eval run result per case.
-- Later: decide whether CI/release gating should default to `--status=regression` or keep general active-case runs as the default command.
+- Done: add eval runner status/tag/dataset filters for regression-style runs.
+- Done: surface local mock-mode Experiment Lab run history, metrics, failures, and release gate summary.
+- Later: decide whether CI/release gating should default to `--dataset=regression` or keep general active-case runs as the default command.
 
 ## Validation Status
 
@@ -116,10 +117,11 @@ Validation performed:
 - Run `git diff --check`.
 - Opened the packaged extension Review page with Playwright and captured `/tmp/betterme-schema-reference.png` to verify the Schema Reference tree/example renders.
 - Ran `npm --workspace apps/extension run typecheck` after simplifying the Contract Manual provider-message view.
+- Ran PM Review browser smoke check after the Prompt Engineering Console first slice: Evaluation Cases showed 42 built-in cases, Experiment Lab ran 42/42, and release gate showed PASS.
 
 Pending validation:
 
-- Browser visual polish pass on the Evaluation Case three-column layout with a populated local dataset.
+- Browser visual polish pass on the Experiment Lab layout after provider-mode runs are introduced.
 
 ## Synchronization Note
 
@@ -145,6 +147,13 @@ Pending validation:
 - PM Review Contract Manual now reflects `checkpoint-decision-v3` / `ai-check-prompt-v4` from the shared AI Check contract.
 - Output reference no longer shows a separate `nextQuestion`; `ASK_MORE` uses `userFacingMessage` as the follow-up question.
 - Design and issues docs were checked; no PM Review layout or blocker update was needed because the UI renders the contract data dynamically.
+
+2026-05-24:
+
+- PM Review now includes Experiment Lab as the first prompt-engineering experiment slice.
+- Case Library now shows built-in regression fixtures by default, so the local page no longer appears empty when IndexedDB has no authored cases.
+- Regression semantics were updated from `status = regression` to `status = ready` plus `datasetType = regression`.
+- This progress doc was updated because PM Review workspace status changed. The newer Prompt Engineering Console docs now own the forward-looking product model.
 
 ## Update Checklist
 

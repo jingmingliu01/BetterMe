@@ -10,6 +10,8 @@ Related docs:
 
 Rule: when this document changes, check the progress and issues documents for required updates.
 
+2026-05-24 update: this document describes Evaluation Schema V2. Current implementation is `ai-check-evaluation-v3`, which keeps the `eval.expectedOutput` mirror and updates the case envelope to `datasetType`, `provenance`, optional `lineage`, and lifecycle `status = draft | ready | archived`.
+
 ## Product Intent
 
 Evaluation Cases should capture PM expectations for a bad or important AI Check case in a structure that can be automatically re-run after prompt, model, provider, or schema changes.

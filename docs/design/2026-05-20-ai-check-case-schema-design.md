@@ -9,6 +9,8 @@ Related docs:
 
 Rule: when this document changes, check the progress and issues documents for required updates.
 
+2026-05-24 update: the Prompt Engineering Console implementation supersedes this older envelope snippet. Current cases use `datasetType`, required `provenance`, optional `lineage`, and lifecycle `status = draft | ready | archived`; regression membership is `datasetType = regression`.
+
 ## Product Intent
 
 BetterMe AI Check should treat every checkpoint as a structured product decision, not free-form chat.

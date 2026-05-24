@@ -1,8 +1,12 @@
 import type {
   AICheckCase,
   AICheckCaseInput,
+  AICheckCaseOutput,
   AICheckDatasetType,
   AICheckCaseStatus,
+  AICheckEvalResult,
+  AICheckEvalRun,
+  AICheckEvalRunFilters,
   AICheckExpectedOutput,
   AICheckSeverity,
   AICheckScores,
@@ -27,7 +31,11 @@ export type {
   AICheckCurrentVersions,
   AICheckDecisionExpectation,
   AICheckEvalResult,
+  AICheckEvalMetricBreakdown,
+  AICheckEvalMetrics,
+  AICheckEvalReleaseGate,
   AICheckEvalRun,
+  AICheckEvalRunFilters,
   AICheckExpectedOutput,
   AICheckNullableNumberExpectation,
   AICheckNullableTextExpectation,
@@ -235,6 +243,22 @@ export interface PatternMemory {
   updatedAt: string;
 }
 
+export interface AICheckDecisionPointSnapshot {
+  id: string;
+  sessionId: string;
+  decisionId: string;
+  triggeringUserMessageId: string | null;
+  selectedAssistantMessageId?: string | null;
+  nextAssistantTurn: number;
+  assistantTurnCountBeforeDecision: number;
+  maxAssistantTurns: number;
+  isFinalTurn: boolean;
+  roundSnapshot: AICheckRoundSnapshot;
+  input: AICheckCaseInput;
+  actualOutput?: AICheckCaseOutput;
+  createdAt: string;
+}
+
 export interface AICheckSummary {
   id: string;
   sessionId: string;
@@ -291,6 +315,11 @@ export interface AIPMReviewSession {
   decisions: CheckpointDecision[];
   badCases?: BadCaseReview[];
   badCase: BadCaseReview | null;
+}
+
+export interface AICheckEvalRunSummary {
+  run: AICheckEvalRun;
+  results: AICheckEvalResult[];
 }
 
 export interface PageAccessInfo {
@@ -383,6 +412,8 @@ export type ExtensionMessage =
   | { type: "review/createEvalCase"; payload: CreateEvalCaseInput }
   | { type: "review/updateEvalCase"; payload: UpdateEvalCaseInput }
   | { type: "review/archiveEvalCase"; payload: { id: string; archivedReason?: string } }
+  | { type: "review/listEvalRuns" }
+  | { type: "review/runEvalExperiment"; payload: RunEvalExperimentInput }
   | { type: "settings/update"; payload: Partial<UserSettings> }
   | { type: "provider/saveApiKey"; payload: { provider: ProviderId; apiKey: string } }
   | { type: "provider/deleteApiKey"; payload: { provider: ProviderId } }
@@ -419,6 +450,12 @@ export interface UpdateEvalCaseInput {
   reviewerNote?: string;
   userFacingMustMention?: string[];
   userFacingMustNotMention?: string[];
+}
+
+export interface RunEvalExperimentInput {
+  filters: AICheckEvalRunFilters;
+  provider?: "mock";
+  model?: "mock";
 }
 
 export interface ExtensionResult<T> {

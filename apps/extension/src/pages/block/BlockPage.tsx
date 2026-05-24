@@ -129,7 +129,8 @@ export function BlockPage() {
   const aiCooldownActive = aiCooldownRemainingMs > 0;
   const aiCooldownReady = session?.status === "ai_cooling_down" && !aiCooldownActive;
   const aiSessionTerminal = Boolean(
-    session && ["allowed", "blocked", "expired", "provider_error", "schema_error", "completed"].includes(session.status)
+    session &&
+      (aiCooldownReady || ["allowed", "blocked", "expired", "provider_error", "schema_error", "completed"].includes(session.status))
   );
   const heldUntilTomorrow = accessState === "block_held_until_tomorrow";
   const aiPanelMode = heldUntilTomorrow ? "held_readonly" : aiCooldownActive ? "cooldown" : aiSessionTerminal ? "terminal" : "interactive";
@@ -428,16 +429,16 @@ export function BlockPage() {
               <Clock size={17} />
               <div>
                 <strong>AI Cooldown</strong>
-                <p>{formatRemaining(aiCooldownRemainingMs)} before this AI Check can continue.</p>
+                <p>{formatRemaining(aiCooldownRemainingMs)} before this AI Check ends.</p>
               </div>
             </div>
           )}
           {aiCooldownReady && (
             <div className="ai-cooldown-banner ai-cooldown-ready">
-              <MessageCircle size={17} />
+              <Clock size={17} />
               <div>
-                <strong>Ready to continue</strong>
-                <p>The AI cooldown is over. You can send one more deliberate answer in this same checkpoint.</p>
+                <strong>AI Cooldown Complete</strong>
+                <p>This checkpoint is complete. Leave the site or start a new checkpoint later.</p>
               </div>
             </div>
           )}

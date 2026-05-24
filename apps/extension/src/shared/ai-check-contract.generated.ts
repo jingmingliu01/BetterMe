@@ -288,12 +288,56 @@ export interface AICheckCase {
   updatedAt?: string;
 }
 
+export interface AICheckEvalRunFilters {
+  statuses?: AICheckCaseStatus[];
+  datasetTypes?: AICheckDatasetType[];
+  tags?: string[];
+  strictness?: StrictnessLevel[];
+  expectedDecisions?: AIDecision[];
+  severity?: AICheckSeverity[];
+  includeArchived?: boolean;
+}
+
+export interface AICheckEvalMetricBreakdown {
+  key: string;
+  passed: number;
+  total: number;
+  passRate: number;
+}
+
+export interface AICheckEvalReleaseGate {
+  status: "pass" | "warn" | "fail";
+  reasons: string[];
+}
+
+export interface AICheckEvalMetrics {
+  total: number;
+  passed: number;
+  failed: number;
+  passRate: number;
+  byTag: AICheckEvalMetricBreakdown[];
+  byStrictness: AICheckEvalMetricBreakdown[];
+  falseAllowFailures: number;
+  falseBlockFailures: number;
+  askMoreRecallFailures: number;
+  schemaFailures: number;
+  unsafeSensitiveFailures: number;
+  reasonQualityFailures: number;
+  criticalFailures: number;
+  releaseGate: AICheckEvalReleaseGate;
+}
+
 export interface AICheckEvalRun {
   id: string;
   promptVersion: string;
   outputSchemaVersion: string;
   evaluationSchemaVersion: string;
   providerMode: "mock" | "byok";
+  provider: "mock" | "openai" | "deepseek" | "kimi";
+  model: string;
+  filters: AICheckEvalRunFilters;
+  caseIds: string[];
+  metrics: AICheckEvalMetrics;
   createdAt: string;
 }
 
@@ -482,7 +526,7 @@ const GENERATED_SECTIONS = {
         "example": null,
         "meaning": "Pause duration when the decision is AI_COOLDOWN.",
         "whyNecessary": "AI cooldown is separate from allow and block; it needs its own timer.",
-        "productImpact": "Controls the in-chat cooldown period before the user can continue the AI Check.",
+        "productImpact": "Controls the terminal AI cooldown period before this AI Check ends.",
         "validation": "Required for AI_COOLDOWN and normalized to a sane strictness-derived range.",
         "commonMistakes": "Using legacy delay fields or returning cooldown seconds for non-cooldown decisions."
       },

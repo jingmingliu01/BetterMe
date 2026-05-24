@@ -1,12 +1,16 @@
 import { AI_CHECK_CURRENT_VERSIONS, AI_CHECK_SESSION_POLICY } from "../shared/ai-check-contract";
 import { createId, nowIso } from "../shared/id";
+import { BUILT_IN_AI_CHECK_CASES } from "./built-in-eval-cases";
+import { deriveDecisionPointSnapshotFromHistory } from "./decision-point-snapshot";
+import { runMockEvalExperiment } from "./eval-engine";
 import type {
   AICheckCase,
   AICheckCaseInput,
-  AICheckCaseOutput,
+  AICheckDecisionPointSnapshot,
   AICheckExpectedOutput,
   AICheckEvalResult,
   AICheckEvalRun,
+  AICheckEvalRunSummary,
   AICheckMessage,
   AICheckSession,
   AIDecision,
@@ -17,6 +21,7 @@ import type {
   BehaviorReasonCategory,
   CheckpointDecision,
   CreateEvalCaseInput,
+  RunEvalExperimentInput,
   StrictnessLevel,
   UpdateEvalCaseInput
 } from "../shared/types";
@@ -72,9 +77,10 @@ export async function createBadCaseReview(input: {
   if (!session) {
     throw new Error("AI Check session not found.");
   }
-  const [messages, decisions, behaviorEvents] = await Promise.all([
+  const [messages, decisions, decisionPoints, behaviorEvents] = await Promise.all([
     getAllRecords<AICheckMessage>("aiCheckMessages"),
     getAllRecords<CheckpointDecision>("checkpointDecisions"),
+    getAllRecords<AICheckDecisionPointSnapshot>("aiCheckDecisionPoints"),
     getAllRecords<BehaviorEvent>("behaviorEvents")
   ]);
   const sessionMessages = messages
@@ -87,20 +93,26 @@ export async function createBadCaseReview(input: {
     (input.decisionId ? sessionDecisions.find((item) => item.id === input.decisionId) : null) ??
     sessionDecisions.at(-1) ??
     null;
-  const snapshot = buildDecisionPointSnapshot(session, sessionMessages, sessionDecisions, decision);
+  const persistedSnapshot = decision ? decisionPoints.find((item) => item.decisionId === decision.id) ?? null : null;
+  const snapshot = deriveDecisionPointSnapshotFromHistory({
+    session,
+    messages: sessionMessages,
+    decisions: sessionDecisions,
+    decision
+  });
   const now = nowIso();
   const review: BadCaseReview = {
     id: createId("badcase"),
     sourceSessionId: session.id,
     sourceDecisionId: decision?.id ?? null,
-    selectedAssistantMessageId: snapshot.selectedAssistantMessageId,
-    triggeringUserMessageId: snapshot.triggeringUserMessageId,
+    selectedAssistantMessageId: persistedSnapshot?.selectedAssistantMessageId ?? snapshot.selectedAssistantMessageId,
+    triggeringUserMessageId: persistedSnapshot?.triggeringUserMessageId ?? snapshot.triggeringUserMessageId,
     decisionOrdinal: snapshot.decisionOrdinal,
     targetDisplay: session.targetDisplay,
     strictness: session.strictness ?? getStrictnessFromEvents(session.id, behaviorEvents),
     messages: snapshot.messages,
-    inputSnapshot: snapshot.input,
-    output: decision ? buildCapturedOutput(session, decision) : undefined,
+    inputSnapshot: persistedSnapshot?.input ?? snapshot.input,
+    output: persistedSnapshot?.actualOutput ?? snapshot.actualOutput,
     actualDecision: decision?.decision ?? session.finalDecision ?? null,
     expectedDecision: input.expectedDecision ?? null,
     errorTypes: input.errorTypes,
@@ -194,7 +206,7 @@ export async function listEvalCases(): Promise<AICheckCase[]> {
       .filter((item, index) => item !== cases[index])
       .map((item) => putRecord("evalCases", item))
   );
-  return normalized.sort((left, right) => (right.updatedAt ?? "").localeCompare(left.updatedAt ?? ""));
+  return mergeEvalCases(normalized).sort(compareEvalCases);
 }
 
 export async function createEvalCase(input: CreateEvalCaseInput): Promise<AICheckCase> {
@@ -246,7 +258,7 @@ export async function createEvalCase(input: CreateEvalCaseInput): Promise<AIChec
 }
 
 export async function updateEvalCase(input: UpdateEvalCaseInput): Promise<AICheckCase> {
-  const existing = await getRecord<AICheckCase>("evalCases", input.id);
+  const existing = await getEvalCaseById(input.id);
   if (!existing) {
     throw new Error("Eval case not found.");
   }
@@ -309,7 +321,7 @@ export async function updateEvalCase(input: UpdateEvalCaseInput): Promise<AIChec
 }
 
 export async function archiveEvalCase(input: { id: string; archivedReason?: string }): Promise<AICheckCase> {
-  const existing = await getRecord<AICheckCase>("evalCases", input.id);
+  const existing = await getEvalCaseById(input.id);
   if (!existing) {
     throw new Error("Eval case not found.");
   }
@@ -333,80 +345,50 @@ export async function saveEvalResult(result: AICheckEvalResult): Promise<void> {
   await putRecord("evalResults", result);
 }
 
-function buildDecisionPointSnapshot(
-  session: AICheckSession,
-  messages: AICheckMessage[],
-  decisions: CheckpointDecision[],
-  decision: CheckpointDecision | null
-): {
-  decisionOrdinal?: number;
-  selectedAssistantMessageId?: string | null;
-  triggeringUserMessageId?: string | null;
-  messages: AICheckMessage[];
-  input: AICheckCaseInput;
-} {
-  const sortedMessages = [...messages].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
-  const sortedDecisions = [...decisions].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
-  const decisionOrdinal = decision ? sortedDecisions.findIndex((item) => item.id === decision.id) + 1 : undefined;
-  const llmAssistantMessages = sortedMessages.filter((message) => message.role === "assistant" && message.source === "llm");
-  const selectedAssistant =
-    decisionOrdinal && decisionOrdinal > 0 ? llmAssistantMessages[decisionOrdinal - 1] ?? null : null;
-  const visibleMessages = selectedAssistant
-    ? sortedMessages.filter((message) => message.createdAt < selectedAssistant.createdAt)
-    : sortedMessages;
-  const triggeringUser = [...visibleMessages].reverse().find((message) => message.role === "user") ?? null;
-  const assistantTurnCount = Math.max(0, (decisionOrdinal ?? session.assistantTurnCount) - 1);
-  const maxAssistantTurns = session.roundSnapshot?.maxAssistantTurns ?? session.maxAssistantTurns;
-  const input: AICheckCaseInput = {
-    targetDisplay: session.targetDisplay,
-    strictness: session.roundSnapshot?.strictness ?? session.strictness ?? "balanced",
-    sessionContext: {
-      assistantTurnCount,
-      maxAssistantTurns,
-      isFinalTurn: assistantTurnCount + 1 >= maxAssistantTurns
-    },
-    messages: visibleMessages
-      .filter((message) => message.role !== "system")
-      .map((message) => ({
-        role: message.role,
-        content: message.content,
-        source: message.source
-      })),
-    patternMemorySnapshot: (session.roundSnapshot?.patternMemorySnapshot ?? []).map((memory) => ({
-      id: memory.id,
-      targetDisplay: memory.targetDisplay,
-      behaviorReasonCategory: memory.behaviorReasonCategory,
-      repeatedCount: memory.repeatedCount,
-      lastUserReason: memory.lastUserReason,
-      guidance: memory.guidance,
-      updatedAt: memory.updatedAt
-    }))
-  };
-  return {
-    decisionOrdinal,
-    selectedAssistantMessageId: selectedAssistant?.id ?? null,
-    triggeringUserMessageId: triggeringUser?.id ?? null,
-    messages: visibleMessages,
-    input
-  };
+export async function listEvalRunSummaries(): Promise<AICheckEvalRunSummary[]> {
+  const [runs, results] = await Promise.all([
+    getAllRecords<AICheckEvalRun>("evalRuns"),
+    getAllRecords<AICheckEvalResult>("evalResults")
+  ]);
+  return runs
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .map((run) => ({
+      run,
+      results: results.filter((result) => result.runId === run.id)
+    }));
 }
 
-function buildCapturedOutput(session: AICheckSession, decision: CheckpointDecision): AICheckCaseOutput {
-  return {
-    provider: session.roundSnapshot?.provider?.id,
-    model: session.roundSnapshot?.provider?.model,
-    rawProvider: decision.rawProvider,
-    parsed: {
-      decision: decision.decision,
-      userFacingMessage: decision.userFacingMessage,
-      decisionReasonCategory: decision.decisionReasonCategory,
-      unlockMinutes: decision.unlockMinutes,
-      aiCooldownSeconds: decision.aiCooldownSeconds,
-      ...(decision.aiCooldownNormalization ? { aiCooldownNormalization: decision.aiCooldownNormalization } : {}),
-      scores: decision.scores,
-      memoryUpdate: decision.memoryUpdate
-    }
-  };
+export async function runEvalExperiment(input: RunEvalExperimentInput): Promise<AICheckEvalRunSummary> {
+  const cases = await listEvalCases();
+  const summary = runMockEvalExperiment(cases, input.filters);
+  await saveEvalRun(summary.run);
+  await Promise.all(summary.results.map((result) => saveEvalResult(result)));
+  return summary;
+}
+
+async function getEvalCaseById(id: string): Promise<AICheckCase | null> {
+  const stored = await getRecord<AICheckCase>("evalCases", id);
+  if (stored) return normalizeStoredEvalCase(stored);
+  return BUILT_IN_AI_CHECK_CASES.find((item) => item.id === id) ?? null;
+}
+
+function mergeEvalCases(storedCases: AICheckCase[]): AICheckCase[] {
+  const merged = new Map<string, AICheckCase>();
+  for (const builtInCase of BUILT_IN_AI_CHECK_CASES) {
+    merged.set(builtInCase.id, normalizeStoredEvalCase(builtInCase));
+  }
+  for (const storedCase of storedCases) {
+    merged.set(storedCase.id, normalizeStoredEvalCase(storedCase));
+  }
+  return [...merged.values()];
+}
+
+function compareEvalCases(left: AICheckCase, right: AICheckCase): number {
+  const leftUpdated = left.updatedAt ?? left.createdAt ?? "";
+  const rightUpdated = right.updatedAt ?? right.createdAt ?? "";
+  const updatedOrder = rightUpdated.localeCompare(leftUpdated);
+  if (updatedOrder !== 0) return updatedOrder;
+  return left.title.localeCompare(right.title);
 }
 
 function buildFallbackCaseInput(input: {

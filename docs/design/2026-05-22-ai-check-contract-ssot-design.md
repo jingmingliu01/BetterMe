@@ -10,6 +10,8 @@ Related docs:
 
 Rule: when this document changes, check the progress and issues documents for required updates.
 
+2026-05-24 update: the contract now includes `datasetTypes`, `provenanceTypes`, and `severityLevels`; root-level case `source` has been removed from the current Evaluation Case schema.
+
 ## Product Intent
 
 AI Check must have one global source of truth for prompt-visible schema, runtime parser expectations, PM Review schema reference, evaluation fixtures, and regression runner semantics.
@@ -52,7 +54,7 @@ The AI Check contract owns:
 
 - current prompt, output schema, and evaluation schema versions.
 - historical prompt, output schema, and evaluation schema registry entries.
-- enum values for AI decisions, decision reason categories, memory behavior categories, strictness levels, case statuses, case sources, and AI Check PM Review error types.
+- enum values for AI decisions, decision reason categories, memory behavior categories, strictness levels, case statuses, dataset/provenance/severity types, and AI Check PM Review error types.
 - session policy values such as `maxAssistantTurns` and `maxSessionSeconds`.
 - input schema for Evaluation Cases and provider replay context.
 - model output schema.
@@ -186,7 +188,7 @@ Runtime code should consume generated contract exports:
 - `checkpoint-schema.ts` runs generated output shape validation before applying handwritten normalization and enforcement constraints.
 - `ai-check-session-service.ts` reads generated current versions and session policy.
 - `context-builder.ts` reads generated current versions for replay input.
-- `review-store.ts` reads generated case statuses, case sources, current versions, and evaluation defaults.
+- `review-store.ts` reads generated case statuses, dataset/provenance types, current versions, and evaluation defaults.
 - `ReviewPage.tsx` reads generated schema reference sections, examples, version registry entries, common tags, and case sets.
 - `eval-ai-check.mjs` runs generated evaluation case validation before applying handwritten expectation comparison semantics.
 
@@ -199,7 +201,7 @@ Evaluation fixtures remain authored data, not generated data. They must still be
 Default eval runs should include:
 
 - active current-version cases.
-- `status = "ready"` or `status = "regression"` depending on the suite.
+- `status = "ready"` plus the selected `datasetType` depending on the suite.
 - no archived cases.
 
 Legacy runs should be explicit and should report which prompt, output schema, and evaluation schema versions were used.

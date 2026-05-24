@@ -10,6 +10,8 @@ Related docs:
 
 Rule: when this document changes, check the progress and issues documents for required updates.
 
+2026-05-24 update: the newer Prompt Engineering Console design supersedes this document's older `source` and `status = regression` model. Current Evaluation Cases use `datasetType`, `provenance`, optional `lineage`, and lifecycle `status = draft | ready | archived`. Regression Cases are ready cases with `datasetType = regression`.
+
 ## Product Intent
 
 PM Review should become the local AI quality workspace for BetterMe.
@@ -20,8 +22,8 @@ It should not only review real AI Check history. It should support the full loop
 real History Case
   -> PM review marks a bad decision
   -> PM converts it into an Evaluation Case
-  -> PM edits assertions, tags, and status
-  -> Evaluation Case becomes a Regression Case
+  -> PM edits assertions, tags, status, and dataset type
+  -> Evaluation Case becomes a Regression Dataset case
   -> prompt/output-schema/evaluation-schema changes run against regression cases
   -> failed regression cases return to PM Review
 ```
@@ -30,15 +32,18 @@ The workspace remains local-first and privacy-first. It should expose enough str
 
 ## Workspace Information Architecture
 
-PM Review should contain three top-level areas:
+PM Review should contain four top-level areas:
 
 - History Cases
 - Evaluation Cases
+- Experiment Lab
 - Schema Reference
 
 History Cases are real AI Check sessions created by user behavior.
 
 Evaluation Cases are curated `AICheckCase` records used for evaluation and regression.
+
+Experiment Lab runs the current Prompt Program against selected datasets and stores local run/results history.
 
 Schema Reference explains the current AI Check contract manual: how the runtime provider request is assembled, what the current generated System Prompt is, what structured output the model must return, and how Evaluation Cases assert expected behavior.
 
@@ -64,7 +69,9 @@ Evaluation Cases should use the unified schema from [2026-05-20-ai-check-case-sc
 interface AICheckCase {
   id: string;
   title: string;
-  source: "authored_eval" | "real_session" | "bad_case_review";
+  datasetType: "design" | "regression" | "holdout";
+  provenance: AICheckCaseProvenance;
+  lineage?: AICheckCaseLineage;
   versions: {
     promptVersion: string;
     outputSchemaVersion: string;
@@ -73,7 +80,7 @@ interface AICheckCase {
   input: AICheckCaseInput;
   output?: AICheckCaseOutput;
   eval?: AICheckCaseEval;
-  status: "draft" | "ready" | "regression" | "archived";
+  status: "draft" | "ready" | "archived";
   archivedAt?: string;
   archivedReason?: string;
 }
@@ -83,8 +90,13 @@ Status semantics:
 
 - `draft`: converted or authored case that still needs PM cleanup.
 - `ready`: fully specified case that can run in evals.
-- `regression`: release-gating case that should run by default in regression suites.
 - `archived`: hidden from normal lists and excluded from default eval/regression runs.
+
+Dataset semantics:
+
+- `design`: intended product behavior and main path coverage.
+- `regression`: release-gating prior failures and cases that must not regress.
+- `holdout`: limited-visibility generalization checks.
 
 Archive is the only delete behavior. PM Review should not hard-delete Evaluation Cases from the UI.
 
@@ -146,8 +158,9 @@ Selections should use explicit options instead of free text:
 
 - strictness: `gentle`, `balanced`, `strict`, `monk`
 - expected decision: `ALLOW`, `AI_COOLDOWN`, `ASK_MORE`, `BLOCK`
-- status: `draft`, `ready`, `regression`, `archived`
-- source: `authored_eval`, `real_session`, `bad_case_review`
+- status: `draft`, `ready`, `archived`
+- dataset type: `design`, `regression`, `holdout`
+- provenance type: `authored`, `session`, `review`
 - common tags: `over_allow`, `over_block`, `under_ask`, `unnecessary_ask`, `wrong_reason_strength`, `wrong_strictness_application`, `wrong_cooldown_duration`, `unsafe_sensitive_advice`, `bad_tone`, `schema_or_format_failure`, plus domain tags such as `work`, `school`, `social`, `video`, `nsfw`, `zh`, and strictness tags.
 
 Free-text fields should be reserved for natural-language content and reviewer notes.
@@ -157,7 +170,8 @@ Free-text fields should be reserved for natural-language content and reviewer no
 A Regression Case is an Evaluation Case with:
 
 ```text
-status = regression
+status = ready
+datasetType = regression
 archivedAt = empty
 ```
 
@@ -176,6 +190,7 @@ interface AICheckCaseSet {
   description: string;
   filters: {
     statuses?: Array<AICheckCase["status"]>;
+    datasetTypes?: Array<AICheckCase["datasetType"]>;
     tags?: string[];
     strictness?: StrictnessLevel[];
     expectedDecisions?: AIDecision[];
@@ -192,7 +207,7 @@ interface AICheckCaseSet {
 Default case sets:
 
 - All Active Cases: non-archived cases.
-- Regression Suite: `status = regression` and not archived.
+- Regression Dataset: `status = ready`, `datasetType = regression`, and not archived.
 - Draft Review Queue: `status = draft` and not archived.
 - Sensitive Risk: non-archived cases tagged `nsfw` or `unsafe_sensitive_advice`.
 - Strictness Suite: non-archived cases tagged `strictness`.
@@ -219,7 +234,7 @@ The contract owns:
 - enum values used by prompt, parser, UI controls, and evals.
 - Input, Output, and Evaluation field references.
 - Input, Output, and Evaluation examples.
-- PM Review case statuses, case sources, bad-case error types, common tags, and built-in case sets.
+- PM Review case statuses, dataset/provenance types, bad-case error types, common tags, and built-in case sets.
 
 Provider base URLs, default models, model allowlists, and eval env-key names live in `apps/extension/src/shared/provider-config.json`.
 
@@ -386,7 +401,7 @@ It should explicitly explain:
 
 ```text
 Evaluation Case = input + optional captured output + eval expectations
-Regression Case = Evaluation Case where status = regression and archivedAt is empty
+Regression Case = Evaluation Case where status = ready, datasetType = regression, and archivedAt is empty
 ```
 
 The page should distinguish:
@@ -433,22 +448,22 @@ Project instructions should also include:
 ```text
 Evaluation cases must use the unified AICheckCase { input, output?, eval? } shape.
 Do not hard-delete Evaluation Cases from PM Review; archive them instead.
-Regression Cases are Evaluation Cases with status = regression and no archivedAt.
+Regression Cases are ready Evaluation Cases with datasetType = regression and no archivedAt.
 ```
 
 ## First Implementation Slice
 
 The first implementation slice lands the local workspace shape without adding cloud sync or a custom case-set editor:
 
-- `AICheckCase` has explicit `status`, `archivedAt`, and `archivedReason` fields.
+- `AICheckCase` has explicit `status`, `datasetType`, `provenance`, `archivedAt`, and `archivedReason` fields.
 - Bad Case conversion creates `draft` Evaluation Cases.
-- PM Review has top-level History Cases, Evaluation Cases, and Schema Reference areas.
+- PM Review has top-level History Cases, Evaluation Cases, Experiment Lab, and Schema Reference areas.
 - Evaluation Cases use the three-column layout: built-in case sets/tag filters, case list, selected case detail.
-- PM can add, edit, promote to `regression`, and archive Evaluation Cases from the UI.
+- PM can add, edit, assign `datasetType = regression`, and archive Evaluation Cases from the UI.
 - Built-in case sets start as code-defined saved filters.
 - Schema Reference renders from `ai-check-contract.json` as an expandable JSON-shaped tree with a complete example output.
 - Prompt, parser, eval runner, version constants, and PM Review reference share `ai-check-contract.json` instead of duplicating output schema facts.
-- Eval runner excludes archived cases by default and accepts status/tag filters such as `--status=regression`.
+- Eval runner excludes archived cases by default and accepts status/tag/dataset filters such as `--dataset=regression`.
 
 Custom user-defined case sets, latest eval-result display per case, and stricter ready/regression validation remain later scope.
 

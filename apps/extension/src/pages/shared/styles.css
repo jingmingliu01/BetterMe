@@ -1449,6 +1449,97 @@ button {
   gap: 12px;
 }
 
+.experiment-workspace {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.68fr) minmax(460px, 1fr) minmax(250px, 0.62fr);
+  gap: 18px;
+  margin-top: 18px;
+  align-items: start;
+}
+
+.experiment-control-panel,
+.experiment-run-list {
+  position: sticky;
+  top: 18px;
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #173327;
+  font-weight: 650;
+}
+
+.metric-grid,
+.metric-breakdown-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-card,
+.metric-breakdown,
+.release-gate {
+  padding: 12px;
+  border: 1px solid rgba(29, 62, 46, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.metric-card {
+  display: grid;
+  gap: 4px;
+}
+
+.metric-card span,
+.metric-breakdown span {
+  color: #66736b;
+  font-size: 13px;
+}
+
+.metric-card strong {
+  color: #173327;
+  font-size: 22px;
+}
+
+.release-gate {
+  display: grid;
+  gap: 8px;
+}
+
+.release-gate div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.release-gate ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: #405247;
+}
+
+.release-gate-pass {
+  border-color: rgba(31, 107, 77, 0.26);
+  background: #edf8f1;
+}
+
+.release-gate-warn {
+  border-color: rgba(167, 110, 28, 0.28);
+  background: #fff8e8;
+}
+
+.release-gate-fail {
+  border-color: rgba(151, 52, 52, 0.28);
+  background: #fff0f0;
+}
+
 .empty-state {
   display: grid;
   min-height: 220px;
@@ -2167,6 +2258,7 @@ button {
   }
 
   .eval-workspace,
+  .experiment-workspace,
   .provider-message-workspace,
   .schema-workspace,
   .schema-field-details,
@@ -2181,6 +2273,8 @@ button {
   .review-session-list,
   .eval-sidebar,
   .eval-list-panel,
+  .experiment-control-panel,
+  .experiment-run-list,
   .provider-preview-code,
   .provider-preview-sections,
   .provider-preview-panel,
@@ -2272,7 +2366,9 @@ button {
 
   .review-status-list,
   .review-error-grid,
-  .eval-form-grid {
+  .eval-form-grid,
+  .metric-grid,
+  .metric-breakdown-grid {
     grid-template-columns: 1fr;
   }
 }

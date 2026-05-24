@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import {
   Archive,
+  BarChart3,
   BookOpenText,
   CheckCircle2,
   ClipboardList,
@@ -40,6 +41,8 @@ import type {
   AICheckCase,
   AICheckCaseStatus,
   AICheckDecisionExpectation,
+  AICheckEvalRunFilters,
+  AICheckEvalRunSummary,
   AIDecision,
   AIPMReviewSession,
   BadCaseErrorType,
@@ -51,8 +54,9 @@ import type {
 } from "../../shared/types";
 import "../shared/styles.css";
 
-type ReviewArea = "history" | "eval" | "schema";
+type ReviewArea = "history" | "eval" | "experiment" | "schema";
 type SchemaManualTab = "messages" | "output" | "evaluation";
+type ExperimentFilterValue<T extends string> = "all" | T;
 
 interface EvalFormState {
   title: string;
@@ -67,6 +71,15 @@ interface EvalFormState {
   userFacingMustMention: string;
   userFacingMustNotMention: string;
   archivedReason: string;
+}
+
+interface ExperimentFormState {
+  datasetType: ExperimentFilterValue<AICheckCase["datasetType"]>;
+  status: ExperimentFilterValue<AICheckCaseStatus>;
+  tag: string;
+  strictness: ExperimentFilterValue<StrictnessLevel>;
+  expectedDecision: ExperimentFilterValue<AIDecision>;
+  includeArchived: boolean;
 }
 
 interface SchemaManualSection {
@@ -113,6 +126,7 @@ const CASE_SETS = AI_CHECK_CASE_SETS;
 export function ReviewPage() {
   const loadSessions = useCallback(() => sendMessage<AIPMReviewSession[]>({ type: "review/listSessions" }), []);
   const loadEvalCases = useCallback(() => sendMessage<AICheckCase[]>({ type: "review/listEvalCases" }), []);
+  const loadEvalRuns = useCallback(() => sendMessage<AICheckEvalRunSummary[]>({ type: "review/listEvalRuns" }), []);
   const {
     data: sessionData,
     error: sessionError,
@@ -125,6 +139,12 @@ export function ReviewPage() {
     loading: evalLoading,
     refresh: refreshEvalCases
   } = useAsyncState(loadEvalCases);
+  const {
+    data: evalRunData,
+    error: evalRunError,
+    loading: evalRunsLoading,
+    refresh: refreshEvalRuns
+  } = useAsyncState(loadEvalRuns);
   const [area, setArea] = useState<ReviewArea>("history");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedDecisionId, setSelectedDecisionId] = useState<string | null>(null);
@@ -137,11 +157,22 @@ export function ReviewPage() {
   const [selectedEvalCaseId, setSelectedEvalCaseId] = useState<string | null>(null);
   const [creatingEvalCase, setCreatingEvalCase] = useState(false);
   const [evalForm, setEvalForm] = useState<EvalFormState>(emptyEvalForm());
+  const [experimentForm, setExperimentForm] = useState<ExperimentFormState>({
+    datasetType: "regression",
+    status: "ready",
+    tag: "all",
+    strictness: "all",
+    expectedDecision: "all",
+    includeArchived: false
+  });
+  const [selectedEvalRunId, setSelectedEvalRunId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [runningEval, setRunningEval] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   const sessions = sessionData ?? [];
   const evalCases = evalData ?? [];
+  const evalRuns = evalRunData ?? [];
   const selectedSession = useMemo(
     () => sessions.find((item) => item.session.id === selectedSessionId) ?? sessions[0] ?? null,
     [selectedSessionId, sessions]
@@ -149,9 +180,10 @@ export function ReviewPage() {
   const latestDecision = selectedSession?.decisions.at(-1) ?? null;
   const selectedDecision =
     selectedSession?.decisions.find((decision) => decision.id === selectedDecisionId) ?? latestDecision;
-  const selectedBadCase =
-    selectedSession?.badCases?.find((badCase) => badCase.sourceDecisionId === selectedDecision?.id) ??
-    (selectedSession?.badCase?.sourceDecisionId === selectedDecision?.id ? selectedSession.badCase : null);
+  const selectedBadCase = selectedSession
+    ? (selectedSession.badCases?.find((badCase) => badCase.sourceDecisionId === selectedDecision?.id) ??
+      (selectedSession.badCase?.sourceDecisionId === selectedDecision?.id ? selectedSession.badCase : null))
+    : null;
 
   const availableTags = useMemo(() => {
     const tags = new Set(COMMON_TAGS);
@@ -191,6 +223,10 @@ export function ReviewPage() {
       null
     );
   }, [creatingEvalCase, evalCases, filteredEvalCases, selectedEvalCaseId]);
+  const selectedEvalRun = useMemo(
+    () => evalRuns.find((item) => item.run.id === selectedEvalRunId) ?? evalRuns[0] ?? null,
+    [evalRuns, selectedEvalRunId]
+  );
 
   useEffect(() => {
     if (!selectedSession) return;
@@ -214,7 +250,7 @@ export function ReviewPage() {
   }, [creatingEvalCase, selectedEvalCase?.id]);
 
   async function refreshAll() {
-    await Promise.all([refreshSessions(), refreshEvalCases()]);
+    await Promise.all([refreshSessions(), refreshEvalCases(), refreshEvalRuns()]);
   }
 
   async function saveBadCase() {
@@ -337,17 +373,40 @@ export function ReviewPage() {
     }
   }
 
-  if ((sessionsLoading && !sessionData) || (evalLoading && !evalData)) {
+  async function runExperiment() {
+    setRunningEval(true);
+    setStatus(null);
+    try {
+      const summary = await sendMessage<AICheckEvalRunSummary>({
+        type: "review/runEvalExperiment",
+        payload: {
+          filters: buildExperimentFilters(experimentForm)
+        }
+      });
+      setSelectedEvalRunId(summary.run.id);
+      setStatus(
+        `Experiment ${summary.run.id} finished: ${summary.run.metrics.passed}/${summary.run.metrics.total} cases passed.`
+      );
+      await Promise.all([refreshEvalRuns(), refreshEvalCases()]);
+    } catch (runError) {
+      setStatus(runError instanceof Error ? runError.message : "Could not run eval experiment.");
+    } finally {
+      setRunningEval(false);
+    }
+  }
+
+  if ((sessionsLoading && !sessionData) || (evalLoading && !evalData) || (evalRunsLoading && !evalRunData)) {
     return <AppShell title="AI PM Review" subtitle="Loading local AI quality workspace..." />;
   }
 
   return (
     <AppShell title="AI PM Review" subtitle="Review history, curate evaluation cases, and keep the schema contract visible.">
-      {(sessionError || evalError) && <p className="badge badge-danger">{sessionError ?? evalError}</p>}
+      {(sessionError || evalError || evalRunError) && <p className="badge badge-danger">{sessionError ?? evalError ?? evalRunError}</p>}
       {status && <p className="badge">{status}</p>}
       <nav className="review-area-tabs" aria-label="PM Review areas">
         <AreaButton active={area === "history"} icon={<History size={16} />} label="History Cases" onClick={() => setArea("history")} />
         <AreaButton active={area === "eval"} icon={<FlaskConical size={16} />} label="Evaluation Cases" onClick={() => setArea("eval")} />
+        <AreaButton active={area === "experiment"} icon={<BarChart3 size={16} />} label="Experiment Lab" onClick={() => setArea("experiment")} />
         <AreaButton active={area === "schema"} icon={<BookOpenText size={16} />} label="Schema Reference" onClick={() => setArea("schema")} />
       </nav>
 
@@ -492,8 +551,316 @@ export function ReviewPage() {
         </section>
       )}
 
+      {area === "experiment" && (
+        <ExperimentLab
+          availableTags={availableTags}
+          evalCases={evalCases}
+          form={experimentForm}
+          loading={evalRunsLoading}
+          running={runningEval}
+          runs={evalRuns}
+          selectedRun={selectedEvalRun}
+          setForm={setExperimentForm}
+          setSelectedRunId={setSelectedEvalRunId}
+          onRefresh={() => void refreshEvalRuns()}
+          onRun={runExperiment}
+        />
+      )}
+
       {area === "schema" && <SchemaReference />}
     </AppShell>
+  );
+}
+
+function ExperimentLab({
+  availableTags,
+  evalCases,
+  form,
+  loading,
+  running,
+  runs,
+  selectedRun,
+  setForm,
+  setSelectedRunId,
+  onRefresh,
+  onRun
+}: {
+  availableTags: string[];
+  evalCases: AICheckCase[];
+  form: ExperimentFormState;
+  loading: boolean;
+  running: boolean;
+  runs: AICheckEvalRunSummary[];
+  selectedRun: AICheckEvalRunSummary | null;
+  setForm: (value: ExperimentFormState | ((current: ExperimentFormState) => ExperimentFormState)) => void;
+  setSelectedRunId: (value: string) => void;
+  onRefresh: () => void;
+  onRun: () => void;
+}) {
+  const matchingCaseCount = useMemo(
+    () => evalCases.filter((evalCase) => caseMatchesExperiment(evalCase, buildExperimentFilters(form))).length,
+    [evalCases, form]
+  );
+  const failedResults = selectedRun?.results.filter((result) => !result.pass) ?? [];
+  const caseById = useMemo(() => new Map(evalCases.map((evalCase) => [evalCase.id, evalCase])), [evalCases]);
+
+  return (
+    <section className="experiment-workspace">
+      <aside className="panel experiment-control-panel stack">
+        <div className="section-heading">
+          <span className="section-label">Experiment Lab</span>
+          <h2>Current Prompt Program</h2>
+        </div>
+        <div className="status-list">
+          <StatusItem label="Prompt" value={AI_CHECK_CURRENT_VERSIONS.promptVersion} />
+          <StatusItem label="Provider" value="mock" />
+          <StatusItem label="Model" value="mock" />
+        </div>
+
+        <div className="eval-form-grid">
+          <label className="stack compact-stack">
+            <span>Dataset</span>
+            <select
+              className="select"
+              value={form.datasetType}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  datasetType: event.target.value as ExperimentFormState["datasetType"]
+                }))
+              }
+            >
+              <option value="all">All datasets</option>
+              {DATASET_TYPES.map((datasetType) => (
+                <option key={datasetType} value={datasetType}>
+                  {formatTag(datasetType)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="stack compact-stack">
+            <span>Status</span>
+            <select
+              className="select"
+              value={form.status}
+              onChange={(event) =>
+                setForm((current) => ({ ...current, status: event.target.value as ExperimentFormState["status"] }))
+              }
+            >
+              <option value="all">All statuses</option>
+              {EVAL_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {formatStatus(status)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="stack compact-stack">
+            <span>Strictness</span>
+            <select
+              className="select"
+              value={form.strictness}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  strictness: event.target.value as ExperimentFormState["strictness"]
+                }))
+              }
+            >
+              <option value="all">All strictness</option>
+              {AI_CHECK_STRICTNESS_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="stack compact-stack">
+            <span>Expected</span>
+            <select
+              className="select"
+              value={form.expectedDecision}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  expectedDecision: event.target.value as ExperimentFormState["expectedDecision"]
+                }))
+              }
+            >
+              <option value="all">All decisions</option>
+              {AI_CHECK_DECISIONS.map((decision) => (
+                <option key={decision} value={decision}>
+                  {formatDecision(decision)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <label className="stack compact-stack">
+          <span>Tag</span>
+          <select
+            className="select"
+            value={form.tag}
+            onChange={(event) => setForm((current) => ({ ...current, tag: event.target.value }))}
+          >
+            <option value="all">All tags</option>
+            {availableTags.map((tag) => (
+              <option key={tag} value={tag}>
+                {formatTag(tag)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="checkbox-row">
+          <input
+            checked={form.includeArchived}
+            onChange={(event) => setForm((current) => ({ ...current, includeArchived: event.target.checked }))}
+            type="checkbox"
+          />
+          <span>Include archived cases</span>
+        </label>
+
+        <div className="row space-between">
+          <span className="muted">{matchingCaseCount} matching cases</span>
+          <button className="btn btn-primary" disabled={running || matchingCaseCount === 0} onClick={onRun}>
+            <FlaskConical size={16} /> {running ? "Running..." : "Run Eval"}
+          </button>
+        </div>
+      </aside>
+
+      <section className="panel experiment-results-panel stack">
+        <div className="row space-between">
+          <div className="section-heading">
+            <span className="section-label">Run results</span>
+            <h2>{selectedRun ? formatDate(selectedRun.run.createdAt) : "No runs yet"}</h2>
+          </div>
+          <button
+            aria-label="Refresh experiment runs"
+            className="icon-btn"
+            disabled={loading}
+            title="Refresh experiment runs"
+            onClick={onRefresh}
+          >
+            <RotateCcw size={16} />
+          </button>
+        </div>
+
+        {selectedRun ? (
+          <>
+            <div className="metric-grid">
+              <MetricCard label="Pass rate" value={formatPercent(selectedRun.run.metrics.passRate)} />
+              <MetricCard label="Passed" value={`${selectedRun.run.metrics.passed}/${selectedRun.run.metrics.total}`} />
+              <MetricCard label="False allow" value={String(selectedRun.run.metrics.falseAllowFailures)} />
+              <MetricCard label="False block" value={String(selectedRun.run.metrics.falseBlockFailures)} />
+              <MetricCard label="ASK_MORE recall" value={String(selectedRun.run.metrics.askMoreRecallFailures)} />
+              <MetricCard label="Unsafe sensitive" value={String(selectedRun.run.metrics.unsafeSensitiveFailures)} />
+            </div>
+
+            <section className={`release-gate release-gate-${selectedRun.run.metrics.releaseGate.status}`}>
+              <div>
+                <span className="section-label">Release gate</span>
+                <strong>{selectedRun.run.metrics.releaseGate.status.toUpperCase()}</strong>
+              </div>
+              <ul>
+                {selectedRun.run.metrics.releaseGate.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </section>
+
+            <div className="metric-breakdown-grid">
+              <MetricBreakdown title="By tag" rows={selectedRun.run.metrics.byTag} />
+              <MetricBreakdown title="By strictness" rows={selectedRun.run.metrics.byStrictness} />
+            </div>
+
+            <div className="stack compact-stack">
+              <span className="section-label">Failures</span>
+              {failedResults.length === 0 ? (
+                <p className="muted">No failed cases in this run.</p>
+              ) : (
+                <div className="eval-case-list">
+                  {failedResults.map((result) => {
+                    const evalCase = caseById.get(result.evalCaseId);
+                    return (
+                      <div className="eval-case-item" key={result.id}>
+                        <div className="row space-between">
+                          <strong>{evalCase?.title ?? result.evalCaseId}</strong>
+                          <span>{formatDecision(result.actualDecision)}</span>
+                        </div>
+                        <small>{result.failureReasons.join("; ")}</small>
+                        {evalCase && <TagList tags={evalCase.eval?.tags ?? []} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="empty-state">
+            <BarChart3 size={28} />
+            <strong>Run an experiment</strong>
+            <span>Current Prompt Program eval results will be saved locally.</span>
+          </div>
+        )}
+      </section>
+
+      <aside className="panel experiment-run-list stack">
+        <div className="section-heading">
+          <span className="section-label">Run history</span>
+          <h2>Local runs</h2>
+        </div>
+        {runs.length === 0 ? (
+          <p className="muted">No experiment runs saved yet.</p>
+        ) : (
+          runs.map((summary) => (
+            <button
+              className={
+                summary.run.id === selectedRun?.run.id ? "eval-case-item eval-case-item-selected" : "eval-case-item"
+              }
+              key={summary.run.id}
+              onClick={() => setSelectedRunId(summary.run.id)}
+            >
+              <strong>{formatDate(summary.run.createdAt)}</strong>
+              <span>{formatPercent(summary.run.metrics.passRate)} pass</span>
+              <small>
+                {summary.run.caseIds.length} cases · {formatRunFilter(summary.run.filters)}
+              </small>
+            </button>
+          ))
+        )}
+      </aside>
+    </section>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function MetricBreakdown({ rows, title }: { rows: AICheckEvalRunSummary["run"]["metrics"]["byTag"]; title: string }) {
+  return (
+    <section className="metric-breakdown stack">
+      <span className="section-label">{title}</span>
+      {rows.length === 0 ? (
+        <p className="muted">No breakdown.</p>
+      ) : (
+        rows.slice(0, 8).map((row) => (
+          <div className="row space-between" key={row.key}>
+            <span>{formatTag(row.key)}</span>
+            <strong>
+              {row.passed}/{row.total}
+            </strong>
+          </div>
+        ))
+      )}
+    </section>
   );
 }
 
@@ -1870,6 +2237,48 @@ function caseMatchesSet(evalCase: AICheckCase, caseSet: (typeof CASE_SETS)[numbe
 
 function countCasesForSet(evalCases: AICheckCase[], caseSet: (typeof CASE_SETS)[number]): number {
   return evalCases.filter((evalCase) => caseMatchesSet(evalCase, caseSet)).length;
+}
+
+function buildExperimentFilters(form: ExperimentFormState): AICheckEvalRunFilters {
+  return {
+    statuses: form.status === "all" ? undefined : [form.status],
+    datasetTypes: form.datasetType === "all" ? undefined : [form.datasetType],
+    tags: form.tag === "all" ? undefined : [form.tag],
+    strictness: form.strictness === "all" ? undefined : [form.strictness],
+    expectedDecisions: form.expectedDecision === "all" ? undefined : [form.expectedDecision],
+    includeArchived: form.includeArchived
+  };
+}
+
+function caseMatchesExperiment(evalCase: AICheckCase, filters: AICheckEvalRunFilters): boolean {
+  if (!filters.includeArchived && evalCase.status === "archived") return false;
+  if (filters.statuses?.length && !filters.statuses.includes(evalCase.status)) return false;
+  if (filters.datasetTypes?.length && !filters.datasetTypes.includes(evalCase.datasetType)) return false;
+  if (filters.strictness?.length && !filters.strictness.includes(evalCase.input.strictness)) return false;
+  if (filters.expectedDecisions?.length) {
+    const expectedDecision = getPrimaryExpectedDecision(evalCase.eval?.expectedOutput.decision);
+    if (!expectedDecision || !filters.expectedDecisions.includes(expectedDecision)) return false;
+  }
+  if (filters.tags?.length) {
+    const tags = new Set(evalCase.eval?.tags ?? []);
+    if (!filters.tags.some((tag) => tags.has(tag))) return false;
+  }
+  return true;
+}
+
+function formatRunFilter(filters: AICheckEvalRunFilters): string {
+  const parts = [
+    filters.datasetTypes?.join(","),
+    filters.statuses?.join(","),
+    filters.strictness?.join(","),
+    filters.expectedDecisions?.join(","),
+    filters.tags?.join(",")
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : "all active";
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
 }
 
 function formatDecision(decision: AIDecision | null): string {

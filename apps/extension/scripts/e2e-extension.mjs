@@ -251,7 +251,7 @@ try {
   await page.getByText("Leaning cooldown").waitFor({ timeout: 8_000 });
   blockText = await page.locator("body").innerText();
   assertIncludes(blockText, "AI Cooldown", "AI cooldown banner did not render.");
-  assertIncludes(blockText, "before this AI Check can continue.", "AI cooldown timer did not render.");
+  assertIncludes(blockText, "before this AI Check ends.", "AI cooldown terminal timer did not render.");
   const aiCooldownEvents = await getBehaviorEvents(page);
   if (!aiCooldownEvents.some((event) => event.type === "ai_cooldown_started" && event.targetDisplay === "example.com")) {
     throw new Error("AI cooldown start was not recorded in behavior history.");
@@ -260,6 +260,37 @@ try {
     throw new Error("AI cooldown normalization was not recorded in behavior history.");
   }
   console.log("AI_COOLDOWN_UI_OK true");
+  const cooldownSessions = await getIndexedDbRecords(page, "aiCheckSessions");
+  const cooldownSession = cooldownSessions.find(
+    (item) => item.targetDisplay === "example.com" && item.status === "ai_cooling_down"
+  );
+  if (!cooldownSession) {
+    throw new Error("AI cooldown session was not stored as cooling down.");
+  }
+  await putIndexedDbRecord(page, "aiCheckSessions", {
+    ...cooldownSession,
+    aiCooldownUntil: new Date(Date.now() - 1000).toISOString()
+  });
+  let terminalCooldownError = "";
+  try {
+    await sendRuntimeMessage(page, "ai/sendMessage", {
+      sessionId: cooldownSession.id,
+      content: "I want to keep going in the same checkpoint."
+    });
+  } catch (error) {
+    terminalCooldownError = error instanceof Error ? error.message : String(error);
+  }
+  assertIncludes(terminalCooldownError, "no longer active", "AI cooldown should not reopen the same checkpoint.");
+  const completedCooldownSessions = await getIndexedDbRecords(page, "aiCheckSessions");
+  const completedCooldownSession = completedCooldownSessions.find((item) => item.id === cooldownSession.id);
+  if (completedCooldownSession?.status !== "completed") {
+    throw new Error(`AI cooldown should resolve to a completed terminal session: ${JSON.stringify(completedCooldownSession)}`);
+  }
+  const completedCooldownEvents = await getBehaviorEvents(page);
+  if (!completedCooldownEvents.some((event) => event.type === "ai_cooldown_completed" && event.targetDisplay === "example.com")) {
+    throw new Error("AI cooldown completion was not recorded in behavior history.");
+  }
+  console.log("AI_COOLDOWN_TERMINAL_OK true");
 
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.net");
@@ -465,7 +496,7 @@ async function getBehaviorEvents(page) {
 
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 6);
+    const request = indexedDB.open("betterme-db", 7);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -478,6 +509,26 @@ async function getIndexedDbRecords(page, storeName) {
       getAll.onerror = () => reject(getAll.error);
     });
   }, storeName);
+}
+
+async function putIndexedDbRecord(page, storeName, record) {
+  return page.evaluate(
+    async ({ selectedStore, selectedRecord }) => {
+      const request = indexedDB.open("betterme-db", 7);
+      const db = await new Promise((resolve, reject) => {
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(selectedStore, "readwrite");
+        const store = tx.objectStore(selectedStore);
+        const put = store.put(selectedRecord);
+        put.onsuccess = () => resolve(true);
+        put.onerror = () => reject(put.error);
+      });
+    },
+    { selectedStore: storeName, selectedRecord: record }
+  );
 }
 
 async function getBlockedTargetId(page, display) {

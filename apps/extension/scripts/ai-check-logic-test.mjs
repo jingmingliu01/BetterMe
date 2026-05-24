@@ -23,6 +23,7 @@ try {
     buildTrustedTurnContext
   } = await server.ssrLoadModule("/src/ai/context-builder.ts");
   const { parseCheckpointDecision, validateDecisionConstraints } = await server.ssrLoadModule("/src/ai/checkpoint-schema.ts");
+  const { deriveDecisionPointSnapshotFromHistory } = await server.ssrLoadModule("/src/ai/decision-point-snapshot.ts");
   const { getDecisionMeter } = await server.ssrLoadModule("/src/ai/decision-meter.ts");
   const { requestCheckpointDecision } = await server.ssrLoadModule("/src/ai/provider-client.ts");
 
@@ -124,6 +125,138 @@ try {
       isFinalTurn: true
     }).includes("Do not return ASK_MORE")
   );
+
+  const turnLevelSession = {
+    id: "session_turn_level",
+    targetId: "target_youtube",
+    targetDisplay: "youtube.com",
+    status: "active",
+    startedAt: "2026-05-24T00:00:00.000Z",
+    expiresAt: "2026-05-24T00:10:00.000Z",
+    assistantTurnCount: 3,
+    maxAssistantTurns: 5,
+    strictness: "balanced",
+    roundSnapshot
+  };
+  const turnLevelMessages = [
+    {
+      id: "msg_open",
+      sessionId: turnLevelSession.id,
+      role: "assistant",
+      source: "local_opening",
+      content: "You're trying to open youtube.com. What are you here to do, and why now?",
+      createdAt: "2026-05-24T00:00:01.000Z"
+    },
+    {
+      id: "msg_user_1",
+      sessionId: turnLevelSession.id,
+      role: "user",
+      source: "user",
+      content: "I want a break.",
+      createdAt: "2026-05-24T00:00:02.000Z"
+    },
+    {
+      id: "msg_assistant_1",
+      sessionId: turnLevelSession.id,
+      role: "assistant",
+      source: "llm",
+      content: "What will you watch and for how long?",
+      createdAt: "2026-05-24T00:00:03.000Z"
+    },
+    {
+      id: "msg_user_2",
+      sessionId: turnLevelSession.id,
+      role: "user",
+      source: "user",
+      content: "Maybe live music for 15 minutes.",
+      createdAt: "2026-05-24T00:00:04.000Z"
+    },
+    {
+      id: "msg_assistant_2",
+      sessionId: turnLevelSession.id,
+      role: "assistant",
+      source: "llm",
+      content: "Enjoy your break.",
+      createdAt: "2026-05-24T00:00:05.000Z"
+    },
+    {
+      id: "msg_user_3",
+      sessionId: turnLevelSession.id,
+      role: "user",
+      source: "user",
+      content: "Actually I will keep watching.",
+      createdAt: "2026-05-24T00:00:06.000Z"
+    },
+    {
+      id: "msg_assistant_3",
+      sessionId: turnLevelSession.id,
+      role: "assistant",
+      source: "llm",
+      content: "One more question.",
+      createdAt: "2026-05-24T00:00:07.000Z"
+    }
+  ];
+  const turnLevelDecisions = [
+    {
+      id: "decision_1",
+      sessionId: turnLevelSession.id,
+      decision: "ASK_MORE",
+      userFacingMessage: "What will you watch and for how long?",
+      decisionReasonCategory: "insufficient_reason",
+      unlockMinutes: null,
+      aiCooldownSeconds: null,
+      scores: { repeatedReason: 0, impulse: 55, deliberateness: 45 },
+      memoryUpdate: { behaviorReasonCategory: "other", patternNote: null },
+      createdAt: "2026-05-24T00:00:03.000Z"
+    },
+    {
+      id: "decision_2",
+      sessionId: turnLevelSession.id,
+      decision: "ALLOW",
+      userFacingMessage: "Enjoy your break.",
+      decisionReasonCategory: "clear_intention",
+      unlockMinutes: 15,
+      aiCooldownSeconds: null,
+      scores: { repeatedReason: 0, impulse: 20, deliberateness: 85 },
+      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: "User gave a bounded break." },
+      createdAt: "2026-05-24T00:00:05.000Z",
+      rawProvider: "{\"decision\":\"ALLOW\"}"
+    },
+    {
+      id: "decision_3",
+      sessionId: turnLevelSession.id,
+      decision: "ASK_MORE",
+      userFacingMessage: "One more question.",
+      decisionReasonCategory: "insufficient_reason",
+      unlockMinutes: null,
+      aiCooldownSeconds: null,
+      scores: { repeatedReason: 0, impulse: 65, deliberateness: 35 },
+      memoryUpdate: { behaviorReasonCategory: "other", patternNote: null },
+      createdAt: "2026-05-24T00:00:07.000Z"
+    }
+  ];
+  const selectedTurnSnapshot = deriveDecisionPointSnapshotFromHistory({
+    session: turnLevelSession,
+    messages: turnLevelMessages,
+    decisions: turnLevelDecisions,
+    decision: turnLevelDecisions[1]
+  });
+  assert.equal(selectedTurnSnapshot.decisionOrdinal, 2);
+  assert.equal(selectedTurnSnapshot.selectedAssistantMessageId, "msg_assistant_2");
+  assert.equal(selectedTurnSnapshot.triggeringUserMessageId, "msg_user_2");
+  assert.deepEqual(
+    selectedTurnSnapshot.input.messages.map((message) => message.content),
+    [
+      "You're trying to open youtube.com. What are you here to do, and why now?",
+      "I want a break.",
+      "What will you watch and for how long?",
+      "Maybe live music for 15 minutes."
+    ]
+  );
+  assert.equal(selectedTurnSnapshot.input.sessionContext.assistantTurnCount, 1);
+  assert.equal(selectedTurnSnapshot.input.sessionContext.isFinalTurn, false);
+  assert.ok(!selectedTurnSnapshot.input.messages.some((message) => message.content.includes("keep watching")));
+  assert.equal(selectedTurnSnapshot.actualOutput?.parsed.decision, "ALLOW");
 
   const contractExampleDecision = parseCheckpointDecision(JSON.stringify(AI_CHECK_OUTPUT_EXAMPLE), "session_contract");
   validateDecisionConstraints(contractExampleDecision, "balanced");

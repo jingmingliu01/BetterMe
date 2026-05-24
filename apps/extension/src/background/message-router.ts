@@ -52,7 +52,9 @@ import {
   createEvalCase,
   createBadCaseReview,
   listEvalCases,
+  listEvalRunSummaries,
   listReviewSessions,
+  runEvalExperiment,
   updateEvalCase,
   updateBadCaseReview
 } from "../ai/review-store";
@@ -318,12 +320,17 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await updateEvalCase(message.payload));
       case "review/archiveEvalCase":
         return ok(await archiveEvalCase(message.payload));
+      case "review/listEvalRuns":
+        return ok(await listEvalRunSummaries());
+      case "review/runEvalExperiment":
+        return ok(await runEvalExperiment(message.payload));
       case "data/export":
         return ok({
           ...(await bootstrap()),
           sessions: await listRecentAICheckSessions(),
           reviewSessions: await listReviewSessions(),
-          evalCases: await listEvalCases()
+          evalCases: await listEvalCases(),
+          evalRuns: await listEvalRunSummaries()
         });
       case "data/deleteAll":
         await clearBetterMeLocalData();

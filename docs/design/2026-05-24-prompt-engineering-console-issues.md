@@ -13,7 +13,7 @@ Rule: when this document changes, check the design and progress documents for re
 
 ### ISSUE-001: Decision Point is not first-class
 
-Status: partially mitigated
+Status: mostly mitigated
 
 Risk:
 
@@ -36,11 +36,13 @@ Mitigation:
 Update 2026-05-24:
 
 - Review now exposes selectable decision points and separates model output JSON from stored decision record.
-- New review snapshots are derived at review time. Runtime persistence of decision-point snapshots remains open.
+- Runtime now persists decision-point snapshots when provider decisions are created.
+- Review falls back to deterministic derivation for older sessions.
+- Remaining polish is making persisted-vs-derived snapshot source visible in the UI if needed.
 
 ### ISSUE-002: BadCase conversion can include future turns
 
-Status: partially mitigated
+Status: mostly mitigated
 
 Risk:
 
@@ -62,11 +64,11 @@ Update 2026-05-24:
 
 - New BadCaseReview records store selected decision-point input snapshots.
 - Conversion uses the stored input snapshot and excludes future turns for newly created reviews.
-- Focused automated coverage is still needed.
+- Focused automated coverage now proves selecting turn 2 excludes turn 3+ from eval input.
 
 ### ISSUE-003: AI_COOLDOWN semantics need to be terminal
 
-Status: decision locked; implementation partially open
+Status: mostly mitigated
 
 Risk:
 
@@ -88,7 +90,10 @@ Mitigation:
 Update 2026-05-24:
 
 - Product decision remains locked: `AI_COOLDOWN` is terminal.
-- Runtime/session-state audit and dedicated eval coverage remain open.
+- Runtime now resolves completed AI cooldowns to terminal completed sessions instead of returning to the same round.
+- Block page copy now describes AI cooldown as ending the checkpoint.
+- E2E covers that an expired AI cooldown cannot reopen the same checkpoint.
+- Dedicated fixture coverage for more AI cooldown policy variants can still be added.
 
 ### ISSUE-004: Status and dataset purpose are mixed
 
@@ -148,7 +153,7 @@ Update 2026-05-24:
 
 ### ISSUE-006: Experiment results are not productized
 
-Status: open
+Status: partially mitigated
 
 Risk:
 
@@ -167,6 +172,12 @@ Mitigation:
 - Extend eval run/result schema.
 - Wire eval runner to persist results where appropriate.
 - Add read-only run history before adding full Experiment editor.
+
+Update 2026-05-24:
+
+- Experiment Lab now persists mock-mode current Prompt Program runs and per-case results locally.
+- PM Review shows run history, metrics, failed cases, and release gate summary.
+- Provider-mode UI runs, CLI/UI shared persistence, and a full release decision object remain open.
 
 ### ISSUE-007: Candidate Prompt A/B can cause scope creep
 
@@ -249,3 +260,8 @@ Mitigation:
 - Define Holdout visibility before Phase 2 implementation completes.
 - Start with aggregate metrics only in daily Experiment Lab.
 - Allow detailed Holdout inspection only through explicit release-review mode if needed.
+
+Update 2026-05-24:
+
+- Experiment Lab exposes dataset filtering, including holdout as a dataset type.
+- Detailed holdout failure visibility is not yet restricted, so holdout should not be populated with protected cases until visibility rules are implemented.

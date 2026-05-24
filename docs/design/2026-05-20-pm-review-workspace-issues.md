@@ -13,7 +13,7 @@ Rule: when this document changes, check the design and progress documents for re
 
 ### ISSUE-001: PM Review has no Evaluation Case workspace
 
-Status: closed in first implementation slice
+Status: closed; updated by Prompt Engineering Console slice
 
 Risk:
 
@@ -42,15 +42,16 @@ Risk:
 
 Expected behavior:
 
-- Evaluation Cases have `draft`, `ready`, `regression`, and `archived` statuses.
-- Regression Cases are Evaluation Cases where `status = regression` and `archivedAt` is empty.
+- Evaluation Cases have `draft`, `ready`, and `archived` lifecycle statuses.
+- Regression Cases are Evaluation Cases where `datasetType = regression`, `status = ready`, and `archivedAt` is empty.
 - Default regression filters exclude archived cases.
 
 Resolution:
 
 - `AICheckCase.status` is part of the shared type.
 - Bad Case conversion creates `draft` cases.
-- PM Review exposes status controls and a Regression Suite filter.
+- PM Review exposes status controls, dataset controls, and a Regression Dataset filter.
+- Prompt Engineering Console v3 split lifecycle status from dataset purpose.
 
 ### ISSUE-003: Delete semantics could destroy useful review history
 
@@ -85,7 +86,7 @@ Risk:
 Expected behavior:
 
 - Case sets start as saved filters.
-- Built-in case sets cover All Active Cases, Regression Suite, Draft Review Queue, Sensitive Risk, and Strictness Suite.
+- Built-in case sets cover All Active Cases, Regression Dataset, Draft Review Queue, Sensitive Risk, and Strictness Suite.
 - A case can appear in multiple case sets without duplication.
 
 Resolution:
@@ -121,7 +122,7 @@ Resolution:
 - The UI renders the descriptor as an expandable JSON-shaped tree with a complete example output instead of a flat card list.
 - Prompt builder, parser enum values, eval runner provider schema text, version constants, examples, and PM Review reference now derive from the shared contract.
 - PM Review Contract Manual version controls now read from `AI_CHECK_CONTRACT.current` and `AI_CHECK_CONTRACT.versionRegistry`.
-- PM Review statuses, source options, bad-case error types, common tags, built-in case sets, and AI Check session policy now derive from the shared contract.
+- PM Review statuses, dataset/provenance options, bad-case error types, common tags, built-in case sets, and AI Check session policy now derive from the shared contract.
 - Provider metadata derives from `apps/extension/src/shared/provider-config.json`.
 - `AGENTS.md` now requires schema changes to start from `ai-check-contract.json`, then update parser constraints, TypeScript types, eval assertions, tests, and linked docs in the same change.
 
@@ -192,31 +193,31 @@ Expected behavior:
 
 - Enum fields use selects, segmented controls, toggles, or multi-selects.
 - Free-text fields use concrete placeholders.
-- Required fields validate before a case can move from `draft` to `ready` or `regression`.
+- Required fields validate before a case can move from `draft` to `ready`.
 
 Resolution:
 
-- Source, status, strictness, and expected decision use select controls.
+- Dataset, status, strictness, and expected decision use select controls.
 - Core free-text fields use concrete placeholders.
 - Save is disabled when title, target, or user message is empty.
 
 Remaining:
 
-- The UI does not yet enforce stricter validation before moving from `draft` to `ready` or `regression`.
+- The UI does not yet enforce stricter validation before moving from `draft` to `ready`.
 - Tags are still comma-separated text rather than a true multi-select.
 
-### ISSUE-007: Eval runner defaults do not yet understand status/archive
+### ISSUE-007: Eval runner defaults do not yet fully productize dataset/release gates
 
-Status: partially closed
+Status: mostly closed; release-gate workflow still open
 
 Risk:
 
 - Archived or draft cases could run in release-gating evals.
-- Regression status may exist in UI but not affect command behavior.
+- Regression dataset membership exists in UI and CLI filters, but CI/release defaults are still a product decision.
 
 Expected behavior:
 
-- Default regression run includes only `status = regression` and no `archivedAt`.
+- Default regression run includes only `datasetType = regression`, `status = ready`, and no `archivedAt`.
 - General eval runs can explicitly include draft or archived cases when requested.
 - Runner output can still report pass rate by tag and by case set.
 
@@ -224,10 +225,11 @@ Resolution:
 
 - Eval runner normalizes missing status to `ready`.
 - Eval runner excludes archived cases by default.
-- Eval runner supports status and tag filters such as `--status=regression` and `--tag=unsafe_sensitive_advice`.
+- Eval runner supports status, dataset, and tag filters such as `--dataset=regression` and `--tag=unsafe_sensitive_advice`.
 - Eval runner rejects prompt/output-schema/evaluation-schema version mismatches by default and allows explicit legacy runs with `--include-legacy`.
+- PM Review Experiment Lab stores local mock-mode run history and shows release gate summary.
 
 Remaining:
 
 - The default `eval:ai-check` command still runs active cases, not only regression cases.
-- Runner output reports by tag but not by case set.
+- CLI runner output reports by tag but not by case set or release gate summary.

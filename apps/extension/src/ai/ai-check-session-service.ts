@@ -15,6 +15,7 @@ import type {
   UserSettings
 } from "../shared/types";
 import { buildProviderMessages, buildRoundSnapshot } from "./context-builder";
+import { buildRuntimeDecisionPointSnapshot } from "./decision-point-snapshot";
 import { buildOpeningMessage } from "./prompt";
 import { ProviderRequestError, requestCheckpointDecision } from "./provider-client";
 import { listPatternMemory, updatePatternMemory } from "./pattern-memory";
@@ -248,6 +249,16 @@ export async function sendAICheckMessage(input: {
     content: decision.userFacingMessage,
     createdAt: nowIso()
   };
+  const decisionPoint = buildRuntimeDecisionPointSnapshot({
+    session: activeSession,
+    roundSnapshot,
+    visibleMessages: messages,
+    decision,
+    userMessage,
+    assistantMessage,
+    nextAssistantTurn,
+    isFinalTurn
+  });
 
   const nextSession = await applyDecision({
     session: activeSession,
@@ -273,6 +284,7 @@ export async function sendAICheckMessage(input: {
   }
 
   await putRecord("checkpointDecisions", decision);
+  await putRecord("aiCheckDecisionPoints", decisionPoint);
   await putRecord("aiCheckMessages", assistantMessage);
   await putRecord("aiCheckSessions", sessionToStore);
 
@@ -295,7 +307,7 @@ function shouldUpdatePatternMemory(session: AICheckSession, decision: Checkpoint
   if (decision.decision === "ALLOW" || decision.decision === "BLOCK") {
     return true;
   }
-  return decision.decision === "AI_COOLDOWN" && session.assistantTurnCount >= session.maxAssistantTurns;
+  return decision.decision === "AI_COOLDOWN";
 }
 
 async function ensureRoundSnapshot(session: AICheckSession, settings: UserSettings): Promise<AICheckRoundSnapshot> {
@@ -475,12 +487,13 @@ async function resolveAICooldownIfComplete(session: AICheckSession): Promise<AIC
     return session;
   }
   const completedAt = nowIso();
-  const active: AICheckSession = {
+  const completed: AICheckSession = {
     ...session,
-    status: "active",
+    status: "completed",
+    completedAt,
     aiCooldownCompletedAt: completedAt
   };
-  await putRecord("aiCheckSessions", active);
+  await putRecord("aiCheckSessions", completed);
   await appendBehaviorEvent({
     type: "ai_cooldown_completed",
     targetId: session.targetId,
@@ -495,7 +508,7 @@ async function resolveAICooldownIfComplete(session: AICheckSession): Promise<AIC
     },
     createdAt: completedAt
   });
-  return active;
+  return completed;
 }
 
 function buildDecisionEventPayload(

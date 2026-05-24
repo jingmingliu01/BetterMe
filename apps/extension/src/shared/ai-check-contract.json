@@ -319,7 +319,7 @@
         "aiCooldownSeconds": {
           "meaning": "Pause duration when the decision is AI_COOLDOWN.",
           "whyNecessary": "AI cooldown is separate from allow and block; it needs its own timer.",
-          "productImpact": "Controls the in-chat cooldown period before the user can continue the AI Check.",
+          "productImpact": "Controls the terminal AI cooldown period before this AI Check ends.",
           "validation": "Required for AI_COOLDOWN and normalized to a sane strictness-derived range.",
           "commonMistakes": "Using legacy delay fields or returning cooldown seconds for non-cooldown decisions."
         },
