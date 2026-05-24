@@ -5,6 +5,8 @@ import type {
   AICheckDatasetType,
   AICheckCaseStatus,
   AICheckEvalResult,
+  AICheckEvalMetrics,
+  AICheckEvalReleaseGate,
   AICheckEvalRun,
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
@@ -324,6 +326,25 @@ export interface AICheckEvalRunSummary {
   results: AICheckEvalResult[];
 }
 
+export type AICheckReleaseDecisionStatus = "approved" | "blocked";
+
+export interface AICheckReleaseDecision {
+  id: string;
+  runId: string;
+  decision: AICheckReleaseDecisionStatus;
+  promptVersion: string;
+  outputSchemaVersion: string;
+  evaluationSchemaVersion: string;
+  providerMode: AICheckEvalRun["providerMode"];
+  provider: AICheckEvalRun["provider"];
+  model: string;
+  releaseGateStatus: AICheckEvalReleaseGate["status"];
+  releaseGateReasons: string[];
+  metrics: AICheckEvalMetrics;
+  note?: string;
+  createdAt: string;
+}
+
 export interface PageAccessInfo {
   targetId: string | null;
   targetDisplay: string | null;
@@ -416,6 +437,8 @@ export type ExtensionMessage =
   | { type: "review/archiveEvalCase"; payload: { id: string; archivedReason?: string } }
   | { type: "review/listEvalRuns" }
   | { type: "review/runEvalExperiment"; payload: RunEvalExperimentInput }
+  | { type: "review/listReleaseDecisions" }
+  | { type: "review/createReleaseDecision"; payload: CreateReleaseDecisionInput }
   | { type: "settings/update"; payload: Partial<UserSettings> }
   | { type: "provider/saveApiKey"; payload: { provider: ProviderId; apiKey: string } }
   | { type: "provider/deleteApiKey"; payload: { provider: ProviderId } }
@@ -459,6 +482,12 @@ export interface RunEvalExperimentInput {
   mode?: AICheckEvalRunMode;
   provider?: AICheckEvalRun["provider"];
   model?: string;
+}
+
+export interface CreateReleaseDecisionInput {
+  runId: string;
+  decision: AICheckReleaseDecisionStatus;
+  note?: string;
 }
 
 export interface ExtensionResult<T> {

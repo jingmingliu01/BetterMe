@@ -1483,6 +1483,7 @@ button {
 .metric-card,
 .metric-breakdown,
 .release-gate,
+.release-decision-card,
 .holdout-guard {
   padding: 12px;
   border: 1px solid rgba(29, 62, 46, 0.1);
@@ -1539,6 +1540,30 @@ button {
 .release-gate-fail {
   border-color: rgba(151, 52, 52, 0.28);
   background: #fff0f0;
+}
+
+.release-decision-card h3 {
+  margin: 4px 0 0;
+  color: #173327;
+}
+
+.release-decision-history {
+  display: grid;
+  gap: 8px;
+}
+
+.release-decision-entry {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid rgba(29, 62, 46, 0.08);
+  border-radius: 8px;
+  background: rgba(247, 251, 248, 0.82);
+}
+
+.release-decision-entry span,
+.release-decision-entry small {
+  color: #66736b;
 }
 
 .holdout-guard {

@@ -232,6 +232,8 @@ Release Decision is the final gate for changing the active Prompt Program.
 
 AI_COOLDOWN is a terminal product decision for release-gating semantics. If the model returns `AI_COOLDOWN`, that decision point is complete and the eval should not expect later turns in the same round.
 
+First implementation stores a release decision against one Experiment Run. It records approve/block, prompt/schema versions, provider/model, release gate status, gate reasons, metrics snapshot, PM note, and timestamp. Until Candidate Prompt A/B exists, approval means "the current Prompt Program is accepted for this run's selected dataset and provider context," not that a new prompt artifact has been promoted.
+
 Default release gate:
 
 - Design dataset passes threshold.

@@ -230,6 +230,7 @@ Resolution:
 - PM Review Experiment Lab stores local mock-mode run history and shows release gate summary.
 - PM Review Experiment Lab protects Holdout details in tuning mode and reveals Holdout failure summaries only in release review mode.
 - PM Review Experiment Lab supports provider-mode UI runs through saved local BYOK keys.
+- PM Review Experiment Lab stores Release Decisions for selected runs.
 
 Remaining:
 

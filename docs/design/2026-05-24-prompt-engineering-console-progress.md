@@ -49,7 +49,7 @@ This document set remains the scaffold for the larger Prompt Engineering Console
 - Built-in fixture cases and local editable eval cases are unified in Case Library; built-in edits still use local override behavior rather than an explicit read-only badge.
 - Dataset split exists in the contract and fixtures. Experiment Lab now protects Holdout details in tuning mode and exposes them only in release review mode.
 - Experiment Run is persisted and visible in PM Review for mock-mode and provider-mode current Prompt Program runs.
-- Release Gate exists as an Experiment Lab result summary, not yet as a full release decision workflow.
+- Release Gate exists as an Experiment Lab result summary, and PM Review now stores first-slice Release Decisions against selected runs.
 
 ## Planned Phases
 
@@ -127,12 +127,13 @@ Implemented now:
 - Running an experiment stores an `AICheckEvalRun` plus per-case `AICheckEvalResult` rows locally.
 - Metrics show pass rate, failed categories, tag/strictness breakdowns, failures, run history, and release gate summary.
 - Tuning mode hides Holdout breakdowns and failure details while preserving aggregate metrics and release gate status.
+- PM can approve or block release for a selected run with a release note; the stored decision snapshots gate status, metrics, provider/model, and versions.
 - First slice runs the current Prompt Program only, keeping Candidate Prompt A/B out of scope.
 
 Still remaining:
 
 - CLI and UI shared persistence for provider-mode eval runs.
-- More explicit release decision object and promotion flow.
+- Candidate Prompt promotion flow after candidate prompt artifacts exist.
 
 ### Phase 4: Candidate Prompt and Textual Gradient
 
@@ -160,6 +161,7 @@ Implementation validation performed:
 - `test:ai-check` includes focused coverage that selecting turn 2 excludes turn 3+ from replayable eval input.
 - `test:e2e` includes Holdout visibility coverage: tuning mode hides Holdout failure details, release review mode reveals the failure summary.
 - `test:e2e` includes provider-mode Experiment Lab coverage: saved BYOK provider, runtime provider messages, BYOK run metadata, and one focused passing provider run.
+- `test:e2e` includes Release Decision coverage: approving a passing provider-mode run persists an approved decision with the run id and gate status.
 
 Pending implementation validation:
 
@@ -208,6 +210,13 @@ Pending implementation validation:
 - Provider-mode UI runs use saved local BYOK keys, provider-config model allowlists, runtime provider messages, and the shared response parser/validator.
 - Provider-mode runs persist with `providerMode = byok`, provider id, model, run metrics, and per-case results.
 - Issues document was updated because provider-mode UI runs moved from open gap to implemented first-slice behavior. Design document was updated to clarify provider/model selection.
+
+2026-05-24 Release Decision update:
+
+- Added `releaseDecisions` local store and review APIs.
+- Experiment Lab now lets PM approve or block release for a selected Experiment Run with a note.
+- Stored Release Decisions snapshot prompt/schema versions, provider/model, release gate status, gate reasons, and metrics.
+- Issues document was updated because a first-slice release decision workflow now exists. Design document was updated to clarify that this approves the current Prompt Program for the selected run context until Candidate Prompt promotion exists.
 
 ## Update Checklist
 

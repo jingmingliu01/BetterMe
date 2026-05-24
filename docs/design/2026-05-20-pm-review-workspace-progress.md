@@ -102,6 +102,7 @@ Schema Reference now acts as an AI Check Contract Manual centered on the provide
 - Done: surface local mock-mode Experiment Lab run history, metrics, failures, and release gate summary.
 - Done: add Experiment Lab tuning vs release review mode so Holdout runs hide details during tuning and reveal summaries only for explicit release review.
 - Done: add provider/model controls and provider-mode Experiment Lab runs through saved local BYOK keys.
+- Done: add first-slice Release Decisions that approve or block a selected Experiment Run with a PM note and metrics/gate snapshot.
 - Later: decide whether CI/release gating should default to `--dataset=regression` or keep general active-case runs as the default command.
 
 ## Validation Status
@@ -157,6 +158,7 @@ Pending validation:
 - Regression semantics were updated from `status = regression` to `status = ready` plus `datasetType = regression`.
 - Experiment Lab now protects Holdout details in tuning mode and shows Holdout failure summaries only in release review mode.
 - Experiment Lab now supports provider-mode UI runs with saved BYOK provider keys and persisted BYOK run metadata.
+- Experiment Lab now supports release decision records for selected runs.
 - This progress doc was updated because PM Review workspace status changed. The newer Prompt Engineering Console docs now own the forward-looking product model.
 
 ## Update Checklist

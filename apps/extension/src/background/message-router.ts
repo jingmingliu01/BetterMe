@@ -48,11 +48,13 @@ import {
 } from "../ai/ai-check-session-service";
 import {
   archiveEvalCase,
+  createReleaseDecision,
   convertBadCaseToEvalCase,
   createEvalCase,
   createBadCaseReview,
   listEvalCases,
   listEvalRunSummaries,
+  listReleaseDecisions,
   listReviewSessions,
   runEvalExperiment,
   updateEvalCase,
@@ -324,13 +326,18 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listEvalRunSummaries());
       case "review/runEvalExperiment":
         return ok(await runEvalExperiment(message.payload));
+      case "review/listReleaseDecisions":
+        return ok(await listReleaseDecisions());
+      case "review/createReleaseDecision":
+        return ok(await createReleaseDecision(message.payload));
       case "data/export":
         return ok({
           ...(await bootstrap()),
           sessions: await listRecentAICheckSessions(),
           reviewSessions: await listReviewSessions(),
           evalCases: await listEvalCases(),
-          evalRuns: await listEvalRunSummaries()
+          evalRuns: await listEvalRunSummaries(),
+          releaseDecisions: await listReleaseDecisions()
         });
       case "data/deleteAll":
         await clearBetterMeLocalData();

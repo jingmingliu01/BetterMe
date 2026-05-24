@@ -521,6 +521,23 @@ try {
     throw new Error(`Provider-mode eval run metadata is wrong: ${JSON.stringify(providerEvalRun)}`);
   }
   console.log("PROVIDER_MODE_EXPERIMENT_OK true");
+  await page
+    .getByPlaceholder("Why is this prompt program safe to approve, or why should release stay blocked?")
+    .fill("Provider-mode focused gate passed.");
+  await page.getByRole("button", { name: "Approve Prompt" }).click();
+  await page.getByText("Release decision saved: Approved.").waitFor({ timeout: 3_000 });
+  const releaseDecisions = await getIndexedDbRecords(page, "releaseDecisions");
+  if (
+    !releaseDecisions.some(
+      (decision) =>
+        decision.runId === providerEvalRun.id &&
+        decision.decision === "approved" &&
+        decision.releaseGateStatus === "pass"
+    )
+  ) {
+    throw new Error(`Release decision was not persisted for provider run: ${JSON.stringify(releaseDecisions)}`);
+  }
+  console.log("RELEASE_DECISION_OK true");
 
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.org");
@@ -577,7 +594,7 @@ async function getBehaviorEvents(page) {
 
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 7);
+    const request = indexedDB.open("betterme-db", 8);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -595,7 +612,7 @@ async function getIndexedDbRecords(page, storeName) {
 async function putIndexedDbRecord(page, storeName, record) {
   return page.evaluate(
     async ({ selectedStore, selectedRecord }) => {
-      const request = indexedDB.open("betterme-db", 7);
+      const request = indexedDB.open("betterme-db", 8);
       const db = await new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

@@ -13,6 +13,7 @@ import type {
   AICheckEvalResult,
   AICheckEvalRun,
   AICheckEvalRunSummary,
+  AICheckReleaseDecision,
   AICheckMessage,
   AICheckSession,
   AIDecision,
@@ -22,6 +23,7 @@ import type {
   BehaviorEvent,
   BehaviorReasonCategory,
   CheckpointDecision,
+  CreateReleaseDecisionInput,
   CreateEvalCaseInput,
   RunEvalExperimentInput,
   StrictnessLevel,
@@ -358,6 +360,40 @@ export async function listEvalRunSummaries(): Promise<AICheckEvalRunSummary[]> {
       run,
       results: results.filter((result) => result.runId === run.id)
     }));
+}
+
+export async function listReleaseDecisions(): Promise<AICheckReleaseDecision[]> {
+  const decisions = await getAllRecords<AICheckReleaseDecision>("releaseDecisions");
+  return decisions.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+export async function createReleaseDecision(input: CreateReleaseDecisionInput): Promise<AICheckReleaseDecision> {
+  const run = await getRecord<AICheckEvalRun>("evalRuns", input.runId);
+  if (!run) {
+    throw new Error("Eval run not found.");
+  }
+  if (input.decision === "approved" && run.metrics.releaseGate.status === "fail") {
+    throw new Error("Cannot approve a release when the release gate failed.");
+  }
+  const createdAt = nowIso();
+  const decision: AICheckReleaseDecision = {
+    id: createId("release"),
+    runId: run.id,
+    decision: input.decision,
+    promptVersion: run.promptVersion,
+    outputSchemaVersion: run.outputSchemaVersion,
+    evaluationSchemaVersion: run.evaluationSchemaVersion,
+    providerMode: run.providerMode,
+    provider: run.provider,
+    model: run.model,
+    releaseGateStatus: run.metrics.releaseGate.status,
+    releaseGateReasons: run.metrics.releaseGate.reasons,
+    metrics: run.metrics,
+    note: input.note?.trim() || undefined,
+    createdAt
+  };
+  await putRecord("releaseDecisions", decision);
+  return decision;
 }
 
 export async function runEvalExperiment(input: RunEvalExperimentInput): Promise<AICheckEvalRunSummary> {

@@ -1,5 +1,5 @@
 const DB_NAME = "betterme-db";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 const STORE_NAMES = [
   "aiCheckSessions",
@@ -13,6 +13,7 @@ const STORE_NAMES = [
   "evalCases",
   "evalRuns",
   "evalResults",
+  "releaseDecisions",
   "cryptoKeys",
   "encryptedApiKeys"
 ] as const;
@@ -30,7 +31,8 @@ const AI_HISTORY_STORES_TO_CLEAR_ON_SCHEMA_UNIFICATION: StoreName[] = [
   "badCaseReviews",
   "evalCases",
   "evalRuns",
-  "evalResults"
+  "evalResults",
+  "releaseDecisions"
 ];
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -50,7 +52,7 @@ export function openBetterMeDb(): Promise<IDBDatabase> {
           db.createObjectStore(storeName, { keyPath: "id" });
         }
       }
-      if (event.oldVersion > 0 && event.oldVersion < 7) {
+      if (event.oldVersion > 0 && event.oldVersion < 8) {
         const tx = request.transaction;
         for (const storeName of AI_HISTORY_STORES_TO_CLEAR_ON_SCHEMA_UNIFICATION) {
           tx?.objectStore(storeName).clear();

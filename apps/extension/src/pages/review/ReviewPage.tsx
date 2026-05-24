@@ -45,6 +45,8 @@ import type {
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
   AICheckEvalRunSummary,
+  AICheckReleaseDecision,
+  AICheckReleaseDecisionStatus,
   AIDecision,
   AIPMReviewSession,
   BadCaseErrorType,
@@ -133,6 +135,10 @@ export function ReviewPage() {
   const loadSessions = useCallback(() => sendMessage<AIPMReviewSession[]>({ type: "review/listSessions" }), []);
   const loadEvalCases = useCallback(() => sendMessage<AICheckCase[]>({ type: "review/listEvalCases" }), []);
   const loadEvalRuns = useCallback(() => sendMessage<AICheckEvalRunSummary[]>({ type: "review/listEvalRuns" }), []);
+  const loadReleaseDecisions = useCallback(
+    () => sendMessage<AICheckReleaseDecision[]>({ type: "review/listReleaseDecisions" }),
+    []
+  );
   const loadProviderStatus = useCallback(() => sendMessage<Record<ProviderId, boolean>>({ type: "provider/status" }), []);
   const {
     data: sessionData,
@@ -152,6 +158,12 @@ export function ReviewPage() {
     loading: evalRunsLoading,
     refresh: refreshEvalRuns
   } = useAsyncState(loadEvalRuns);
+  const {
+    data: releaseDecisionData,
+    error: releaseDecisionError,
+    loading: releaseDecisionsLoading,
+    refresh: refreshReleaseDecisions
+  } = useAsyncState(loadReleaseDecisions);
   const {
     data: providerStatusData,
     error: providerStatusError,
@@ -182,6 +194,7 @@ export function ReviewPage() {
     includeArchived: false
   });
   const [selectedEvalRunId, setSelectedEvalRunId] = useState<string | null>(null);
+  const [releaseNote, setReleaseNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [runningEval, setRunningEval] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -189,6 +202,7 @@ export function ReviewPage() {
   const sessions = sessionData ?? [];
   const evalCases = evalData ?? [];
   const evalRuns = evalRunData ?? [];
+  const releaseDecisions = releaseDecisionData ?? [];
   const selectedSession = useMemo(
     () => sessions.find((item) => item.session.id === selectedSessionId) ?? sessions[0] ?? null,
     [selectedSessionId, sessions]
@@ -414,10 +428,34 @@ export function ReviewPage() {
     }
   }
 
+  async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
+    if (!selectedEvalRun) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const saved = await sendMessage<AICheckReleaseDecision>({
+        type: "review/createReleaseDecision",
+        payload: {
+          runId: selectedEvalRun.run.id,
+          decision,
+          note: releaseNote
+        }
+      });
+      setStatus(`Release decision saved: ${formatReleaseDecision(saved.decision)}.`);
+      setReleaseNote("");
+      await refreshReleaseDecisions();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save release decision.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (
     (sessionsLoading && !sessionData) ||
     (evalLoading && !evalData) ||
     (evalRunsLoading && !evalRunData) ||
+    (releaseDecisionsLoading && !releaseDecisionData) ||
     (providerStatusLoading && !providerStatusData)
   ) {
     return <AppShell title="AI PM Review" subtitle="Loading local AI quality workspace..." />;
@@ -425,8 +463,10 @@ export function ReviewPage() {
 
   return (
     <AppShell title="AI PM Review" subtitle="Review history, curate evaluation cases, and keep the schema contract visible.">
-      {(sessionError || evalError || evalRunError || providerStatusError) && (
-        <p className="badge badge-danger">{sessionError ?? evalError ?? evalRunError ?? providerStatusError}</p>
+      {(sessionError || evalError || evalRunError || releaseDecisionError || providerStatusError) && (
+        <p className="badge badge-danger">
+          {sessionError ?? evalError ?? evalRunError ?? releaseDecisionError ?? providerStatusError}
+        </p>
       )}
       {status && <p className="badge">{status}</p>}
       <nav className="review-area-tabs" aria-label="PM Review areas">
@@ -584,12 +624,17 @@ export function ReviewPage() {
           form={experimentForm}
           loading={evalRunsLoading}
           providerStatus={providerStatusData ?? {}}
+          releaseDecisions={releaseDecisions}
+          releaseNote={releaseNote}
           running={runningEval}
+          savingReleaseDecision={saving}
           runs={evalRuns}
           selectedRun={selectedEvalRun}
           setForm={setExperimentForm}
+          setReleaseNote={setReleaseNote}
           setSelectedRunId={setSelectedEvalRunId}
-          onRefresh={() => void Promise.all([refreshEvalRuns(), refreshProviderStatus()])}
+          onCreateReleaseDecision={createReleaseDecision}
+          onRefresh={() => void Promise.all([refreshEvalRuns(), refreshProviderStatus(), refreshReleaseDecisions()])}
           onRun={runExperiment}
         />
       )}
@@ -605,11 +650,16 @@ function ExperimentLab({
   form,
   loading,
   providerStatus,
+  releaseDecisions,
+  releaseNote,
   running,
+  savingReleaseDecision,
   runs,
   selectedRun,
   setForm,
+  setReleaseNote,
   setSelectedRunId,
+  onCreateReleaseDecision,
   onRefresh,
   onRun
 }: {
@@ -618,11 +668,16 @@ function ExperimentLab({
   form: ExperimentFormState;
   loading: boolean;
   providerStatus: Partial<Record<ProviderId, boolean>>;
+  releaseDecisions: AICheckReleaseDecision[];
+  releaseNote: string;
   running: boolean;
+  savingReleaseDecision: boolean;
   runs: AICheckEvalRunSummary[];
   selectedRun: AICheckEvalRunSummary | null;
   setForm: (value: ExperimentFormState | ((current: ExperimentFormState) => ExperimentFormState)) => void;
+  setReleaseNote: (value: string) => void;
   setSelectedRunId: (value: string) => void;
+  onCreateReleaseDecision: (decision: AICheckReleaseDecisionStatus) => void;
   onRefresh: () => void;
   onRun: () => void;
 }) {
@@ -638,6 +693,12 @@ function ExperimentLab({
   const providerReady = form.provider === "mock" || Boolean(providerStatus[form.provider]);
   const selectedProviderConfig = form.provider === "mock" ? null : PROVIDERS.find((provider) => provider.id === form.provider);
   const availableModels = form.provider === "mock" ? ["mock"] : selectedProviderConfig?.models ?? [];
+  const selectedReleaseDecisions = selectedRun
+    ? releaseDecisions.filter((decision) => decision.runId === selectedRun.run.id)
+    : [];
+  const latestReleaseDecision = selectedReleaseDecisions[0] ?? null;
+  const canApproveSelectedRun =
+    Boolean(selectedRun) && selectedRun?.run.metrics.releaseGate.status !== "fail" && !savingReleaseDecision;
 
   return (
     <section className="experiment-workspace">
@@ -870,6 +931,53 @@ function ExperimentLab({
                   <li key={reason}>{reason}</li>
                 ))}
               </ul>
+            </section>
+
+            <section className="release-decision-card stack">
+              <div className="row space-between">
+                <div>
+                  <span className="section-label">Release decision</span>
+                  <h3>{latestReleaseDecision ? formatReleaseDecision(latestReleaseDecision.decision) : "Not decided"}</h3>
+                </div>
+                {latestReleaseDecision && <span className="badge">{formatDate(latestReleaseDecision.createdAt)}</span>}
+              </div>
+              <textarea
+                aria-label="Release decision note"
+                className="textarea"
+                placeholder="Why is this prompt program safe to approve, or why should release stay blocked?"
+                value={releaseNote}
+                onChange={(event) => setReleaseNote(event.target.value)}
+              />
+              <div className="row wrap-row">
+                <button
+                  className="btn btn-primary"
+                  disabled={!canApproveSelectedRun}
+                  onClick={() => onCreateReleaseDecision("approved")}
+                >
+                  Approve Prompt
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  disabled={!selectedRun || savingReleaseDecision}
+                  onClick={() => onCreateReleaseDecision("blocked")}
+                >
+                  Block Release
+                </button>
+              </div>
+              {selectedRun.run.metrics.releaseGate.status === "fail" && (
+                <p className="muted">Approval is disabled while the release gate is failing.</p>
+              )}
+              {selectedReleaseDecisions.length > 0 && (
+                <div className="release-decision-history">
+                  {selectedReleaseDecisions.map((decision) => (
+                    <div className="release-decision-entry" key={decision.id}>
+                      <strong>{formatReleaseDecision(decision.decision)}</strong>
+                      <span>{formatDate(decision.createdAt)}</span>
+                      {decision.note && <small>{decision.note}</small>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             {holdoutDetailsHidden ? (
@@ -2396,6 +2504,10 @@ function formatRunFilter(filters: AICheckEvalRunFilters): string {
 
 function formatRunMode(mode: AICheckEvalRunMode): string {
   return mode === "release_review" ? "Release review" : "Tuning";
+}
+
+function formatReleaseDecision(decision: AICheckReleaseDecisionStatus): string {
+  return decision === "approved" ? "Approved" : "Blocked";
 }
 
 function formatProvider(provider: "mock" | ProviderId): string {
