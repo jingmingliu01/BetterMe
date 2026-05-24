@@ -186,6 +186,7 @@ Still remaining:
 Implementation validation performed:
 
 - `npm --workspace apps/extension run check:ai-check-contract` passed.
+- `npm --workspace apps/extension run audit:prompt-console` passed.
 - `npm --workspace apps/extension run typecheck` passed.
 - `npm --workspace apps/extension run test:ai-check` passed with the known Vite WebSocket sandbox warning.
 - `npm --workspace apps/extension run eval:ai-check` passed with 44/44 cases.
@@ -366,6 +367,12 @@ Pending implementation validation:
 - Applying a plan requires target-specific version changes since creation: prompt/rubric targets require a Prompt Program version change, schema targets require an output schema version change, and rubric/schema/evaluation targets require an evaluation schema version change.
 - Contract Reference shows the baseline versions and required missing version updates before enabling `Mark Applied`.
 - Issues document was updated because stale-contract risk moved from evidence-only mitigation to a version-gated workflow, and the already-implemented Experiment Lab and Candidate Prompt A/B risks now have enough product/test evidence to be marked mitigated. Design document was updated to capture the version baseline and apply gate.
+
+2026-05-24 Prompt Console audit gate update:
+
+- Added `npm --workspace apps/extension run audit:prompt-console`.
+- The audit verifies linked design/progress/issues docs, AI Check contract ownership of Prompt Program rules, current-version eval fixtures, dataset/status separation, no runtime legacy eval migration, Contract Change Plan version gates, and E2E coverage markers for the Prompt Engineering Console workflow.
+- Progress document was updated because validation scope changed. Design and issues documents were checked; no product-scope or risk-status change was required for this automation-only gate.
 
 2026-05-24 Prompt Program rubric contract update:
 
