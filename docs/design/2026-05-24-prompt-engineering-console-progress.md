@@ -155,13 +155,14 @@ Implemented now:
 - Candidate provider messages append the patch inside `<candidate_prompt_patch>` while keeping the normal provider-message order.
 - PM Review persists `promptCandidates` and `promptComparisons`.
 - Comparison view shows baseline vs candidate pass rate, improved/regressed counts, recommendation, and Textual Gradient clusters/directions/risk notes.
+- PM can generate a new draft Prompt Candidate from Textual Gradient using a saved BYOK provider.
 - PM can promote a recommended candidate only when it has no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
 - Promotion creates a `promptPromotions` audit record and makes that candidate patch the active local Prompt Program for new AI Check sessions.
 - Runtime AI Check freezes the promoted prompt version on session start and injects the promoted patch into provider messages.
 
 Still remaining:
 
-- LLM-assisted candidate generation from Textual Gradient.
+- Richer LLM-assisted rubric/schema candidate generation beyond append-only prompt patches.
 
 ## Validation Status
 
@@ -181,6 +182,7 @@ Implementation validation performed:
 - CLI `eval:ai-check -- --output=...` writes the shared run artifact; shape validation confirmed the artifact has one run and 42 linked results.
 - `test:e2e` includes Eval Run artifact import coverage: Experiment Lab imports a run artifact and persists matching `evalRuns`/`evalResults` records.
 - `test:e2e` includes Candidate Prompt A/B coverage: Experiment Lab saves a candidate, runs baseline/candidate provider calls, injects `<candidate_prompt_patch>`, persists comparison regression/recommendation, and shows Textual Gradient.
+- `test:e2e` includes Textual Gradient candidate generation coverage: Experiment Lab asks a BYOK provider for a draft candidate, sends Textual Gradient context, and persists the generated Prompt Candidate.
 - `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
 
 Pending implementation validation:
@@ -257,6 +259,12 @@ Pending implementation validation:
 - Experiment Lab now lets PM promote only candidates that have a promotion recommendation, no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
 - New AI Check sessions now freeze the active promoted prompt version and use the promoted patch in runtime provider messages.
 - Issues document was updated because candidate promotion moved from open to first-slice implemented. Design document was updated to document the promotion artifact, dataset coverage gate, and runtime activation rule.
+
+2026-05-24 Textual Gradient candidate generation update:
+
+- Experiment Lab now asks a saved BYOK provider to draft a new Prompt Candidate from a comparison's Textual Gradient.
+- Generated candidates are saved as draft Prompt Candidates and must still pass A/B comparison and promotion gates.
+- Issues document was updated because LLM-assisted append-only prompt candidate generation moved from open to first-slice implemented. Design document was updated to document the generation boundary.
 
 ## Update Checklist
 

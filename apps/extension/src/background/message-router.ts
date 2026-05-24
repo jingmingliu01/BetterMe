@@ -53,6 +53,7 @@ import {
   createEvalCase,
   createBadCaseReview,
   createPromptCandidate,
+  generatePromptCandidate,
   importEvalRunArtifact,
   listPromptPromotions,
   listEvalCases,
@@ -343,6 +344,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listPromptComparisons());
       case "review/runPromptComparison":
         return ok(await runPromptComparison(message.payload));
+      case "review/generatePromptCandidate":
+        return ok(await generatePromptCandidate(message.payload));
       case "review/listPromptPromotions":
         return ok(await listPromptPromotions());
       case "review/promotePromptCandidate":

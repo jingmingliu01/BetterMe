@@ -57,6 +57,7 @@ import type {
   BadCaseReview,
   CreateEvalCaseInput,
   CreatePromptCandidateInput,
+  GeneratePromptCandidateInput,
   ImportEvalRunArtifactInput,
   PromotePromptCandidateInput,
   ProviderId,
@@ -247,6 +248,7 @@ export function ReviewPage() {
   const [saving, setSaving] = useState(false);
   const [runningEval, setRunningEval] = useState(false);
   const [runningPromptComparison, setRunningPromptComparison] = useState(false);
+  const [generatingPromptCandidate, setGeneratingPromptCandidate] = useState(false);
   const [promotingPromptCandidate, setPromotingPromptCandidate] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -591,6 +593,29 @@ export function ReviewPage() {
     }
   }
 
+  async function generateCandidateFromSelectedComparison() {
+    if (!selectedPromptComparison) return;
+    setGeneratingPromptCandidate(true);
+    setStatus(null);
+    try {
+      const candidate = await sendMessage<AICheckPromptCandidate>({
+        type: "review/generatePromptCandidate",
+        payload: {
+          comparisonId: selectedPromptComparison.id,
+          provider: experimentForm.provider,
+          model: experimentForm.model
+        } satisfies GeneratePromptCandidateInput
+      });
+      setSelectedPromptCandidateId(candidate.id);
+      setStatus(`Generated prompt candidate ${candidate.name}.`);
+      await refreshPromptCandidates();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not generate prompt candidate.");
+    } finally {
+      setGeneratingPromptCandidate(false);
+    }
+  }
+
   async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
     if (!selectedEvalRun) return;
     setSaving(true);
@@ -809,6 +834,7 @@ export function ReviewPage() {
           importText={evalRunImportText}
           importing={importingEvalRun}
           activePromptPromotion={activePromptPromotion}
+          generatingPromptCandidate={generatingPromptCandidate}
           promptCandidateForm={promptCandidateForm}
           promptCandidates={promptCandidates}
           promptComparisons={promptComparisons}
@@ -832,6 +858,7 @@ export function ReviewPage() {
           setSelectedRunId={setSelectedEvalRunId}
           onCreateReleaseDecision={createReleaseDecision}
           onCreatePromptCandidate={savePromptCandidate}
+          onGeneratePromptCandidate={generateCandidateFromSelectedComparison}
           onImportRun={importEvalRunArtifact}
           onPromotePromptCandidate={promoteSelectedPromptCandidate}
           onRefresh={() =>
@@ -858,6 +885,7 @@ function ExperimentLab({
   availableTags,
   evalCases,
   form,
+  generatingPromptCandidate,
   importText,
   importing,
   activePromptPromotion,
@@ -888,6 +916,7 @@ function ExperimentLab({
   setSelectedRunId,
   onCreateReleaseDecision,
   onCreatePromptCandidate,
+  onGeneratePromptCandidate,
   onImportRun,
   onPromotePromptCandidate,
   onRefresh,
@@ -897,6 +926,7 @@ function ExperimentLab({
   availableTags: string[];
   evalCases: AICheckCase[];
   form: ExperimentFormState;
+  generatingPromptCandidate: boolean;
   importText: string;
   importing: boolean;
   activePromptPromotion: AICheckPromptPromotion | null;
@@ -927,6 +957,7 @@ function ExperimentLab({
   setSelectedRunId: (value: string) => void;
   onCreateReleaseDecision: (decision: AICheckReleaseDecisionStatus) => void;
   onCreatePromptCandidate: () => void;
+  onGeneratePromptCandidate: () => void;
   onImportRun: () => void;
   onPromotePromptCandidate: () => void;
   onRefresh: () => void;
@@ -1258,11 +1289,13 @@ function ExperimentLab({
               <PromptComparisonSummary
                 comparison={selectedPromptComparison}
                 candidates={promptCandidates}
+                generatingPromptCandidate={generatingPromptCandidate}
                 promotions={promptPromotions}
                 promotionNote={promptPromotionNote}
                 promoting={promotingPromptCandidate}
                 onSelectBaselineRun={setSelectedRunId}
                 onSelectCandidateRun={setSelectedRunId}
+                onGenerateCandidate={onGeneratePromptCandidate}
                 onPromote={onPromotePromptCandidate}
                 setPromotionNote={setPromptPromotionNote}
               />
@@ -1447,21 +1480,25 @@ function ExperimentLab({
 function PromptComparisonSummary({
   candidates,
   comparison,
+  generatingPromptCandidate,
   promotions,
   promotionNote,
   promoting,
   onSelectBaselineRun,
   onSelectCandidateRun,
+  onGenerateCandidate,
   onPromote,
   setPromotionNote
 }: {
   candidates: AICheckPromptCandidate[];
   comparison: AICheckPromptComparison;
+  generatingPromptCandidate: boolean;
   promotions: AICheckPromptPromotion[];
   promotionNote: string;
   promoting: boolean;
   onSelectBaselineRun: (runId: string) => void;
   onSelectCandidateRun: (runId: string) => void;
+  onGenerateCandidate: () => void;
   onPromote: () => void;
   setPromotionNote: (value: string) => void;
 }) {
@@ -1495,6 +1532,9 @@ function PromptComparisonSummary({
         </button>
         <button className="btn btn-ghost" onClick={() => onSelectCandidateRun(comparison.candidateRunId)}>
           Candidate Run
+        </button>
+        <button className="btn btn-ghost" disabled={generatingPromptCandidate} onClick={onGenerateCandidate}>
+          {generatingPromptCandidate ? "Generating..." : "Generate Candidate"}
         </button>
       </div>
       <section className="stack compact-stack">

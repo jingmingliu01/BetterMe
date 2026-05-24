@@ -31,6 +31,7 @@ import type {
   CreateReleaseDecisionInput,
   CreateEvalCaseInput,
   CreatePromptCandidateInput,
+  GeneratePromptCandidateInput,
   ImportEvalRunArtifactInput,
   PromotePromptCandidateInput,
   RunEvalExperimentInput,
@@ -39,6 +40,7 @@ import type {
   UpdateEvalCaseInput
 } from "../shared/types";
 import { getAllRecords, getRecord, putRecord } from "../storage/indexed-db";
+import { requestProviderJsonObject } from "./provider-client";
 
 export const AI_CHECK_PROMPT_VERSION = AI_CHECK_CURRENT_VERSIONS.promptVersion;
 export const AI_CHECK_OUTPUT_SCHEMA_VERSION = AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion;
@@ -483,6 +485,41 @@ export async function runPromptComparison(input: RunPromptComparisonInput): Prom
   return comparison;
 }
 
+export async function generatePromptCandidate(input: GeneratePromptCandidateInput): Promise<AICheckPromptCandidate> {
+  const comparison = await getRecord<AICheckPromptComparison>("promptComparisons", input.comparisonId);
+  if (!comparison) {
+    throw new Error("Prompt comparison not found.");
+  }
+  const provider = input.provider ?? comparison.provider;
+  if (provider === "mock") {
+    throw new Error("Prompt candidate generation requires a BYOK provider.");
+  }
+  const providerConfig = PROVIDERS.find((item) => item.id === provider);
+  const model = input.model ?? providerConfig?.defaultModel ?? comparison.model;
+  if (!providerConfig) {
+    throw new Error("Unknown provider.");
+  }
+  if (!providerConfig.models.includes(model)) {
+    throw new Error("Selected model is not available for this provider.");
+  }
+  const apiKey = await loadDecryptedApiKey(providerConfig.id);
+  if (!apiKey) {
+    throw new Error(`Save a ${providerConfig.label} API key before generating candidates.`);
+  }
+  const raw = await requestProviderJsonObject({
+    provider,
+    model,
+    apiKey,
+    messages: buildCandidateGenerationMessages(comparison)
+  });
+  const generated = parseGeneratedCandidate(raw);
+  return createPromptCandidate({
+    name: generated.name,
+    instructionPatch: generated.instructionPatch,
+    rationale: generated.rationale
+  });
+}
+
 export async function promotePromptCandidate(input: PromotePromptCandidateInput): Promise<AICheckPromptPromotion> {
   const comparison = await getRecord<AICheckPromptComparison>("promptComparisons", input.comparisonId);
   if (!comparison) {
@@ -518,6 +555,67 @@ export async function promotePromptCandidate(input: PromotePromptCandidateInput)
   };
   await putRecord("promptPromotions", promotion);
   return promotion;
+}
+
+function buildCandidateGenerationMessages(comparison: AICheckPromptComparison): Array<{ role: "system" | "user"; content: string }> {
+  return [
+    {
+      role: "system",
+      content: [
+        "You are helping improve BetterMe's AI Check Prompt Program.",
+        "Return exactly one raw JSON object with keys: name, instructionPatch, rationale.",
+        "Do not include Markdown.",
+        "The instructionPatch must be concise, actionable, and safe to append inside <candidate_prompt_patch>.",
+        "Do not quote or reveal hidden Holdout case details. Use only aggregate diagnosis and directions."
+      ].join("\n")
+    },
+    {
+      role: "user",
+      content: JSON.stringify(
+        {
+          task: "Draft a new candidate prompt patch from this Textual Gradient.",
+          recommendation: comparison.recommendation,
+          metrics: {
+            baselinePassRate: comparison.baselineMetrics.passRate,
+            candidatePassRate: comparison.candidateMetrics.passRate,
+            improvedCases: comparison.improvedCaseIds.length,
+            regressedCases: comparison.regressedCaseIds.length
+          },
+          promotionGate: comparison.promotionGate,
+          textualGradient: comparison.textualGradient,
+          outputShape: {
+            name: "Short candidate name",
+            instructionPatch: "Append-only prompt instructions. No schema changes.",
+            rationale: "Why this candidate should address the failure pattern."
+          }
+        },
+        null,
+        2
+      )
+    }
+  ];
+}
+
+function parseGeneratedCandidate(raw: string): CreatePromptCandidateInput {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Provider returned invalid candidate JSON.");
+  }
+  const candidate = parsed as Partial<CreatePromptCandidateInput>;
+  if (
+    typeof candidate.name !== "string" ||
+    typeof candidate.instructionPatch !== "string" ||
+    candidate.instructionPatch.trim().length === 0
+  ) {
+    throw new Error("Provider candidate JSON must include name and instructionPatch.");
+  }
+  return {
+    name: candidate.name.slice(0, 120),
+    instructionPatch: candidate.instructionPatch.trim(),
+    rationale: typeof candidate.rationale === "string" ? candidate.rationale.trim() : undefined
+  };
 }
 
 export async function listReleaseDecisions(): Promise<AICheckReleaseDecision[]> {

@@ -60,6 +60,22 @@ export async function requestCheckpointDecision(input: {
   }
 }
 
+export async function requestProviderJsonObject(input: {
+  provider: ProviderId;
+  model: string;
+  apiKey: string;
+  messages: ChatMessage[];
+}): Promise<string> {
+  const provider = PROVIDERS.find((item) => item.id === input.provider);
+  if (!provider) {
+    throw new ProviderRequestError("unknown_provider_error", "Unknown provider.");
+  }
+  if (!provider.models.includes(input.model)) {
+    throw new ProviderRequestError("invalid_model", "Selected model is not available for this provider.");
+  }
+  return requestProviderContent(provider, input.model, input.apiKey, input.messages);
+}
+
 async function requestProviderContent(
   provider: NonNullable<(typeof PROVIDERS)[number]>,
   model: string,

@@ -660,6 +660,30 @@ try {
     throw new Error("Candidate A/B did not send the candidate prompt patch to the provider.");
   }
   console.log("CANDIDATE_PROMPT_AB_OK true");
+  await queueProviderResponses(serviceWorker, [
+    {
+      name: "Generated E2E candidate",
+      instructionPatch: "Ask one clarifying question before blocking bounded homework breaks.",
+      rationale: "Generated from Textual Gradient regression diagnosis."
+    }
+  ]);
+  await page.getByRole("button", { name: "Generate Candidate" }).click();
+  await page.getByText("Generated prompt candidate Generated E2E candidate.").waitFor({ timeout: 5_000 });
+  const generatedPromptCandidates = await getIndexedDbRecords(page, "promptCandidates");
+  if (
+    !generatedPromptCandidates.some(
+      (candidate) =>
+        candidate.name === "Generated E2E candidate" &&
+        candidate.instructionPatch.includes("clarifying question")
+    )
+  ) {
+    throw new Error(`Generated prompt candidate was not persisted: ${JSON.stringify(generatedPromptCandidates)}`);
+  }
+  const generationRequests = await getProviderRequestLog(serviceWorker);
+  if (!generationRequests.at(-1)?.messages?.some((message) => message.content.includes("Textual Gradient"))) {
+    throw new Error("Prompt candidate generation did not send Textual Gradient context to the provider.");
+  }
+  console.log("TEXTUAL_GRADIENT_GENERATION_OK true");
 
   for (const datasetType of ["design", "regression", "holdout"]) {
     await sendRuntimeMessage(page, "review/createEvalCase", {

@@ -235,10 +235,11 @@ Mitigation:
 Update 2026-05-24:
 
 - Textual Gradient now exists as diagnosis inside Prompt Comparison artifacts.
-- It summarizes failure clusters, suggested directions, and risk notes, but does not mutate prompts or approve releases.
+- It summarizes failure clusters, suggested directions, and risk notes, and can generate a draft Prompt Candidate through a saved BYOK provider.
+- Generated candidates are ordinary draft candidates; they do not mutate prompts or approve releases.
 - Holdout visibility rules from Experiment Lab still apply because candidate comparison is built from standard tuning/release-review eval runs.
 - Promotion requires the comparison recommendation to be `promote_candidate`, zero regressed cases, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
-- LLM-assisted candidate generation remains open.
+- Richer LLM-assisted rubric/schema candidate generation remains open.
 
 ### ISSUE-009: Contract Reference can become stale if Prompt Program expands
 

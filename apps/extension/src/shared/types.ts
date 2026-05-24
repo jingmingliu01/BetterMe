@@ -513,6 +513,7 @@ export type ExtensionMessage =
   | { type: "review/createPromptCandidate"; payload: CreatePromptCandidateInput }
   | { type: "review/listPromptComparisons" }
   | { type: "review/runPromptComparison"; payload: RunPromptComparisonInput }
+  | { type: "review/generatePromptCandidate"; payload: GeneratePromptCandidateInput }
   | { type: "review/listPromptPromotions" }
   | { type: "review/promotePromptCandidate"; payload: PromotePromptCandidateInput }
   | { type: "review/listReleaseDecisions" }
@@ -572,6 +573,12 @@ export interface RunPromptComparisonInput {
   candidateId: string;
   filters: AICheckEvalRunFilters;
   mode?: AICheckEvalRunMode;
+  provider?: AICheckEvalRun["provider"];
+  model?: string;
+}
+
+export interface GeneratePromptCandidateInput {
+  comparisonId: string;
   provider?: AICheckEvalRun["provider"];
   model?: string;
 }

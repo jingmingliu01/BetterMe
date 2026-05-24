@@ -27,6 +27,7 @@ function getMessageTimeoutMs(message: ExtensionMessage): number {
   if (message.type === "ai/sendMessage" || message.type === "ai/startAndSend") return 35_000;
   if (message.type === "review/runEvalExperiment") return 60_000;
   if (message.type === "review/runPromptComparison") return 90_000;
+  if (message.type === "review/generatePromptCandidate") return 45_000;
   return 4_000;
 }
 

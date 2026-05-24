@@ -392,7 +392,7 @@ interface AICheckPromptPromotion {
 
 The baseline run and candidate run both remain standard `AICheckEvalRun` rows. The comparison artifact binds them together. Candidate runs append the candidate patch to the static system prompt inside a `<candidate_prompt_patch>` block, while preserving the normal trusted Round Context, Conversation, and Turn Context order.
 
-Textual Gradient is diagnosis only. It can summarize failure clusters and suggested prompt directions, but it must not directly mutate the current Prompt Program or approve a candidate.
+Textual Gradient is diagnosis only. It can summarize failure clusters and suggested prompt directions, and it can ask a saved BYOK provider to draft a new prompt candidate. Generated candidates are saved as ordinary draft Prompt Candidates; they still require A/B comparison and promotion gates before they can affect runtime.
 
 Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, the candidate run does not fail the release gate, and Design, Regression, and Holdout coverage are all present and passing. Promotion records the candidate patch as a local active prompt version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
 
@@ -552,6 +552,7 @@ First implemented slice:
 - Run provider-mode A/B by executing one baseline run and one candidate run against the same filters.
 - Persist the comparison artifact linking baseline and candidate runs.
 - Show improved/regressed counts, recommendation, and Textual Gradient diagnosis.
+- Generate a draft Prompt Candidate from Textual Gradient through a saved BYOK provider.
 - Promote a passing candidate into the active local Prompt Program through an audited promotion artifact.
 - Require passing Design, Regression, and Holdout dataset coverage before promotion.
 - Freeze the promoted prompt version on new AI Check sessions and inject its patch into runtime provider messages.
@@ -559,7 +560,7 @@ First implemented slice:
 Still later:
 
 - Richer multi-arm experiment management.
-- LLM-assisted candidate generation from Textual Gradient notes.
+- Richer LLM-assisted rubric/schema candidate generation beyond append-only prompt patches.
 
 ## Validation Expectations
 
