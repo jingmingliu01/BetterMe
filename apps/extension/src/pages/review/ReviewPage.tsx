@@ -85,6 +85,7 @@ import "../shared/styles.css";
 type ReviewArea = "history" | "eval" | "experiment" | "schema";
 type SchemaManualTab = "messages" | "rubric" | "output" | "evaluation";
 type ExperimentFilterValue<T extends string> = "all" | T;
+type EvidenceExpectationValue = "ignore" | "true" | "false";
 
 interface EvalFormState {
   title: string;
@@ -98,6 +99,8 @@ interface EvalFormState {
   reviewerNote: string;
   userFacingMustMention: string;
   userFacingMustNotMention: string;
+  hasExplicitDuration: EvidenceExpectationValue;
+  hasReturnPlan: EvidenceExpectationValue;
   archivedReason: string;
 }
 
@@ -492,7 +495,8 @@ export function ReviewPage() {
         reviewerNote: evalForm.reviewerNote,
         datasetType: evalForm.datasetType,
         userFacingMustMention: splitList(evalForm.userFacingMustMention),
-        userFacingMustNotMention: splitList(evalForm.userFacingMustNotMention)
+        userFacingMustNotMention: splitList(evalForm.userFacingMustNotMention),
+        expectedInputEvidence: buildExpectedInputEvidence(evalForm)
       };
       const saved = creatingEvalCase
         ? await sendMessage<AICheckCase>({
@@ -2592,6 +2596,38 @@ function EvalCaseDetail({
           />
         </label>
       </div>
+      <div className="eval-form-grid">
+        <label className="stack compact-stack">
+          <span>Input has explicit duration</span>
+          <select
+            aria-label="Expected explicit duration evidence"
+            className="select"
+            value={form.hasExplicitDuration}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, hasExplicitDuration: event.target.value as EvidenceExpectationValue }))
+            }
+          >
+            <option value="ignore">Ignore</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </label>
+        <label className="stack compact-stack">
+          <span>Input has return plan</span>
+          <select
+            aria-label="Expected return plan evidence"
+            className="select"
+            value={form.hasReturnPlan}
+            onChange={(event) =>
+              setForm((current) => ({ ...current, hasReturnPlan: event.target.value as EvidenceExpectationValue }))
+            }
+          >
+            <option value="ignore">Ignore</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+          </select>
+        </label>
+      </div>
 
       {!creating && evalCase?.output && (
         <details className="review-json">
@@ -3755,6 +3791,8 @@ function emptyEvalForm(): EvalFormState {
     reviewerNote: "",
     userFacingMustMention: "",
     userFacingMustNotMention: "",
+    hasExplicitDuration: "ignore",
+    hasReturnPlan: "ignore",
     archivedReason: ""
   };
 }
@@ -3791,8 +3829,31 @@ function formFromEvalCase(evalCase: AICheckCase): EvalFormState {
     reviewerNote: evalCase.eval?.reviewerNote ?? "",
     userFacingMustMention: joinList(evalCase.eval?.expectedOutput.userFacingMessage?.mustMention),
     userFacingMustNotMention: joinList(evalCase.eval?.expectedOutput.userFacingMessage?.mustNotMention),
+    hasExplicitDuration: evidenceValueFromBoolean(evalCase.eval?.expectedInputEvidence?.hasExplicitDuration),
+    hasReturnPlan: evidenceValueFromBoolean(evalCase.eval?.expectedInputEvidence?.hasReturnPlan),
     archivedReason: evalCase.archivedReason ?? ""
   };
+}
+
+function buildExpectedInputEvidence(form: EvalFormState): NonNullable<AICheckCase["eval"]>["expectedInputEvidence"] {
+  return {
+    ...(evidenceValueToBoolean(form.hasExplicitDuration) !== undefined
+      ? { hasExplicitDuration: evidenceValueToBoolean(form.hasExplicitDuration) }
+      : {}),
+    ...(evidenceValueToBoolean(form.hasReturnPlan) !== undefined ? { hasReturnPlan: evidenceValueToBoolean(form.hasReturnPlan) } : {})
+  };
+}
+
+function evidenceValueFromBoolean(value: boolean | undefined): EvidenceExpectationValue {
+  if (value === true) return "true";
+  if (value === false) return "false";
+  return "ignore";
+}
+
+function evidenceValueToBoolean(value: EvidenceExpectationValue): boolean | undefined {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
 }
 
 function splitList(value: string): string[] {

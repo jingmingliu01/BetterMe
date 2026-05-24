@@ -274,6 +274,7 @@ export async function createEvalCase(input: CreateEvalCaseInput): Promise<AIChec
         decision: input.expectedDecision,
         ...buildUserFacingExpectation(input.userFacingMustMention, input.userFacingMustNotMention)
       },
+      expectedInputEvidence: input.expectedInputEvidence,
       tags: cleanList(input.tags),
       reviewerNote: input.reviewerNote?.trim() || undefined
     },
@@ -332,6 +333,8 @@ export async function updateEvalCase(input: UpdateEvalCaseInput): Promise<AIChec
           current.eval?.expectedOutput.userFacingMessage
         )
       },
+      expectedInputEvidence:
+        input.expectedInputEvidence !== undefined ? input.expectedInputEvidence : current.eval?.expectedInputEvidence,
       tags: input.tags !== undefined ? cleanList(input.tags) : current.eval?.tags ?? [],
       reviewerNote:
         input.reviewerNote !== undefined ? input.reviewerNote.trim() || undefined : current.eval?.reviewerNote
@@ -1391,6 +1394,7 @@ function normalizeStoredEvalCase(evalCase: AICheckCase): AICheckCase {
     ...evalCase,
     eval: {
       expectedOutput,
+      expectedInputEvidence: legacyEval?.expectedInputEvidence,
       tags: legacyEval?.tags ?? [],
       reviewerNote: legacyEval?.reviewerNote
     },

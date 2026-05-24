@@ -10,6 +10,7 @@ import type {
   AICheckEvalRun,
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
+  AICheckExpectedInputEvidence,
   AICheckExpectedOutput,
   AICheckSeverity,
   AICheckScores,
@@ -40,6 +41,7 @@ export type {
   AICheckEvalRun,
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
+  AICheckExpectedInputEvidence,
   AICheckExpectedOutput,
   AICheckNullableNumberExpectation,
   AICheckNullableTextExpectation,
@@ -628,6 +630,7 @@ export interface CreateEvalCaseInput {
   reviewerNote?: string;
   userFacingMustMention?: string[];
   userFacingMustNotMention?: string[];
+  expectedInputEvidence?: AICheckExpectedInputEvidence;
 }
 
 export interface UpdateEvalCaseInput {
@@ -644,6 +647,7 @@ export interface UpdateEvalCaseInput {
   reviewerNote?: string;
   userFacingMustMention?: string[];
   userFacingMustNotMention?: string[];
+  expectedInputEvidence?: AICheckExpectedInputEvidence;
 }
 
 export interface RunEvalExperimentInput {

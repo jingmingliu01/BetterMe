@@ -163,6 +163,7 @@ Implemented now:
 - PM can move Contract Change Plans through `draft`, `ready`, `applied`, or `rejected`; `applied` requires an implementation note and records the current prompt/output/evaluation versions.
 - `ai-check-contract.json` now owns the Prompt Program rubric under `promptProgram`. Generated constants feed both the provider system prompt and Schema Reference's Prompt Program tab.
 - Evaluation schema v4 adds `eval.expectedInputEvidence` for duration and return-plan evidence; the shared eval engine and CLI runner now check those assertions against case input messages.
+- PM Review's Evaluation Case editor can author and edit expected input evidence with explicit duration and return-plan controls.
 - PM can create named Experiment Workspaces and link selected runs, Candidate Prompt comparisons, Prompt Program Suggestions, release decisions, and promotions into one reviewable artifact set.
 - PM can add explicit Experiment Arms for baseline, current prompt, candidate prompt, or variant definitions, optionally linked to a Prompt Candidate and/or eval run.
 - PM can promote a recommended candidate only when it has no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
@@ -196,6 +197,7 @@ Implementation validation performed:
 - `test:e2e` includes Prompt Program Suggestion review coverage: PM Review accepts and rejects individual suggestion items and persists review state for the contract-first handoff.
 - `test:e2e` includes Contract-first backlog coverage (`PROMPT_PROGRAM_BACKLOG_OK true`): accepted Prompt Program Suggestions appear in Schema Reference with contract-source guidance.
 - `test:e2e` includes Prompt Program Contract Reference coverage (`PROMPT_PROGRAM_CONTRACT_REFERENCE_OK true`): Schema Reference shows contract-backed decision policy and scoring rules from `AI_CHECK_CONTRACT.promptProgram`.
+- `test:e2e` includes expected input evidence authoring coverage (`EXPECTED_INPUT_EVIDENCE_AUTHORING_OK true`): authored eval cases persist duration and return-plan evidence expectations.
 - `test:e2e` includes Contract Change Plan coverage (`CONTRACT_CHANGE_PLAN_OK true`): Schema Reference creates a non-mutating plan from an accepted suggestion, persists its targets and required implementation surfaces, then records ready/applied lifecycle state with implementation note and contract versions.
 - `test:e2e` includes Experiment Workspace coverage (`EXPERIMENT_WORKSPACE_OK true`): PM Review creates a named workspace, adds an explicit candidate arm, and links run, comparison, and suggestion artifacts.
 - `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
@@ -329,6 +331,13 @@ Pending implementation validation:
 - All active eval fixtures were migrated to evaluation schema v4.
 - The homework missing-boundary case now asserts missing duration and return-plan evidence; the TypeScript build-error case now asserts both are present.
 - Shared UI/provider evals and CLI evals both check expected input evidence from case messages.
+
+2026-05-24 Expected input evidence authoring update:
+
+- `CreateEvalCaseInput` and `UpdateEvalCaseInput` now accept `expectedInputEvidence`.
+- `review-store` persists expected input evidence during case creation/update and preserves it during stored-case normalization.
+- Evaluation Case editor exposes explicit duration and return-plan evidence expectations as Ignore/Yes/No controls.
+- E2E now verifies authored eval cases persist expected input evidence.
 
 2026-05-24 Experiment Workspace update:
 

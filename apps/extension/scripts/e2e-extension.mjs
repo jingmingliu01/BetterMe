@@ -477,11 +477,24 @@ try {
     status: "ready",
     targetDisplay: "example.com",
     strictness: "balanced",
-    userMessage: "I need to research homework for 10 minutes then I will close the tab.",
+    userMessage: "I need to research homework for 10 minutes then return to homework.",
     expectedDecision: "ALLOW",
+    expectedInputEvidence: {
+      hasExplicitDuration: true,
+      hasReturnPlan: true
+    },
     tags: ["provider_probe"],
     reviewerNote: "E2E provider-mode Experiment Lab probe."
   });
+  const evidenceEvalCases = await getIndexedDbRecords(page, "evalCases");
+  const evidenceProbeCase = evidenceEvalCases.find((item) => item.title === "Provider mode passing case");
+  if (
+    evidenceProbeCase?.eval?.expectedInputEvidence?.hasExplicitDuration !== true ||
+    evidenceProbeCase?.eval?.expectedInputEvidence?.hasReturnPlan !== true
+  ) {
+    throw new Error(`Expected input evidence was not persisted on authored eval case: ${JSON.stringify(evidenceProbeCase)}`);
+  }
+  console.log("EXPECTED_INPUT_EVIDENCE_AUTHORING_OK true");
   await queueProviderResponses(serviceWorker, [
     buildProviderDecision({
       decision: "ALLOW",
@@ -503,7 +516,7 @@ try {
   await page.getByRole("button", { name: /Run Eval/ }).click();
   await page.getByText(/Experiment .* finished/).waitFor({ timeout: 5_000 });
   resultPanelText = await page.locator(".experiment-results-panel").innerText();
-  assertIncludes(resultPanelText, "1/1", "Provider-mode run did not pass the focused probe case.");
+  assertIncludes(resultPanelText, "1/1", `Provider-mode run did not pass the focused probe case: ${resultPanelText}`);
   const experimentProviderRequests = await getProviderRequestLog(serviceWorker);
   if (experimentProviderRequests.length !== providerRequestCountBefore + 1) {
     throw new Error(`Provider-mode eval did not send exactly one provider request: ${experimentProviderRequests.length}`);
