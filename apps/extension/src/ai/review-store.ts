@@ -37,6 +37,7 @@ import type {
   GeneratePromptProgramSuggestionsInput,
   ImportEvalRunArtifactInput,
   PromotePromptCandidateInput,
+  ReviewPromptProgramSuggestionItemInput,
   RunEvalExperimentInput,
   RunPromptComparisonInput,
   StrictnessLevel,
@@ -420,7 +421,7 @@ export async function listPromptPromotions(): Promise<AICheckPromptPromotion[]> 
 
 export async function listPromptProgramSuggestions(): Promise<AICheckPromptProgramSuggestion[]> {
   const suggestions = await getAllRecords<AICheckPromptProgramSuggestion>("promptProgramSuggestions");
-  return suggestions.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  return suggestions.sort((left, right) => (right.updatedAt ?? right.createdAt).localeCompare(left.updatedAt ?? left.createdAt));
 }
 
 export async function getActivePromptPromotion(): Promise<AICheckPromptPromotion | null> {
@@ -557,16 +558,48 @@ export async function generatePromptProgramSuggestions(
     apiKey,
     messages: buildPromptProgramSuggestionMessages(comparison)
   });
+  const createdAt = nowIso();
   const suggestion: AICheckPromptProgramSuggestion = {
     id: createId("promptprogramsuggestion"),
     comparisonId: comparison.id,
     provider,
     model,
     items: parseGeneratedPromptProgramSuggestions(raw),
-    createdAt: nowIso()
+    createdAt,
+    updatedAt: createdAt
   };
   await putRecord("promptProgramSuggestions", suggestion);
   return suggestion;
+}
+
+export async function reviewPromptProgramSuggestionItem(
+  input: ReviewPromptProgramSuggestionItemInput
+): Promise<AICheckPromptProgramSuggestion> {
+  const suggestion = await getRecord<AICheckPromptProgramSuggestion>("promptProgramSuggestions", input.suggestionId);
+  if (!suggestion) {
+    throw new Error("Prompt Program suggestion not found.");
+  }
+  let itemFound = false;
+  const reviewedAt = nowIso();
+  const updated: AICheckPromptProgramSuggestion = {
+    ...suggestion,
+    items: suggestion.items.map((item) => {
+      if (item.id !== input.itemId) return item;
+      itemFound = true;
+      return {
+        ...item,
+        status: input.status,
+        reviewNote: input.reviewNote?.trim() || undefined,
+        reviewedAt
+      };
+    }),
+    updatedAt: reviewedAt
+  };
+  if (!itemFound) {
+    throw new Error("Prompt Program suggestion item not found.");
+  }
+  await putRecord("promptProgramSuggestions", updated);
+  return updated;
 }
 
 export async function promotePromptCandidate(input: PromotePromptCandidateInput): Promise<AICheckPromptPromotion> {
@@ -750,7 +783,9 @@ function parsePromptProgramSuggestionItem(raw: unknown): AICheckPromptProgramSug
     throw new Error("Prompt Program suggestion items must include title and suggestion.");
   }
   return {
+    id: createId("promptprogramsuggestionitem"),
     kind,
+    status: "proposed",
     title: item.title.trim().slice(0, 120) || formatSuggestionKind(kind),
     suggestion: item.suggestion.trim(),
     rationale: typeof item.rationale === "string" ? item.rationale.trim() : undefined,

@@ -395,20 +395,25 @@ interface AICheckPromptProgramSuggestion {
   provider: "openai" | "deepseek" | "kimi";
   model: string;
   items: Array<{
+    id: string;
     kind: "prompt_patch" | "rubric" | "schema";
+    status: "proposed" | "accepted" | "rejected";
     title: string;
     suggestion: string;
     rationale?: string;
     implementationNotes?: string;
     risk?: string;
+    reviewNote?: string;
+    reviewedAt?: string;
   }>;
   createdAt: string;
+  updatedAt: string;
 }
 ```
 
 The baseline run and candidate run both remain standard `AICheckEvalRun` rows. The comparison artifact binds them together. Candidate runs append the candidate patch to the static system prompt inside a `<candidate_prompt_patch>` block, while preserving the normal trusted Round Context, Conversation, and Turn Context order.
 
-Textual Gradient is diagnosis only. It can summarize failure clusters and suggested prompt directions, ask a saved BYOK provider to draft a new prompt candidate, and generate richer Prompt Program suggestions across prompt patch, rubric, and schema/evaluation gaps. Generated Prompt Candidates are saved as ordinary draft Prompt Candidates; they still require A/B comparison and promotion gates before they can affect runtime. Prompt Program Suggestions are separate read-only PM artifacts and never mutate the prompt, schema, rubric, or release state by themselves.
+Textual Gradient is diagnosis only. It can summarize failure clusters and suggested prompt directions, ask a saved BYOK provider to draft a new prompt candidate, and generate richer Prompt Program suggestions across prompt patch, rubric, and schema/evaluation gaps. Generated Prompt Candidates are saved as ordinary draft Prompt Candidates; they still require A/B comparison and promotion gates before they can affect runtime. Prompt Program Suggestions are separate PM artifacts and never mutate the prompt, schema, rubric, or release state by themselves. PM can mark suggestion items as accepted or rejected; accepted items become tracked inputs for a contract-first implementation workflow, not automatic schema or prompt edits.
 
 Promotion is a separate audited step. A candidate can become the active local Prompt Program only when a comparison recommends promotion, has no regressed cases, the candidate run does not fail the release gate, and Design, Regression, and Holdout coverage are all present and passing. Promotion records the candidate patch as a local active prompt version. New AI Check sessions freeze that promoted version and use its patch in provider messages.
 

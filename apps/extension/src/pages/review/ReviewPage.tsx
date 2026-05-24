@@ -63,6 +63,7 @@ import type {
   ImportEvalRunArtifactInput,
   PromotePromptCandidateInput,
   ProviderId,
+  ReviewPromptProgramSuggestionItemInput,
   RunPromptComparisonInput,
   StrictnessLevel,
   AICheckSchemaFieldReference,
@@ -262,6 +263,7 @@ export function ReviewPage() {
   const [runningPromptComparison, setRunningPromptComparison] = useState(false);
   const [generatingPromptCandidate, setGeneratingPromptCandidate] = useState(false);
   const [generatingPromptProgramSuggestions, setGeneratingPromptProgramSuggestions] = useState(false);
+  const [reviewingPromptProgramSuggestionItemId, setReviewingPromptProgramSuggestionItemId] = useState<string | null>(null);
   const [promotingPromptCandidate, setPromotingPromptCandidate] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -652,6 +654,23 @@ export function ReviewPage() {
     }
   }
 
+  async function reviewPromptProgramSuggestionItem(input: ReviewPromptProgramSuggestionItemInput) {
+    setReviewingPromptProgramSuggestionItemId(input.itemId);
+    setStatus(null);
+    try {
+      await sendMessage<AICheckPromptProgramSuggestion>({
+        type: "review/reviewPromptProgramSuggestionItem",
+        payload: input
+      });
+      setStatus(`Suggestion ${input.status} for contract-first workflow.`);
+      await refreshPromptProgramSuggestions();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not review Prompt Program suggestion.");
+    } finally {
+      setReviewingPromptProgramSuggestionItemId(null);
+    }
+  }
+
   async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
     if (!selectedEvalRun) return;
     setSaving(true);
@@ -881,6 +900,7 @@ export function ReviewPage() {
           promptProgramSuggestions={promptProgramSuggestions}
           promptPromotionNote={promptPromotionNote}
           promptPromotions={promptPromotions}
+          reviewingPromptProgramSuggestionItemId={reviewingPromptProgramSuggestionItemId}
           promotingPromptCandidate={promotingPromptCandidate}
           running={runningEval}
           runningPromptComparison={runningPromptComparison}
@@ -903,6 +923,7 @@ export function ReviewPage() {
           onGeneratePromptProgramSuggestions={generateSuggestionsFromSelectedComparison}
           onImportRun={importEvalRunArtifact}
           onPromotePromptCandidate={promoteSelectedPromptCandidate}
+          onReviewPromptProgramSuggestionItem={reviewPromptProgramSuggestionItem}
           onRefresh={() =>
             void Promise.all([
               refreshEvalRuns(),
@@ -940,6 +961,7 @@ function ExperimentLab({
   promptProgramSuggestions,
   promptPromotionNote,
   promptPromotions,
+  reviewingPromptProgramSuggestionItemId,
   promotingPromptCandidate,
   providerStatus,
   releaseDecisions,
@@ -965,6 +987,7 @@ function ExperimentLab({
   onGeneratePromptProgramSuggestions,
   onImportRun,
   onPromotePromptCandidate,
+  onReviewPromptProgramSuggestionItem,
   onRefresh,
   onRun,
   onRunPromptComparison
@@ -984,6 +1007,7 @@ function ExperimentLab({
   promptProgramSuggestions: AICheckPromptProgramSuggestion[];
   promptPromotionNote: string;
   promptPromotions: AICheckPromptPromotion[];
+  reviewingPromptProgramSuggestionItemId: string | null;
   promotingPromptCandidate: boolean;
   providerStatus: Partial<Record<ProviderId, boolean>>;
   releaseDecisions: AICheckReleaseDecision[];
@@ -1009,6 +1033,7 @@ function ExperimentLab({
   onGeneratePromptProgramSuggestions: () => void;
   onImportRun: () => void;
   onPromotePromptCandidate: () => void;
+  onReviewPromptProgramSuggestionItem: (input: ReviewPromptProgramSuggestionItemInput) => void;
   onRefresh: () => void;
   onRun: () => void;
   onRunPromptComparison: () => void;
@@ -1344,11 +1369,13 @@ function ExperimentLab({
                 promotions={promptPromotions}
                 promotionNote={promptPromotionNote}
                 promoting={promotingPromptCandidate}
+                reviewingSuggestionItemId={reviewingPromptProgramSuggestionItemId}
                 onSelectBaselineRun={setSelectedRunId}
                 onSelectCandidateRun={setSelectedRunId}
                 onGenerateCandidate={onGeneratePromptCandidate}
                 onGenerateSuggestions={onGeneratePromptProgramSuggestions}
                 onPromote={onPromotePromptCandidate}
+                onReviewSuggestionItem={onReviewPromptProgramSuggestionItem}
                 setPromotionNote={setPromptPromotionNote}
               />
             )}
@@ -1538,11 +1565,13 @@ function PromptComparisonSummary({
   promotions,
   promotionNote,
   promoting,
+  reviewingSuggestionItemId,
   onSelectBaselineRun,
   onSelectCandidateRun,
   onGenerateCandidate,
   onGenerateSuggestions,
   onPromote,
+  onReviewSuggestionItem,
   setPromotionNote
 }: {
   candidates: AICheckPromptCandidate[];
@@ -1553,11 +1582,13 @@ function PromptComparisonSummary({
   promotions: AICheckPromptPromotion[];
   promotionNote: string;
   promoting: boolean;
+  reviewingSuggestionItemId: string | null;
   onSelectBaselineRun: (runId: string) => void;
   onSelectCandidateRun: (runId: string) => void;
   onGenerateCandidate: () => void;
   onGenerateSuggestions: () => void;
   onPromote: () => void;
+  onReviewSuggestionItem: (input: ReviewPromptProgramSuggestionItemInput) => void;
   setPromotionNote: (value: string) => void;
 }) {
   const candidate = candidates.find((item) => item.id === comparison.candidateId);
@@ -1685,11 +1716,48 @@ function PromptComparisonSummary({
                   {suggestion.items.map((item) => (
                     <section className="metric-breakdown stack" key={`${suggestion.id}-${item.kind}-${item.title}`}>
                       <span className="section-label">{formatTag(item.kind)}</span>
-                      <strong>{item.title}</strong>
+                      <div className="row space-between">
+                        <strong>{item.title}</strong>
+                        <span className={`status-pill status-pill-${item.status}`}>{formatStatusLabel(item.status)}</span>
+                      </div>
                       <span>{item.suggestion}</span>
                       {item.rationale && <small>{item.rationale}</small>}
                       {item.implementationNotes && <small>{item.implementationNotes}</small>}
                       {item.risk && <small>{item.risk}</small>}
+                      {item.reviewNote && <small>{item.reviewNote}</small>}
+                      {item.reviewedAt && <small>{formatDate(item.reviewedAt)}</small>}
+                      <div className="row wrap-row">
+                        <button
+                          aria-label={`Accept suggestion ${item.title}`}
+                          className="btn btn-ghost"
+                          disabled={reviewingSuggestionItemId === item.id || item.status === "accepted"}
+                          onClick={() =>
+                            onReviewSuggestionItem({
+                              suggestionId: suggestion.id,
+                              itemId: item.id,
+                              status: "accepted",
+                              reviewNote: "Accepted for contract-first implementation."
+                            })
+                          }
+                        >
+                          Accept
+                        </button>
+                        <button
+                          aria-label={`Reject suggestion ${item.title}`}
+                          className="btn btn-ghost"
+                          disabled={reviewingSuggestionItemId === item.id || item.status === "rejected"}
+                          onClick={() =>
+                            onReviewSuggestionItem({
+                              suggestionId: suggestion.id,
+                              itemId: item.id,
+                              status: "rejected",
+                              reviewNote: "Rejected during PM review."
+                            })
+                          }
+                        >
+                          Reject
+                        </button>
+                      </div>
                     </section>
                   ))}
                 </div>
@@ -3187,6 +3255,13 @@ function formatDecision(decision: AIDecision | null): string {
 
 function formatStatus(status: AICheckCaseStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function formatStatusLabel(status: string): string {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 function formatTag(tag: string): string {

@@ -65,6 +65,7 @@ import {
   listReleaseDecisions,
   listReviewSessions,
   promotePromptCandidate,
+  reviewPromptProgramSuggestionItem,
   runPromptComparison,
   runEvalExperiment,
   updateEvalCase,
@@ -352,6 +353,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listPromptProgramSuggestions());
       case "review/generatePromptProgramSuggestions":
         return ok(await generatePromptProgramSuggestions(message.payload));
+      case "review/reviewPromptProgramSuggestionItem":
+        return ok(await reviewPromptProgramSuggestionItem(message.payload));
       case "review/listPromptPromotions":
         return ok(await listPromptPromotions());
       case "review/promotePromptCandidate":

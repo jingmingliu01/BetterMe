@@ -239,9 +239,10 @@ Update 2026-05-24:
 - Generated candidates are ordinary draft candidates; they do not mutate prompts or approve releases.
 - It can also generate Prompt Program Suggestions across prompt patch, rubric, and schema categories.
 - Prompt Program Suggestions are read-only PM artifacts; they do not mutate the active prompt, AI Check contract, rubric, schema, release decisions, or promotion state.
+- PM can accept or reject individual suggestion items. Accepted items are tracked as contract-first implementation inputs, while applying them still requires explicit contract/code/docs changes.
 - Holdout visibility rules from Experiment Lab still apply because candidate comparison is built from standard tuning/release-review eval runs.
 - Promotion requires the comparison recommendation to be `promote_candidate`, zero regressed cases, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
-- Applying accepted rubric/schema suggestions remains a separate contract-first implementation workflow.
+- Applying accepted rubric/schema suggestions into the actual contract remains a separate code change with the normal contract validation gates.
 
 ### ISSUE-009: Contract Reference can become stale if Prompt Program expands
 

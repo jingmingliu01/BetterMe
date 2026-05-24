@@ -1425,6 +1425,21 @@ button {
   background: #e7e9ec;
 }
 
+.status-pill-proposed {
+  color: #4d5562;
+  background: #edf0f3;
+}
+
+.status-pill-accepted {
+  color: #1f5a42;
+  background: #dcefe5;
+}
+
+.status-pill-rejected {
+  color: #7a312f;
+  background: #f6dedd;
+}
+
 .tag-list {
   display: flex;
   gap: 6px;

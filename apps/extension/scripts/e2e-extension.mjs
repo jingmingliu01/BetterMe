@@ -712,8 +712,8 @@ try {
   const latestSuggestion = promptProgramSuggestions.at(-1);
   if (
     latestSuggestion?.items?.length !== 2 ||
-    !latestSuggestion.items.some((item) => item.kind === "rubric") ||
-    !latestSuggestion.items.some((item) => item.kind === "schema")
+    !latestSuggestion.items.some((item) => item.kind === "rubric" && item.status === "proposed") ||
+    !latestSuggestion.items.some((item) => item.kind === "schema" && item.status === "proposed")
   ) {
     throw new Error(`Prompt Program suggestions were not persisted: ${JSON.stringify(promptProgramSuggestions)}`);
   }
@@ -726,6 +726,31 @@ try {
     throw new Error("Prompt Program suggestion generation did not send rubric/schema context to the provider.");
   }
   console.log("PROMPT_PROGRAM_SUGGESTIONS_OK true");
+  await page.getByRole("button", { name: "Accept suggestion Bounded break rubric" }).click();
+  await page.getByText("Suggestion accepted for contract-first workflow.").waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Reject suggestion Break intent evidence" }).click();
+  await page.getByText("Suggestion rejected for contract-first workflow.").waitFor({ timeout: 5_000 });
+  const reviewedPromptProgramSuggestions = await getIndexedDbRecords(page, "promptProgramSuggestions");
+  const reviewedSuggestion = reviewedPromptProgramSuggestions.find((suggestion) => suggestion.id === latestSuggestion.id);
+  if (
+    !reviewedSuggestion?.items.some(
+      (item) =>
+        item.title === "Bounded break rubric" &&
+        item.status === "accepted" &&
+        item.reviewNote === "Accepted for contract-first implementation." &&
+        item.reviewedAt
+    ) ||
+    !reviewedSuggestion.items.some(
+      (item) =>
+        item.title === "Break intent evidence" &&
+        item.status === "rejected" &&
+        item.reviewNote === "Rejected during PM review." &&
+        item.reviewedAt
+    )
+  ) {
+    throw new Error(`Prompt Program suggestion review state was not persisted: ${JSON.stringify(reviewedSuggestion)}`);
+  }
+  console.log("PROMPT_PROGRAM_SUGGESTION_REVIEW_OK true");
 
   for (const datasetType of ["design", "regression", "holdout"]) {
     await sendRuntimeMessage(page, "review/createEvalCase", {

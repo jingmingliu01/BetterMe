@@ -157,13 +157,14 @@ Implemented now:
 - Comparison view shows baseline vs candidate pass rate, improved/regressed counts, recommendation, and Textual Gradient clusters/directions/risk notes.
 - PM can generate a new draft Prompt Candidate from Textual Gradient using a saved BYOK provider.
 - PM can generate read-only Prompt Program Suggestions from Textual Gradient using a saved BYOK provider; suggestions are categorized as prompt patch, rubric, or schema and are persisted in `promptProgramSuggestions`.
+- PM can accept or reject individual Prompt Program Suggestion items. Accepted items are tracked as contract-first implementation inputs and do not mutate the active prompt, schema, rubric, release decision, or promotion state.
 - PM can promote a recommended candidate only when it has no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
 - Promotion creates a `promptPromotions` audit record and makes that candidate patch the active local Prompt Program for new AI Check sessions.
 - Runtime AI Check freezes the promoted prompt version on session start and injects the promoted patch into provider messages.
 
 Still remaining:
 
-- Applying accepted rubric/schema suggestions through contract-first implementation workflows.
+- Applying accepted rubric/schema suggestions into `ai-check-contract.json`, generated references, eval assertions, and docs through explicit contract-first code changes.
 
 ## Validation Status
 
@@ -185,6 +186,7 @@ Implementation validation performed:
 - `test:e2e` includes Candidate Prompt A/B coverage: Experiment Lab saves a candidate, runs baseline/candidate provider calls, injects `<candidate_prompt_patch>`, persists comparison regression/recommendation, and shows Textual Gradient.
 - `test:e2e` includes Textual Gradient candidate generation coverage: Experiment Lab asks a BYOK provider for a draft candidate, sends Textual Gradient context, and persists the generated Prompt Candidate.
 - `test:e2e` includes Prompt Program Suggestions coverage: Experiment Lab asks a BYOK provider for prompt patch/rubric/schema suggestions from Textual Gradient and persists them in `promptProgramSuggestions`.
+- `test:e2e` includes Prompt Program Suggestion review coverage: PM Review accepts and rejects individual suggestion items and persists review state for the contract-first handoff.
 - `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
 
 Pending implementation validation:
@@ -274,6 +276,13 @@ Pending implementation validation:
 - Suggestions are persisted in `promptProgramSuggestions` with prompt patch, rubric, or schema categories and displayed under the comparison.
 - Suggestions intentionally do not mutate the active prompt, AI Check contract, rubric, schema, release decisions, or promotion state.
 - Issues document was updated because richer rubric/schema suggestion generation moved from open to implemented as a non-mutating PM artifact. Design document was updated to document the artifact boundary.
+
+2026-05-24 Prompt Program Suggestion review update:
+
+- Prompt Program Suggestion items now carry `proposed`, `accepted`, or `rejected` review state.
+- Experiment Lab lets PM accept or reject individual suggestion items.
+- Accepted items are tracked as contract-first implementation inputs without mutating the active prompt, AI Check contract, rubric, schema, release decisions, or promotion state.
+- Issues document was updated because the contract-first workflow now has an explicit PM review handoff. Design document was updated to include suggestion item review state.
 
 ## Update Checklist
 
