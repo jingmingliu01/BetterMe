@@ -1,4 +1,4 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { createServer } from "vite";
@@ -46,6 +46,7 @@ try {
   for (const testCase of cases) {
     results.push(await runCase(testCase, { provider, providerConfig, model }));
   }
+  const artifact = buildRunArtifact(cases, results, { provider, model, args });
 
   const failed = results.filter((result) => !result.pass);
   const tagStats = summarizeByTag(results);
@@ -69,9 +70,14 @@ try {
     console.log("");
     console.log("Failed:");
     for (const result of failed) {
-      console.log(`- ${result.id}: ${result.failureReasons.join("; ")}`);
+      console.log(`- ${result.evalCaseId}: ${result.failureReasons.join("; ")}`);
     }
     process.exitCode = 1;
+  }
+  if (args.output) {
+    await writeEvalRunArtifact(args.output, artifact);
+    console.log("");
+    console.log(`Artifact: ${resolve(process.cwd(), args.output)}`);
   }
 } finally {
   await runtimeModules?.server.close();
@@ -125,12 +131,52 @@ async function runCase(testCase, runConfig) {
   }
 
   return {
-    id: testCase.id,
+    id: createId("evalresult"),
+    runId: "",
+    evalCaseId: testCase.id,
     tags: evaluation.tags ?? [],
     actualDecision: actual.decision,
     pass: failureReasons.length === 0,
-    failureReasons
+    failureReasons,
+    rawProvider: actual.rawProvider ?? JSON.stringify(actual, null, 2),
+    createdAt: ""
   };
+}
+
+function buildRunArtifact(cases, caseResults, { provider, model, args }) {
+  const createdAt = new Date().toISOString();
+  const runId = createId("evalrun");
+  const results = caseResults.map((result) => ({
+    id: result.id,
+    runId,
+    evalCaseId: result.evalCaseId,
+    actualDecision: result.actualDecision ?? null,
+    pass: result.pass,
+    failureReasons: result.failureReasons,
+    rawProvider: result.rawProvider,
+    createdAt
+  }));
+  const run = {
+    id: runId,
+    promptVersion,
+    outputSchemaVersion,
+    evaluationSchemaVersion,
+    mode: args.mode === "release_review" ? "release_review" : "tuning",
+    providerMode: provider === "mock" ? "mock" : "byok",
+    provider,
+    model,
+    filters: buildRunFilters(args),
+    caseIds: cases.map((testCase) => testCase.id),
+    metrics: buildEvalMetrics(cases, results),
+    createdAt
+  };
+  return { run, results };
+}
+
+async function writeEvalRunArtifact(outputPath, artifact) {
+  const resolvedPath = resolve(process.cwd(), outputPath);
+  await mkdir(dirname(resolvedPath), { recursive: true });
+  await writeFile(resolvedPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
 }
 
 function checkDecisionExpectation(path, actual, expectation, failureReasons) {
@@ -211,6 +257,87 @@ function checkNumberRangeExpectation(path, actual, expectation, failureReasons) 
   if (typeof expectation.max === "number" && actual > expectation.max) {
     failureReasons.push(`${path} ${actual} above max ${expectation.max}`);
   }
+}
+
+function buildEvalMetrics(cases, artifactResults) {
+  const resultByCaseId = new Map(artifactResults.map((result) => [result.evalCaseId, result]));
+  const failedCases = cases.filter((testCase) => !resultByCaseId.get(testCase.id)?.pass);
+  const falseAllowFailures = failedCases.filter((testCase) => resultByCaseId.get(testCase.id)?.actualDecision === "ALLOW").length;
+  const falseBlockFailures = failedCases.filter((testCase) => resultByCaseId.get(testCase.id)?.actualDecision === "BLOCK").length;
+  const askMoreRecallFailures = failedCases.filter(
+    (testCase) => getPrimaryExpectedDecision(testCase.eval?.expectedOutput.decision) === "ASK_MORE"
+  ).length;
+  const schemaFailures = failedCases.filter((testCase) => (testCase.eval?.tags ?? []).includes("schema_or_format_failure")).length;
+  const unsafeSensitiveFailures = failedCases.filter((testCase) =>
+    (testCase.eval?.tags ?? []).includes("unsafe_sensitive_advice")
+  ).length;
+  const reasonQualityFailures = failedCases.filter((testCase) =>
+    (testCase.eval?.tags ?? []).some((tag) => tag === "wrong_reason_strength" || tag === "wrong_cooldown")
+  ).length;
+  const criticalFailures = failedCases.filter((testCase) => testCase.severity === "critical").length;
+  const passed = artifactResults.filter((result) => result.pass).length;
+  const failed = artifactResults.length - passed;
+  const releaseGateReasons = [];
+
+  if (artifactResults.length === 0) releaseGateReasons.push("No cases selected.");
+  if (schemaFailures > 0) releaseGateReasons.push(`${schemaFailures} schema or format failure(s).`);
+  if (falseAllowFailures > 0) releaseGateReasons.push(`${falseAllowFailures} false allow failure(s).`);
+  if (unsafeSensitiveFailures > 0) releaseGateReasons.push(`${unsafeSensitiveFailures} unsafe sensitive failure(s).`);
+  if (criticalFailures > 0) releaseGateReasons.push(`${criticalFailures} critical failure(s).`);
+  if (failed > 0 && releaseGateReasons.length === 0) releaseGateReasons.push(`${failed} non-gating failure(s) need review.`);
+
+  return {
+    total: artifactResults.length,
+    passed,
+    failed,
+    passRate: artifactResults.length > 0 ? passed / artifactResults.length : 0,
+    byTag: buildBreakdown(cases, artifactResults, (testCase) => testCase.eval?.tags ?? []),
+    byStrictness: buildBreakdown(cases, artifactResults, (testCase) => [testCase.input.strictness]),
+    falseAllowFailures,
+    falseBlockFailures,
+    askMoreRecallFailures,
+    schemaFailures,
+    unsafeSensitiveFailures,
+    reasonQualityFailures,
+    criticalFailures,
+    releaseGate: {
+      status:
+        releaseGateReasons.length === 0
+          ? "pass"
+          : failed > 0 && releaseGateReasons.every((reason) => reason.includes("non-gating"))
+            ? "warn"
+            : "fail",
+      reasons: releaseGateReasons.length === 0 ? ["All selected release-gate checks passed."] : releaseGateReasons
+    }
+  };
+}
+
+function buildBreakdown(cases, artifactResults, getKeys) {
+  const resultByCaseId = new Map(artifactResults.map((result) => [result.evalCaseId, result]));
+  const rows = new Map();
+  for (const testCase of cases) {
+    const result = resultByCaseId.get(testCase.id);
+    if (!result) continue;
+    for (const key of getKeys(testCase)) {
+      const row = rows.get(key) ?? { key, passed: 0, total: 0 };
+      row.total += 1;
+      if (result.pass) row.passed += 1;
+      rows.set(key, row);
+    }
+  }
+  return [...rows.values()]
+    .map((row) => ({
+      ...row,
+      passRate: row.total > 0 ? row.passed / row.total : 0
+    }))
+    .sort((left, right) => left.key.localeCompare(right.key));
+}
+
+function getPrimaryExpectedDecision(expectation) {
+  if (!expectation) return null;
+  if (typeof expectation === "string") return expectation;
+  if (expectation.exact) return expectation.exact;
+  return expectation.allowed?.[0] ?? null;
 }
 
 async function providerDecision(testCase, runConfig) {
@@ -503,6 +630,9 @@ function filterCases(cases, args) {
   const requestedStatuses = splitArg(args.status ?? args.statuses);
   const requestedDatasets = splitArg(args.dataset ?? args.datasets);
   const requestedTags = splitArg(args.tag ?? args.tags);
+  const requestedStrictness = splitArg(args.strictness);
+  const requestedExpectedDecisions = splitArg(args.expected ?? args.expectedDecision ?? args.expectedDecisions);
+  const requestedSeverity = splitArg(args.severity);
   return cases.filter((testCase) => {
     if (!args["include-archived"] && testCase.status === "archived") {
       return false;
@@ -513,6 +643,18 @@ function filterCases(cases, args) {
     if (requestedDatasets.length > 0 && !requestedDatasets.includes(testCase.datasetType)) {
       return false;
     }
+    if (requestedStrictness.length > 0 && !requestedStrictness.includes(testCase.input.strictness)) {
+      return false;
+    }
+    if (requestedSeverity.length > 0 && !requestedSeverity.includes(testCase.severity)) {
+      return false;
+    }
+    if (requestedExpectedDecisions.length > 0) {
+      const expectedDecision = getPrimaryExpectedDecision(testCase.eval?.expectedOutput.decision);
+      if (!expectedDecision || !requestedExpectedDecisions.includes(expectedDecision)) {
+        return false;
+      }
+    }
     if (requestedTags.length > 0) {
       const tags = new Set(testCase.eval?.tags ?? []);
       if (!requestedTags.some((tag) => tags.has(tag))) {
@@ -521,6 +663,24 @@ function filterCases(cases, args) {
     }
     return true;
   });
+}
+
+function buildRunFilters(args) {
+  const filters = {};
+  const statuses = splitArg(args.status ?? args.statuses);
+  const datasetTypes = splitArg(args.dataset ?? args.datasets);
+  const tags = splitArg(args.tag ?? args.tags);
+  const strictness = splitArg(args.strictness);
+  const expectedDecisions = splitArg(args.expected ?? args.expectedDecision ?? args.expectedDecisions);
+  const severity = splitArg(args.severity);
+  if (statuses.length > 0) filters.statuses = statuses;
+  if (datasetTypes.length > 0) filters.datasetTypes = datasetTypes;
+  if (tags.length > 0) filters.tags = tags;
+  if (strictness.length > 0) filters.strictness = strictness;
+  if (expectedDecisions.length > 0) filters.expectedDecisions = expectedDecisions;
+  if (severity.length > 0) filters.severity = severity;
+  if (args["include-archived"]) filters.includeArchived = true;
+  return filters;
 }
 
 function splitArg(value) {
@@ -537,10 +697,16 @@ function describeCaseFilter(args) {
   const statuses = splitArg(args.status ?? args.statuses);
   const datasets = splitArg(args.dataset ?? args.datasets);
   const tags = splitArg(args.tag ?? args.tags);
+  const strictness = splitArg(args.strictness);
+  const expectedDecisions = splitArg(args.expected ?? args.expectedDecision ?? args.expectedDecisions);
+  const severity = splitArg(args.severity);
   parts.push(args["include-archived"] ? "including archived" : "active only");
   if (statuses.length > 0) parts.push(`status=${statuses.join(",")}`);
   if (datasets.length > 0) parts.push(`dataset=${datasets.join(",")}`);
   if (tags.length > 0) parts.push(`tag=${tags.join(",")}`);
+  if (strictness.length > 0) parts.push(`strictness=${strictness.join(",")}`);
+  if (expectedDecisions.length > 0) parts.push(`expected=${expectedDecisions.join(",")}`);
+  if (severity.length > 0) parts.push(`severity=${severity.join(",")}`);
   return parts.join("; ");
 }
 
@@ -555,6 +721,10 @@ function summarizeByTag(results) {
     }
   }
   return [...rows.values()].sort((left, right) => left.tag.localeCompare(right.tag));
+}
+
+function createId(prefix) {
+  return `${prefix}_${crypto.randomUUID()}`;
 }
 
 function parseArgs(values) {

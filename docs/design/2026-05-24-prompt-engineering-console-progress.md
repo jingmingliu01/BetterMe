@@ -11,7 +11,7 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-Phase 1, Phase 2, and the first Phase 3 Experiment Lab slice are partially implemented in the AI Check contract, review-store conversion path, PM Review UI, eval fixtures, eval runner, and local run/result stores.
+Phase 1, Phase 2, and the first Phase 3 Experiment Lab slice are partially implemented in the AI Check contract, review-store conversion path, PM Review UI, eval fixtures, eval runner, local run/result stores, and CLI run artifact import/export path.
 
 This document set remains the scaffold for the larger Prompt Engineering Console implementation. The current code change does not yet implement Candidate Prompt A/B or Textual Gradient.
 
@@ -128,11 +128,11 @@ Implemented now:
 - Metrics show pass rate, failed categories, tag/strictness breakdowns, failures, run history, and release gate summary.
 - Tuning mode hides Holdout breakdowns and failure details while preserving aggregate metrics and release gate status.
 - PM can approve or block release for a selected run with a release note; the stored decision snapshots gate status, metrics, provider/model, and versions.
+- CLI `eval:ai-check` can write an importable `AICheckEvalRunSummary` artifact, and Experiment Lab can import that artifact into local run history.
 - First slice runs the current Prompt Program only, keeping Candidate Prompt A/B out of scope.
 
 Still remaining:
 
-- CLI and UI shared persistence for provider-mode eval runs.
 - Candidate Prompt promotion flow after candidate prompt artifacts exist.
 
 ### Phase 4: Candidate Prompt and Textual Gradient
@@ -162,10 +162,12 @@ Implementation validation performed:
 - `test:e2e` includes Holdout visibility coverage: tuning mode hides Holdout failure details, release review mode reveals the failure summary.
 - `test:e2e` includes provider-mode Experiment Lab coverage: saved BYOK provider, runtime provider messages, BYOK run metadata, and one focused passing provider run.
 - `test:e2e` includes Release Decision coverage: approving a passing provider-mode run persists an approved decision with the run id and gate status.
+- CLI `eval:ai-check -- --output=...` writes the shared run artifact; shape validation confirmed the artifact has one run and 42 linked results.
+- `test:e2e` includes Eval Run artifact import coverage: Experiment Lab imports a run artifact and persists matching `evalRuns`/`evalResults` records.
 
 Pending implementation validation:
 
-- Provider-mode CLI/UI shared persistence validation after the shared persistence path is added.
+- None for Phase 3 first-slice scope.
 
 ## Synchronization Note
 
@@ -217,6 +219,12 @@ Pending implementation validation:
 - Experiment Lab now lets PM approve or block release for a selected Experiment Run with a note.
 - Stored Release Decisions snapshot prompt/schema versions, provider/model, release gate status, gate reasons, and metrics.
 - Issues document was updated because a first-slice release decision workflow now exists. Design document was updated to clarify that this approves the current Prompt Program for the selected run context until Candidate Prompt promotion exists.
+
+2026-05-24 CLI artifact bridge update:
+
+- CLI eval runner now supports `--output=<path>` and writes the shared `AICheckEvalRunSummary` artifact shape.
+- Experiment Lab now imports that artifact into local `evalRuns` and `evalResults`.
+- Issues document was updated because CLI/UI shared persistence moved from open gap to implemented first-slice behavior. Design document was updated to document the shared run artifact contract.
 
 ## Update Checklist
 

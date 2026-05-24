@@ -326,6 +326,10 @@ export interface AICheckEvalRunSummary {
   results: AICheckEvalResult[];
 }
 
+export interface ImportEvalRunArtifactInput {
+  artifact: AICheckEvalRunSummary;
+}
+
 export type AICheckReleaseDecisionStatus = "approved" | "blocked";
 
 export interface AICheckReleaseDecision {
@@ -437,6 +441,7 @@ export type ExtensionMessage =
   | { type: "review/archiveEvalCase"; payload: { id: string; archivedReason?: string } }
   | { type: "review/listEvalRuns" }
   | { type: "review/runEvalExperiment"; payload: RunEvalExperimentInput }
+  | { type: "review/importEvalRunArtifact"; payload: ImportEvalRunArtifactInput }
   | { type: "review/listReleaseDecisions" }
   | { type: "review/createReleaseDecision"; payload: CreateReleaseDecisionInput }
   | { type: "settings/update"; payload: Partial<UserSettings> }

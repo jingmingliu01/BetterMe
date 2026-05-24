@@ -213,6 +213,17 @@ Minimum run outputs:
 - raw provider output when available.
 - metrics summary.
 
+CLI and PM Review should share the same run artifact shape:
+
+```ts
+interface AICheckEvalRunSummary {
+  run: AICheckEvalRun;
+  results: AICheckEvalResult[];
+}
+```
+
+The CLI runner may write this artifact to disk for reproducible local or provider-mode runs. PM Review may import the artifact into local `evalRuns` and `evalResults` so the PM can inspect the same metrics, run history, release gate, and release decision workflow used by in-product runs.
+
 Minimum metrics:
 
 - total cases.

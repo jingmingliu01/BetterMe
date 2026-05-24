@@ -539,6 +539,65 @@ try {
   }
   console.log("RELEASE_DECISION_OK true");
 
+  const importedRunId = `evalrun_e2e_import_${Date.now()}`;
+  const importedResultId = `evalresult_e2e_import_${Date.now()}`;
+  const importedAt = new Date().toISOString();
+  const importedArtifact = {
+    run: {
+      id: importedRunId,
+      promptVersion: providerEvalRun.promptVersion,
+      outputSchemaVersion: providerEvalRun.outputSchemaVersion,
+      evaluationSchemaVersion: providerEvalRun.evaluationSchemaVersion,
+      mode: "tuning",
+      providerMode: "mock",
+      provider: "mock",
+      model: "mock",
+      filters: { datasetTypes: ["design"], tags: ["cli_import_probe"] },
+      caseIds: ["eval-e2e-import-probe"],
+      metrics: {
+        total: 1,
+        passed: 1,
+        failed: 0,
+        passRate: 1,
+        byTag: [{ key: "cli_import_probe", passed: 1, total: 1, passRate: 1 }],
+        byStrictness: [{ key: "balanced", passed: 1, total: 1, passRate: 1 }],
+        falseAllowFailures: 0,
+        falseBlockFailures: 0,
+        askMoreRecallFailures: 0,
+        schemaFailures: 0,
+        unsafeSensitiveFailures: 0,
+        reasonQualityFailures: 0,
+        criticalFailures: 0,
+        releaseGate: { status: "pass", reasons: ["All selected release-gate checks passed."] }
+      },
+      createdAt: importedAt
+    },
+    results: [
+      {
+        id: importedResultId,
+        runId: importedRunId,
+        evalCaseId: "eval-e2e-import-probe",
+        actualDecision: "ALLOW",
+        pass: true,
+        failureReasons: [],
+        rawProvider: "{\"decision\":\"ALLOW\"}",
+        createdAt: importedAt
+      }
+    ]
+  };
+  await page.getByLabel("Eval run artifact JSON").fill(JSON.stringify(importedArtifact));
+  await page.getByRole("button", { name: /Import Run/ }).click();
+  await page.getByText(new RegExp(`Imported eval run ${importedRunId}`)).waitFor({ timeout: 3_000 });
+  const importedEvalRuns = await getIndexedDbRecords(page, "evalRuns");
+  const importedEvalResults = await getIndexedDbRecords(page, "evalResults");
+  if (
+    !importedEvalRuns.some((run) => run.id === importedRunId) ||
+    !importedEvalResults.some((result) => result.id === importedResultId && result.runId === importedRunId)
+  ) {
+    throw new Error("Imported CLI eval run artifact was not persisted.");
+  }
+  console.log("EVAL_RUN_ARTIFACT_IMPORT_OK true");
+
   await page.goto(`chrome-extension://${extensionId}/settings.html`);
   await page.getByPlaceholder("example.com or https://example.com/path").fill("example.org");
   await page.getByRole("button", { name: /Block This Domain/ }).click();

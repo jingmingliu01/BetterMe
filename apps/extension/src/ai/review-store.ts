@@ -25,6 +25,7 @@ import type {
   CheckpointDecision,
   CreateReleaseDecisionInput,
   CreateEvalCaseInput,
+  ImportEvalRunArtifactInput,
   RunEvalExperimentInput,
   StrictnessLevel,
   UpdateEvalCaseInput
@@ -362,6 +363,14 @@ export async function listEvalRunSummaries(): Promise<AICheckEvalRunSummary[]> {
     }));
 }
 
+export async function importEvalRunArtifact(input: ImportEvalRunArtifactInput): Promise<AICheckEvalRunSummary> {
+  const summary = input.artifact;
+  validateEvalRunArtifact(summary);
+  await saveEvalRun(summary.run);
+  await Promise.all(summary.results.map((result) => saveEvalResult(result)));
+  return summary;
+}
+
 export async function listReleaseDecisions(): Promise<AICheckReleaseDecision[]> {
   const decisions = await getAllRecords<AICheckReleaseDecision>("releaseDecisions");
   return decisions.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -418,6 +427,29 @@ export async function runEvalExperiment(input: RunEvalExperimentInput): Promise<
   await saveEvalRun(summary.run);
   await Promise.all(summary.results.map((result) => saveEvalResult(result)));
   return summary;
+}
+
+function validateEvalRunArtifact(summary: AICheckEvalRunSummary): void {
+  if (!summary?.run?.id) {
+    throw new Error("Eval run artifact is missing run.id.");
+  }
+  if (!Array.isArray(summary.results)) {
+    throw new Error("Eval run artifact results must be an array.");
+  }
+  if (!summary.run.createdAt || !summary.run.metrics || !Array.isArray(summary.run.caseIds)) {
+    throw new Error("Eval run artifact is missing run metadata.");
+  }
+  if (!["tuning", "release_review"].includes(summary.run.mode)) {
+    throw new Error("Eval run artifact has an invalid mode.");
+  }
+  if (!["mock", "byok"].includes(summary.run.providerMode)) {
+    throw new Error("Eval run artifact has an invalid provider mode.");
+  }
+  for (const result of summary.results) {
+    if (!result.id || result.runId !== summary.run.id || !result.evalCaseId || !result.createdAt) {
+      throw new Error("Eval run artifact contains a malformed result.");
+    }
+  }
 }
 
 async function getEvalCaseById(id: string): Promise<AICheckCase | null> {

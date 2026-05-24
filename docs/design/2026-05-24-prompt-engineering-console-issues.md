@@ -179,7 +179,8 @@ Update 2026-05-24:
 - PM Review shows run history, metrics, failed cases, and release gate summary.
 - Provider-mode UI runs now use saved BYOK keys, provider-config model allowlists, runtime provider messages, and the shared parser/validator.
 - PM Review now stores first-slice Release Decisions against selected runs, including approve/block, gate status, metrics, provider/model, versions, and PM note.
-- CLI/UI shared persistence and Candidate Prompt promotion remain open.
+- CLI runner now writes the same `AICheckEvalRunSummary` run/result artifact used by PM Review, and Experiment Lab can import it into local run history.
+- Candidate Prompt promotion remains open.
 
 ### ISSUE-007: Candidate Prompt A/B can cause scope creep
 

@@ -52,6 +52,7 @@ import {
   convertBadCaseToEvalCase,
   createEvalCase,
   createBadCaseReview,
+  importEvalRunArtifact,
   listEvalCases,
   listEvalRunSummaries,
   listReleaseDecisions,
@@ -326,6 +327,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listEvalRunSummaries());
       case "review/runEvalExperiment":
         return ok(await runEvalExperiment(message.payload));
+      case "review/importEvalRunArtifact":
+        return ok(await importEvalRunArtifact(message.payload));
       case "review/listReleaseDecisions":
         return ok(await listReleaseDecisions());
       case "review/createReleaseDecision":

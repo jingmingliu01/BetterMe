@@ -11,7 +11,8 @@ import {
   Plus,
   RotateCcw,
   Save,
-  Search
+  Search,
+  Upload
 } from "lucide-react";
 import {
   AI_CHECK_CONTRACT,
@@ -52,6 +53,7 @@ import type {
   BadCaseErrorType,
   BadCaseReview,
   CreateEvalCaseInput,
+  ImportEvalRunArtifactInput,
   ProviderId,
   StrictnessLevel,
   AICheckSchemaFieldReference,
@@ -195,8 +197,10 @@ export function ReviewPage() {
   });
   const [selectedEvalRunId, setSelectedEvalRunId] = useState<string | null>(null);
   const [releaseNote, setReleaseNote] = useState("");
+  const [evalRunImportText, setEvalRunImportText] = useState("");
   const [saving, setSaving] = useState(false);
   const [runningEval, setRunningEval] = useState(false);
+  const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
   const sessions = sessionData ?? [];
@@ -428,6 +432,26 @@ export function ReviewPage() {
     }
   }
 
+  async function importEvalRunArtifact() {
+    setImportingEvalRun(true);
+    setStatus(null);
+    try {
+      const parsed = JSON.parse(evalRunImportText) as ImportEvalRunArtifactInput["artifact"];
+      const summary = await sendMessage<AICheckEvalRunSummary>({
+        type: "review/importEvalRunArtifact",
+        payload: { artifact: parsed }
+      });
+      setSelectedEvalRunId(summary.run.id);
+      setEvalRunImportText("");
+      setStatus(`Imported eval run ${summary.run.id}: ${summary.run.metrics.passed}/${summary.run.metrics.total} cases passed.`);
+      await refreshEvalRuns();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not import eval run artifact.");
+    } finally {
+      setImportingEvalRun(false);
+    }
+  }
+
   async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
     if (!selectedEvalRun) return;
     setSaving(true);
@@ -626,14 +650,18 @@ export function ReviewPage() {
           providerStatus={providerStatusData ?? {}}
           releaseDecisions={releaseDecisions}
           releaseNote={releaseNote}
+          importText={evalRunImportText}
+          importing={importingEvalRun}
           running={runningEval}
           savingReleaseDecision={saving}
           runs={evalRuns}
           selectedRun={selectedEvalRun}
           setForm={setExperimentForm}
           setReleaseNote={setReleaseNote}
+          setImportText={setEvalRunImportText}
           setSelectedRunId={setSelectedEvalRunId}
           onCreateReleaseDecision={createReleaseDecision}
+          onImportRun={importEvalRunArtifact}
           onRefresh={() => void Promise.all([refreshEvalRuns(), refreshProviderStatus(), refreshReleaseDecisions()])}
           onRun={runExperiment}
         />
@@ -648,6 +676,8 @@ function ExperimentLab({
   availableTags,
   evalCases,
   form,
+  importText,
+  importing,
   loading,
   providerStatus,
   releaseDecisions,
@@ -657,15 +687,19 @@ function ExperimentLab({
   runs,
   selectedRun,
   setForm,
+  setImportText,
   setReleaseNote,
   setSelectedRunId,
   onCreateReleaseDecision,
+  onImportRun,
   onRefresh,
   onRun
 }: {
   availableTags: string[];
   evalCases: AICheckCase[];
   form: ExperimentFormState;
+  importText: string;
+  importing: boolean;
   loading: boolean;
   providerStatus: Partial<Record<ProviderId, boolean>>;
   releaseDecisions: AICheckReleaseDecision[];
@@ -675,9 +709,11 @@ function ExperimentLab({
   runs: AICheckEvalRunSummary[];
   selectedRun: AICheckEvalRunSummary | null;
   setForm: (value: ExperimentFormState | ((current: ExperimentFormState) => ExperimentFormState)) => void;
+  setImportText: (value: string) => void;
   setReleaseNote: (value: string) => void;
   setSelectedRunId: (value: string) => void;
   onCreateReleaseDecision: (decision: AICheckReleaseDecisionStatus) => void;
+  onImportRun: () => void;
   onRefresh: () => void;
   onRun: () => void;
 }) {
@@ -891,6 +927,20 @@ function ExperimentLab({
             <FlaskConical size={16} /> {running ? "Running..." : "Run Eval"}
           </button>
         </div>
+
+        <section className="stack compact-stack">
+          <span className="section-label">CLI artifact</span>
+          <textarea
+            aria-label="Eval run artifact JSON"
+            className="textarea"
+            placeholder="Paste JSON from npm --workspace apps/extension run eval:ai-check -- --output=..."
+            value={importText}
+            onChange={(event) => setImportText(event.target.value)}
+          />
+          <button className="btn btn-ghost" disabled={importing || importText.trim().length === 0} onClick={onImportRun}>
+            <Upload size={16} /> {importing ? "Importing..." : "Import Run"}
+          </button>
+        </section>
       </aside>
 
       <section className="panel experiment-results-panel stack">
