@@ -74,6 +74,7 @@ import type {
   RunPromptComparisonInput,
   StrictnessLevel,
   AICheckSchemaFieldReference,
+  UpdateContractChangePlanInput,
   UpdateEvalCaseInput
 } from "../../shared/types";
 import "../shared/styles.css";
@@ -301,6 +302,8 @@ export function ReviewPage() {
   const [generatingPromptProgramSuggestions, setGeneratingPromptProgramSuggestions] = useState(false);
   const [reviewingPromptProgramSuggestionItemId, setReviewingPromptProgramSuggestionItemId] = useState<string | null>(null);
   const [creatingContractChangePlanItemId, setCreatingContractChangePlanItemId] = useState<string | null>(null);
+  const [updatingContractChangePlanId, setUpdatingContractChangePlanId] = useState<string | null>(null);
+  const [contractChangePlanNotes, setContractChangePlanNotes] = useState<Record<string, string>>({});
   const [promotingPromptCandidate, setPromotingPromptCandidate] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -731,6 +734,27 @@ export function ReviewPage() {
     }
   }
 
+  async function updateContractChangePlan(input: UpdateContractChangePlanInput) {
+    setUpdatingContractChangePlanId(input.id);
+    setStatus(null);
+    try {
+      const plan = await sendMessage<AICheckContractChangePlan>({
+        type: "review/updateContractChangePlan",
+        payload: input
+      });
+      setStatus(`Contract change plan marked ${formatTag(plan.status)}.`);
+      setContractChangePlanNotes((current) => ({
+        ...current,
+        [plan.id]: plan.implementationNote ?? ""
+      }));
+      await refreshContractChangePlans();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update contract change plan.");
+    } finally {
+      setUpdatingContractChangePlanId(null);
+    }
+  }
+
   async function createExperimentWorkspace() {
     setSaving(true);
     setStatus(null);
@@ -1093,10 +1117,19 @@ export function ReviewPage() {
 
       {area === "schema" && (
         <SchemaReference
+          contractChangePlanNotes={contractChangePlanNotes}
           contractChangePlans={contractChangePlans}
           creatingContractChangePlanItemId={creatingContractChangePlanItemId}
           onCreateContractChangePlan={createContractChangePlan}
+          onSetContractChangePlanNote={(planId, note) =>
+            setContractChangePlanNotes((current) => ({
+              ...current,
+              [planId]: note
+            }))
+          }
+          onUpdateContractChangePlan={updateContractChangePlan}
           promptProgramSuggestions={promptProgramSuggestions}
+          updatingContractChangePlanId={updatingContractChangePlanId}
         />
       )}
     </AppShell>
@@ -2595,15 +2628,23 @@ function EvalCaseDetail({
 }
 
 function SchemaReference({
+  contractChangePlanNotes,
   contractChangePlans,
   creatingContractChangePlanItemId,
   onCreateContractChangePlan,
-  promptProgramSuggestions
+  onSetContractChangePlanNote,
+  onUpdateContractChangePlan,
+  promptProgramSuggestions,
+  updatingContractChangePlanId
 }: {
+  contractChangePlanNotes: Record<string, string>;
   contractChangePlans: AICheckContractChangePlan[];
   creatingContractChangePlanItemId: string | null;
   onCreateContractChangePlan: (input: CreateContractChangePlanInput) => void;
+  onSetContractChangePlanNote: (planId: string, note: string) => void;
+  onUpdateContractChangePlan: (input: UpdateContractChangePlanInput) => void;
   promptProgramSuggestions: AICheckPromptProgramSuggestion[];
+  updatingContractChangePlanId: string | null;
 }) {
   const [activeTab, setActiveTab] = useState<SchemaManualTab>("messages");
   const [selectedOutputSchemaVersion, setSelectedOutputSchemaVersion] = useState(
@@ -2661,10 +2702,14 @@ function SchemaReference({
       </div>
 
       <ContractSuggestionBacklog
+        contractChangePlanNotes={contractChangePlanNotes}
         contractChangePlans={contractChangePlans}
         creatingContractChangePlanItemId={creatingContractChangePlanItemId}
         onCreateContractChangePlan={onCreateContractChangePlan}
+        onSetContractChangePlanNote={onSetContractChangePlanNote}
+        onUpdateContractChangePlan={onUpdateContractChangePlan}
         promptProgramSuggestions={promptProgramSuggestions}
+        updatingContractChangePlanId={updatingContractChangePlanId}
       />
 
       <div className="schema-manual-tabs" role="tablist" aria-label="Schema reference views">
@@ -2745,15 +2790,23 @@ function VersionChip({ label, source, value }: { label: string; source: string; 
 }
 
 function ContractSuggestionBacklog({
+  contractChangePlanNotes,
   contractChangePlans,
   creatingContractChangePlanItemId,
   onCreateContractChangePlan,
-  promptProgramSuggestions
+  onSetContractChangePlanNote,
+  onUpdateContractChangePlan,
+  promptProgramSuggestions,
+  updatingContractChangePlanId
 }: {
+  contractChangePlanNotes: Record<string, string>;
   contractChangePlans: AICheckContractChangePlan[];
   creatingContractChangePlanItemId: string | null;
   onCreateContractChangePlan: (input: CreateContractChangePlanInput) => void;
+  onSetContractChangePlanNote: (planId: string, note: string) => void;
+  onUpdateContractChangePlan: (input: UpdateContractChangePlanInput) => void;
   promptProgramSuggestions: AICheckPromptProgramSuggestion[];
+  updatingContractChangePlanId: string | null;
 }) {
   const acceptedItems = promptProgramSuggestions.flatMap((suggestion) =>
     suggestion.items
@@ -2794,6 +2847,61 @@ function ContractSuggestionBacklog({
                   {plan.requiredSurfaces.map((surface) => (
                     <small key={surface}>{surface}</small>
                   ))}
+                  {plan.appliedVersions && (
+                    <small>
+                      Applied against {plan.appliedVersions.promptVersion} / {plan.appliedVersions.outputSchemaVersion} /{" "}
+                      {plan.appliedVersions.evaluationSchemaVersion}
+                    </small>
+                  )}
+                  <textarea
+                    aria-label={`Contract plan note for ${plan.title}`}
+                    className="textarea"
+                    onChange={(event) => onSetContractChangePlanNote(plan.id, event.target.value)}
+                    placeholder="Implementation note, validation evidence, or rejection reason"
+                    rows={3}
+                    value={contractChangePlanNotes[plan.id] ?? plan.implementationNote ?? ""}
+                  />
+                  <div className="schema-manual-tabs">
+                    <button
+                      className="btn btn-ghost"
+                      disabled={updatingContractChangePlanId === plan.id || plan.status === "ready"}
+                      onClick={() =>
+                        onUpdateContractChangePlan({
+                          id: plan.id,
+                          status: "ready",
+                          implementationNote: contractChangePlanNotes[plan.id]
+                        })
+                      }
+                    >
+                      Mark Ready
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      disabled={updatingContractChangePlanId === plan.id || plan.status === "applied"}
+                      onClick={() =>
+                        onUpdateContractChangePlan({
+                          id: plan.id,
+                          status: "applied",
+                          implementationNote: contractChangePlanNotes[plan.id]
+                        })
+                      }
+                    >
+                      Mark Applied
+                    </button>
+                    <button
+                      className="btn btn-ghost"
+                      disabled={updatingContractChangePlanId === plan.id || plan.status === "rejected"}
+                      onClick={() =>
+                        onUpdateContractChangePlan({
+                          id: plan.id,
+                          status: "rejected",
+                          implementationNote: contractChangePlanNotes[plan.id]
+                        })
+                      }
+                    >
+                      Reject Plan
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button

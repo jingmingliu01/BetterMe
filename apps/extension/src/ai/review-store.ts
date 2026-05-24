@@ -50,6 +50,7 @@ import type {
   RunEvalExperimentInput,
   RunPromptComparisonInput,
   StrictnessLevel,
+  UpdateContractChangePlanInput,
   UpdateEvalCaseInput
 } from "../shared/types";
 import { getAllRecords, getRecord, putRecord } from "../storage/indexed-db";
@@ -651,6 +652,40 @@ export async function createContractChangePlan(input: CreateContractChangePlanIn
   };
   await putRecord("contractChangePlans", plan);
   return plan;
+}
+
+export async function updateContractChangePlan(input: UpdateContractChangePlanInput): Promise<AICheckContractChangePlan> {
+  const plan = await getRecord<AICheckContractChangePlan>("contractChangePlans", input.id);
+  if (!plan) {
+    throw new Error("Contract change plan not found.");
+  }
+  const now = nowIso();
+  const implementationNote = input.implementationNote?.trim() || plan.implementationNote;
+  if (input.status === "applied" && !implementationNote) {
+    throw new Error("Applied contract change plans require an implementation note.");
+  }
+  const updated: AICheckContractChangePlan = {
+    ...plan,
+    status: input.status,
+    implementationNote,
+    reviewedAt: now,
+    appliedAt: input.status === "applied" ? now : plan.appliedAt,
+    appliedVersions:
+      input.status === "applied"
+        ? {
+            promptVersion: AI_CHECK_PROMPT_VERSION,
+            outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
+            evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION
+          }
+        : plan.appliedVersions,
+    updatedAt: now
+  };
+  if (input.status === "rejected") {
+    updated.appliedAt = undefined;
+    updated.appliedVersions = undefined;
+  }
+  await putRecord("contractChangePlans", updated);
+  return updated;
 }
 
 export async function promotePromptCandidate(input: PromotePromptCandidateInput): Promise<AICheckPromptPromotion> {

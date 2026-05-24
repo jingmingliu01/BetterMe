@@ -74,6 +74,7 @@ import {
   reviewPromptProgramSuggestionItem,
   runPromptComparison,
   runEvalExperiment,
+  updateContractChangePlan,
   updateEvalCase,
   updateBadCaseReview
 } from "../ai/review-store";
@@ -365,6 +366,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listContractChangePlans());
       case "review/createContractChangePlan":
         return ok(await createContractChangePlan(message.payload));
+      case "review/updateContractChangePlan":
+        return ok(await updateContractChangePlan(message.payload));
       case "review/listPromptPromotions":
         return ok(await listPromptPromotions());
       case "review/promotePromptCandidate":

@@ -771,6 +771,23 @@ try {
     throw new Error(`Contract change plan was not persisted correctly: ${JSON.stringify(contractChangePlans)}`);
   }
   await page.getByText("Plan draft").waitFor({ timeout: 5_000 });
+  await page.getByLabel("Contract plan note for Bounded break rubric").fill("Applied after contract-source validation.");
+  await page.getByRole("button", { name: "Mark Ready" }).click();
+  await page.getByText("Contract change plan marked ready.").waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Mark Applied" }).click();
+  await page.getByText("Contract change plan marked applied.").waitFor({ timeout: 5_000 });
+  const updatedContractChangePlans = await getIndexedDbRecords(page, "contractChangePlans");
+  const appliedPlan = updatedContractChangePlans.find((plan) => plan.id === latestPlan.id);
+  if (
+    appliedPlan?.status !== "applied" ||
+    appliedPlan.implementationNote !== "Applied after contract-source validation." ||
+    !appliedPlan.appliedAt ||
+    !appliedPlan.appliedVersions?.promptVersion ||
+    !appliedPlan.appliedVersions?.outputSchemaVersion ||
+    !appliedPlan.appliedVersions?.evaluationSchemaVersion
+  ) {
+    throw new Error(`Contract change plan lifecycle was not persisted correctly: ${JSON.stringify(appliedPlan)}`);
+  }
   console.log("CONTRACT_CHANGE_PLAN_OK true");
   console.log("PROMPT_PROGRAM_SUGGESTION_REVIEW_OK true");
   await page.getByRole("button", { name: "Experiment Lab" }).click();

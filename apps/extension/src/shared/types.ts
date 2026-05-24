@@ -435,6 +435,14 @@ export interface AICheckContractChangePlan {
   targets: AICheckContractChangePlanTarget[];
   summary: string;
   requiredSurfaces: string[];
+  implementationNote?: string;
+  appliedVersions?: {
+    promptVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
+  };
+  reviewedAt?: string;
+  appliedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -591,6 +599,7 @@ export type ExtensionMessage =
   | { type: "review/reviewPromptProgramSuggestionItem"; payload: ReviewPromptProgramSuggestionItemInput }
   | { type: "review/listContractChangePlans" }
   | { type: "review/createContractChangePlan"; payload: CreateContractChangePlanInput }
+  | { type: "review/updateContractChangePlan"; payload: UpdateContractChangePlanInput }
   | { type: "review/listPromptPromotions" }
   | { type: "review/promotePromptCandidate"; payload: PromotePromptCandidateInput }
   | { type: "review/listReleaseDecisions" }
@@ -682,6 +691,12 @@ export interface CreateContractChangePlanInput {
   itemId: string;
   title?: string;
   summary?: string;
+}
+
+export interface UpdateContractChangePlanInput {
+  id: string;
+  status: Extract<AICheckContractChangePlanStatus, "ready" | "applied" | "rejected">;
+  implementationNote?: string;
 }
 
 export interface PromotePromptCandidateInput {
