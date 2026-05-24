@@ -523,16 +523,21 @@ Second implementation:
 interface AICheckExperiment {
   id: string;
   name: string;
-  arms: AICheckExperimentArm[];
-  runs: AICheckExperimentRun[];
+  status: "draft" | "active" | "archived";
+  artifactIds: {
+    runIds: string[];
+    comparisonIds: string[];
+    suggestionIds: string[];
+    releaseDecisionIds: string[];
+    promotionIds: string[];
+  };
   notes?: string;
-  textualGradient?: string;
   createdAt: string;
   updatedAt: string;
 }
 ```
 
-The implemented Phase 4 first slice uses `AICheckPromptCandidate` and `AICheckPromptComparison` as a narrower version of this future multi-arm experiment shape. A full `AICheckExperiment` object can still be introduced later if the product needs named multi-run experiment workspaces.
+The implemented Phase 4 slice uses `AICheckExperiment` as a named workspace that links existing run, comparison, suggestion, release decision, and promotion artifacts. It does not replace those artifacts or duplicate their data. Richer future multi-arm management can add explicit arm definitions on top of this workspace if PM Review needs named variants beyond current/baseline/candidate links.
 
 ## Implementation Phases
 
@@ -579,6 +584,7 @@ First implemented slice:
 - Generate a draft Prompt Candidate from Textual Gradient through a saved BYOK provider.
 - Generate read-only Prompt Program Suggestions from Textual Gradient across prompt patch, rubric, and schema categories.
 - Show accepted Prompt Program Suggestions inside Contract Reference as a contract-first backlog.
+- Create named Experiment Workspaces and link runs, candidate comparisons, Prompt Program Suggestions, release decisions, and promotions into one reviewable artifact set.
 - Promote a passing candidate into the active local Prompt Program through an audited promotion artifact.
 - Require passing Design, Regression, and Holdout dataset coverage before promotion.
 - Freeze the promoted prompt version on new AI Check sessions and inject its patch into runtime provider messages.

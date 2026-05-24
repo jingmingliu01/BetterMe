@@ -1,5 +1,5 @@
 const DB_NAME = "betterme-db";
-const DB_VERSION = 11;
+const DB_VERSION = 12;
 
 const STORE_NAMES = [
   "aiCheckSessions",
@@ -18,6 +18,7 @@ const STORE_NAMES = [
   "promptProgramSuggestions",
   "promptPromotions",
   "releaseDecisions",
+  "experiments",
   "cryptoKeys",
   "encryptedApiKeys"
 ] as const;
@@ -40,7 +41,8 @@ const AI_HISTORY_STORES_TO_CLEAR_ON_SCHEMA_UNIFICATION: StoreName[] = [
   "promptComparisons",
   "promptProgramSuggestions",
   "promptPromotions",
-  "releaseDecisions"
+  "releaseDecisions",
+  "experiments"
 ];
 
 let dbPromise: Promise<IDBDatabase> | null = null;

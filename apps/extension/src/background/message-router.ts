@@ -48,6 +48,7 @@ import {
 } from "../ai/ai-check-session-service";
 import {
   archiveEvalCase,
+  createExperiment,
   createReleaseDecision,
   convertBadCaseToEvalCase,
   createEvalCase,
@@ -56,6 +57,7 @@ import {
   generatePromptCandidate,
   generatePromptProgramSuggestions,
   importEvalRunArtifact,
+  linkExperimentArtifact,
   listPromptPromotions,
   listEvalCases,
   listEvalRunSummaries,
@@ -63,6 +65,7 @@ import {
   listPromptComparisons,
   listPromptProgramSuggestions,
   listReleaseDecisions,
+  listExperiments,
   listReviewSessions,
   promotePromptCandidate,
   reviewPromptProgramSuggestionItem,
@@ -363,6 +366,12 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listReleaseDecisions());
       case "review/createReleaseDecision":
         return ok(await createReleaseDecision(message.payload));
+      case "review/listExperiments":
+        return ok(await listExperiments());
+      case "review/createExperiment":
+        return ok(await createExperiment(message.payload));
+      case "review/linkExperimentArtifact":
+        return ok(await linkExperimentArtifact(message.payload));
       case "data/export":
         return ok({
           ...(await bootstrap()),
@@ -374,7 +383,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
           promptComparisons: await listPromptComparisons(),
           promptProgramSuggestions: await listPromptProgramSuggestions(),
           promptPromotions: await listPromptPromotions(),
-          releaseDecisions: await listReleaseDecisions()
+          releaseDecisions: await listReleaseDecisions(),
+          experiments: await listExperiments()
         });
       case "data/deleteAll":
         await clearBetterMeLocalData();

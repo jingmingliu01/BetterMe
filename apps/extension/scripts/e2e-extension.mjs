@@ -757,6 +757,28 @@ try {
   await page.getByText("Update apps/extension/src/shared/ai-check-contract.json first.").waitFor({ timeout: 5_000 });
   console.log("PROMPT_PROGRAM_BACKLOG_OK true");
   console.log("PROMPT_PROGRAM_SUGGESTION_REVIEW_OK true");
+  await page.getByRole("button", { name: "Experiment Lab" }).click();
+  await page.getByLabel("Experiment workspace name").fill("E2E multi-arm workspace");
+  await page.getByLabel("Experiment workspace notes").fill("Collect baseline, candidate, and suggestion artifacts.");
+  await page.getByRole("button", { name: /Save Workspace/ }).click();
+  await page.getByText("Experiment workspace saved: E2E multi-arm workspace.").waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Link Run" }).click();
+  await page.getByText("Linked run to E2E multi-arm workspace.").waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Link A/B" }).click();
+  await page.getByText("Linked comparison to E2E multi-arm workspace.").waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Link Suggestions" }).click();
+  await page.getByText("Linked suggestion to E2E multi-arm workspace.").waitFor({ timeout: 5_000 });
+  const experiments = await getIndexedDbRecords(page, "experiments");
+  const latestExperiment = experiments.find((experiment) => experiment.name === "E2E multi-arm workspace");
+  if (
+    !latestExperiment ||
+    latestExperiment.artifactIds.runIds.length !== 1 ||
+    latestExperiment.artifactIds.comparisonIds.length !== 1 ||
+    latestExperiment.artifactIds.suggestionIds.length !== 1
+  ) {
+    throw new Error(`Experiment workspace did not link expected artifacts: ${JSON.stringify(experiments)}`);
+  }
+  console.log("EXPERIMENT_WORKSPACE_OK true");
 
   for (const datasetType of ["design", "regression", "holdout"]) {
     await sendRuntimeMessage(page, "review/createEvalCase", {
@@ -924,7 +946,7 @@ async function getBehaviorEvents(page) {
 
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 11);
+    const request = indexedDB.open("betterme-db", 12);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -942,7 +964,7 @@ async function getIndexedDbRecords(page, storeName) {
 async function putIndexedDbRecord(page, storeName, record) {
   return page.evaluate(
     async ({ selectedStore, selectedRecord }) => {
-      const request = indexedDB.open("betterme-db", 11);
+      const request = indexedDB.open("betterme-db", 12);
       const db = await new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

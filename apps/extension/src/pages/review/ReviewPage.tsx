@@ -46,6 +46,8 @@ import type {
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
   AICheckEvalRunSummary,
+  AICheckExperiment,
+  AICheckExperimentArtifactKind,
   AICheckPromptCandidate,
   AICheckPromptComparison,
   AICheckPromptPromotion,
@@ -57,10 +59,12 @@ import type {
   BadCaseErrorType,
   BadCaseReview,
   CreateEvalCaseInput,
+  CreateExperimentInput,
   CreatePromptCandidateInput,
   GeneratePromptCandidateInput,
   GeneratePromptProgramSuggestionsInput,
   ImportEvalRunArtifactInput,
+  LinkExperimentArtifactInput,
   PromotePromptCandidateInput,
   ProviderId,
   ReviewPromptProgramSuggestionItemInput,
@@ -153,6 +157,7 @@ export function ReviewPage() {
   const loadSessions = useCallback(() => sendMessage<AIPMReviewSession[]>({ type: "review/listSessions" }), []);
   const loadEvalCases = useCallback(() => sendMessage<AICheckCase[]>({ type: "review/listEvalCases" }), []);
   const loadEvalRuns = useCallback(() => sendMessage<AICheckEvalRunSummary[]>({ type: "review/listEvalRuns" }), []);
+  const loadExperiments = useCallback(() => sendMessage<AICheckExperiment[]>({ type: "review/listExperiments" }), []);
   const loadReleaseDecisions = useCallback(
     () => sendMessage<AICheckReleaseDecision[]>({ type: "review/listReleaseDecisions" }),
     []
@@ -192,6 +197,12 @@ export function ReviewPage() {
     loading: evalRunsLoading,
     refresh: refreshEvalRuns
   } = useAsyncState(loadEvalRuns);
+  const {
+    data: experimentData,
+    error: experimentError,
+    loading: experimentsLoading,
+    refresh: refreshExperiments
+  } = useAsyncState(loadExperiments);
   const {
     data: releaseDecisionData,
     error: releaseDecisionError,
@@ -252,6 +263,9 @@ export function ReviewPage() {
     includeArchived: false
   });
   const [selectedEvalRunId, setSelectedEvalRunId] = useState<string | null>(null);
+  const [selectedExperimentId, setSelectedExperimentId] = useState<string | null>(null);
+  const [experimentName, setExperimentName] = useState("");
+  const [experimentNotes, setExperimentNotes] = useState("");
   const [selectedPromptCandidateId, setSelectedPromptCandidateId] = useState<string | null>(null);
   const [selectedPromptComparisonId, setSelectedPromptComparisonId] = useState<string | null>(null);
   const [promptCandidateForm, setPromptCandidateForm] = useState<PromptCandidateFormState>(emptyPromptCandidateForm());
@@ -271,6 +285,7 @@ export function ReviewPage() {
   const sessions = sessionData ?? [];
   const evalCases = evalData ?? [];
   const evalRuns = evalRunData ?? [];
+  const experiments = experimentData ?? [];
   const releaseDecisions = releaseDecisionData ?? [];
   const promptCandidates = promptCandidateData ?? [];
   const promptComparisons = promptComparisonData ?? [];
@@ -345,6 +360,10 @@ export function ReviewPage() {
     [promptComparisons, selectedPromptComparisonId]
   );
   const activePromptPromotion = promptPromotions[0] ?? null;
+  const selectedExperiment = useMemo(
+    () => experiments.find((experiment) => experiment.id === selectedExperimentId) ?? experiments[0] ?? null,
+    [experiments, selectedExperimentId]
+  );
 
   useEffect(() => {
     if (!selectedSession) return;
@@ -671,6 +690,51 @@ export function ReviewPage() {
     }
   }
 
+  async function createExperimentWorkspace() {
+    setSaving(true);
+    setStatus(null);
+    try {
+      const experiment = await sendMessage<AICheckExperiment>({
+        type: "review/createExperiment",
+        payload: {
+          name: experimentName,
+          notes: experimentNotes
+        } satisfies CreateExperimentInput
+      });
+      setSelectedExperimentId(experiment.id);
+      setExperimentName("");
+      setExperimentNotes("");
+      setStatus(`Experiment workspace saved: ${experiment.name}.`);
+      await refreshExperiments();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save experiment workspace.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function linkSelectedExperimentArtifact(artifactKind: AICheckExperimentArtifactKind, artifactId: string | null | undefined) {
+    if (!selectedExperiment || !artifactId) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const experiment = await sendMessage<AICheckExperiment>({
+        type: "review/linkExperimentArtifact",
+        payload: {
+          experimentId: selectedExperiment.id,
+          artifactKind,
+          artifactId
+        } satisfies LinkExperimentArtifactInput
+      });
+      setStatus(`Linked ${formatTag(artifactKind)} to ${experiment.name}.`);
+      await refreshExperiments();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not link artifact to experiment.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function createReleaseDecision(decision: AICheckReleaseDecisionStatus) {
     if (!selectedEvalRun) return;
     setSaving(true);
@@ -698,6 +762,7 @@ export function ReviewPage() {
     (sessionsLoading && !sessionData) ||
     (evalLoading && !evalData) ||
     (evalRunsLoading && !evalRunData) ||
+    (experimentsLoading && !experimentData) ||
     (releaseDecisionsLoading && !releaseDecisionData) ||
     (promptCandidatesLoading && !promptCandidateData) ||
     (promptComparisonsLoading && !promptComparisonData) ||
@@ -713,6 +778,7 @@ export function ReviewPage() {
       {(sessionError ||
         evalError ||
         evalRunError ||
+        experimentError ||
         releaseDecisionError ||
         promptCandidateError ||
         promptComparisonError ||
@@ -723,6 +789,7 @@ export function ReviewPage() {
           {sessionError ??
             evalError ??
             evalRunError ??
+            experimentError ??
             releaseDecisionError ??
             promptCandidateError ??
             promptComparisonError ??
@@ -886,6 +953,9 @@ export function ReviewPage() {
           evalCases={evalCases}
           form={experimentForm}
           loading={evalRunsLoading}
+          experimentName={experimentName}
+          experimentNotes={experimentNotes}
+          experiments={experiments}
           providerStatus={providerStatusData ?? {}}
           releaseDecisions={releaseDecisions}
           releaseNote={releaseNote}
@@ -909,24 +979,31 @@ export function ReviewPage() {
           selectedPromptCandidate={selectedPromptCandidate}
           selectedPromptComparison={selectedPromptComparison}
           selectedRun={selectedEvalRun}
+          selectedExperiment={selectedExperiment}
           setForm={setExperimentForm}
+          setExperimentName={setExperimentName}
+          setExperimentNotes={setExperimentNotes}
           setReleaseNote={setReleaseNote}
           setImportText={setEvalRunImportText}
           setPromptCandidateForm={setPromptCandidateForm}
           setPromptPromotionNote={setPromptPromotionNote}
           setSelectedPromptCandidateId={setSelectedPromptCandidateId}
           setSelectedPromptComparisonId={setSelectedPromptComparisonId}
+          setSelectedExperimentId={setSelectedExperimentId}
           setSelectedRunId={setSelectedEvalRunId}
           onCreateReleaseDecision={createReleaseDecision}
+          onCreateExperiment={createExperimentWorkspace}
           onCreatePromptCandidate={savePromptCandidate}
           onGeneratePromptCandidate={generateCandidateFromSelectedComparison}
           onGeneratePromptProgramSuggestions={generateSuggestionsFromSelectedComparison}
           onImportRun={importEvalRunArtifact}
           onPromotePromptCandidate={promoteSelectedPromptCandidate}
           onReviewPromptProgramSuggestionItem={reviewPromptProgramSuggestionItem}
+          onLinkExperimentArtifact={linkSelectedExperimentArtifact}
           onRefresh={() =>
             void Promise.all([
               refreshEvalRuns(),
+              refreshExperiments(),
               refreshProviderStatus(),
               refreshReleaseDecisions(),
               refreshPromptCandidates(),
@@ -948,6 +1025,9 @@ export function ReviewPage() {
 function ExperimentLab({
   availableTags,
   evalCases,
+  experimentName,
+  experimentNotes,
+  experiments,
   form,
   generatingPromptCandidate,
   generatingPromptProgramSuggestions,
@@ -972,7 +1052,10 @@ function ExperimentLab({
   runs,
   selectedPromptCandidate,
   selectedPromptComparison,
+  selectedExperiment,
   selectedRun,
+  setExperimentName,
+  setExperimentNotes,
   setForm,
   setImportText,
   setPromptCandidateForm,
@@ -980,12 +1063,15 @@ function ExperimentLab({
   setReleaseNote,
   setSelectedPromptCandidateId,
   setSelectedPromptComparisonId,
+  setSelectedExperimentId,
   setSelectedRunId,
   onCreateReleaseDecision,
+  onCreateExperiment,
   onCreatePromptCandidate,
   onGeneratePromptCandidate,
   onGeneratePromptProgramSuggestions,
   onImportRun,
+  onLinkExperimentArtifact,
   onPromotePromptCandidate,
   onReviewPromptProgramSuggestionItem,
   onRefresh,
@@ -994,6 +1080,9 @@ function ExperimentLab({
 }: {
   availableTags: string[];
   evalCases: AICheckCase[];
+  experimentName: string;
+  experimentNotes: string;
+  experiments: AICheckExperiment[];
   form: ExperimentFormState;
   generatingPromptCandidate: boolean;
   generatingPromptProgramSuggestions: boolean;
@@ -1018,7 +1107,10 @@ function ExperimentLab({
   runs: AICheckEvalRunSummary[];
   selectedPromptCandidate: AICheckPromptCandidate | null;
   selectedPromptComparison: AICheckPromptComparison | null;
+  selectedExperiment: AICheckExperiment | null;
   selectedRun: AICheckEvalRunSummary | null;
+  setExperimentName: (value: string) => void;
+  setExperimentNotes: (value: string) => void;
   setForm: (value: ExperimentFormState | ((current: ExperimentFormState) => ExperimentFormState)) => void;
   setImportText: (value: string) => void;
   setPromptCandidateForm: (value: PromptCandidateFormState | ((current: PromptCandidateFormState) => PromptCandidateFormState)) => void;
@@ -1026,12 +1118,15 @@ function ExperimentLab({
   setReleaseNote: (value: string) => void;
   setSelectedPromptCandidateId: (value: string) => void;
   setSelectedPromptComparisonId: (value: string) => void;
+  setSelectedExperimentId: (value: string) => void;
   setSelectedRunId: (value: string) => void;
   onCreateReleaseDecision: (decision: AICheckReleaseDecisionStatus) => void;
+  onCreateExperiment: () => void;
   onCreatePromptCandidate: () => void;
   onGeneratePromptCandidate: () => void;
   onGeneratePromptProgramSuggestions: () => void;
   onImportRun: () => void;
+  onLinkExperimentArtifact: (artifactKind: AICheckExperimentArtifactKind, artifactId: string | null | undefined) => void;
   onPromotePromptCandidate: () => void;
   onReviewPromptProgramSuggestionItem: (input: ReviewPromptProgramSuggestionItemInput) => void;
   onRefresh: () => void;
@@ -1054,6 +1149,10 @@ function ExperimentLab({
     ? releaseDecisions.filter((decision) => decision.runId === selectedRun.run.id)
     : [];
   const latestReleaseDecision = selectedReleaseDecisions[0] ?? null;
+  const selectedComparisonSuggestion =
+    promptProgramSuggestions.find((suggestion) => suggestion.comparisonId === selectedPromptComparison?.id) ?? null;
+  const selectedComparisonPromotion =
+    promptPromotions.find((promotion) => promotion.comparisonId === selectedPromptComparison?.id) ?? null;
   const canApproveSelectedRun =
     Boolean(selectedRun) && selectedRun?.run.metrics.releaseGate.status !== "fail" && !savingReleaseDecision;
 
@@ -1071,6 +1170,97 @@ function ExperimentLab({
           <StatusItem label="Model" value={form.model} />
           <StatusItem label="Mode" value={formatRunMode(form.mode)} />
         </div>
+
+        <section className="stack compact-stack">
+          <span className="section-label">Experiment Workspace</span>
+          <label className="stack compact-stack">
+            <span>Workspace</span>
+            <select
+              aria-label="Experiment workspace"
+              className="select"
+              value={selectedExperiment?.id ?? ""}
+              onChange={(event) => setSelectedExperimentId(event.target.value)}
+            >
+              <option value="">No workspace selected</option>
+              {experiments.map((experiment) => (
+                <option key={experiment.id} value={experiment.id}>
+                  {experiment.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="stack compact-stack">
+            <span>Name</span>
+            <input
+              aria-label="Experiment workspace name"
+              className="input"
+              placeholder="Release strictness tuning"
+              value={experimentName}
+              onChange={(event) => setExperimentName(event.target.value)}
+            />
+          </label>
+          <label className="stack compact-stack">
+            <span>Notes</span>
+            <textarea
+              aria-label="Experiment workspace notes"
+              className="textarea"
+              placeholder="Hypothesis, target dataset, and decision criteria"
+              value={experimentNotes}
+              onChange={(event) => setExperimentNotes(event.target.value)}
+            />
+          </label>
+          <button className="btn btn-ghost" disabled={experimentName.trim().length === 0} onClick={onCreateExperiment}>
+            <Save size={16} /> Save Workspace
+          </button>
+          {selectedExperiment && (
+            <>
+              <div className="metric-grid">
+                <MetricCard label="Runs" value={String(selectedExperiment.artifactIds.runIds.length)} />
+                <MetricCard label="Comparisons" value={String(selectedExperiment.artifactIds.comparisonIds.length)} />
+                <MetricCard label="Suggestions" value={String(selectedExperiment.artifactIds.suggestionIds.length)} />
+                <MetricCard
+                  label="Decisions"
+                  value={String(
+                    selectedExperiment.artifactIds.releaseDecisionIds.length + selectedExperiment.artifactIds.promotionIds.length
+                  )}
+                />
+              </div>
+              <div className="row wrap-row">
+                <button className="btn btn-ghost" disabled={!selectedRun} onClick={() => onLinkExperimentArtifact("run", selectedRun?.run.id)}>
+                  Link Run
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  disabled={!selectedPromptComparison}
+                  onClick={() => onLinkExperimentArtifact("comparison", selectedPromptComparison?.id)}
+                >
+                  Link A/B
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  disabled={!selectedComparisonSuggestion}
+                  onClick={() => onLinkExperimentArtifact("suggestion", selectedComparisonSuggestion?.id)}
+                >
+                  Link Suggestions
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  disabled={!latestReleaseDecision}
+                  onClick={() => onLinkExperimentArtifact("release_decision", latestReleaseDecision?.id)}
+                >
+                  Link Release
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  disabled={!selectedComparisonPromotion}
+                  onClick={() => onLinkExperimentArtifact("promotion", selectedComparisonPromotion?.id)}
+                >
+                  Link Promotion
+                </button>
+              </div>
+            </>
+          )}
+        </section>
 
         <div className="eval-form-grid">
           <label className="stack compact-stack">
@@ -1498,6 +1688,28 @@ function ExperimentLab({
       </section>
 
       <aside className="panel experiment-run-list stack">
+        <div className="section-heading">
+          <span className="section-label">Experiment history</span>
+          <h2>Workspaces</h2>
+        </div>
+        {experiments.length === 0 ? (
+          <p className="muted">No experiment workspaces yet.</p>
+        ) : (
+          experiments.map((experiment) => (
+            <button
+              className={experiment.id === selectedExperiment?.id ? "eval-case-item eval-case-item-selected" : "eval-case-item"}
+              key={experiment.id}
+              onClick={() => setSelectedExperimentId(experiment.id)}
+            >
+              <strong>{experiment.name}</strong>
+              <span>{formatStatusLabel(experiment.status)}</span>
+              <small>
+                {experiment.artifactIds.runIds.length} runs · {experiment.artifactIds.comparisonIds.length} comparisons ·{" "}
+                {experiment.artifactIds.suggestionIds.length} suggestions
+              </small>
+            </button>
+          ))
+        )}
         <div className="section-heading">
           <span className="section-label">Run history</span>
           <h2>Local runs</h2>

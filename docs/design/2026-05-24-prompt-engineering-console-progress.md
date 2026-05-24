@@ -159,6 +159,7 @@ Implemented now:
 - PM can generate read-only Prompt Program Suggestions from Textual Gradient using a saved BYOK provider; suggestions are categorized as prompt patch, rubric, or schema and are persisted in `promptProgramSuggestions`.
 - PM can accept or reject individual Prompt Program Suggestion items. Accepted items are tracked as contract-first implementation inputs and do not mutate the active prompt, schema, rubric, release decision, or promotion state.
 - Schema Reference shows accepted Prompt Program Suggestions as a contract-first backlog with reminders to update `ai-check-contract.json`, generated references, eval assertions or fixtures, and linked docs.
+- PM can create named Experiment Workspaces and link selected runs, Candidate Prompt comparisons, Prompt Program Suggestions, release decisions, and promotions into one reviewable artifact set.
 - PM can promote a recommended candidate only when it has no regressions, a non-failing candidate release gate, and passing Design/Regression/Holdout coverage.
 - Promotion creates a `promptPromotions` audit record and makes that candidate patch the active local Prompt Program for new AI Check sessions.
 - Runtime AI Check freezes the promoted prompt version on session start and injects the promoted patch into provider messages.
@@ -189,6 +190,7 @@ Implementation validation performed:
 - `test:e2e` includes Prompt Program Suggestions coverage: Experiment Lab asks a BYOK provider for prompt patch/rubric/schema suggestions from Textual Gradient and persists them in `promptProgramSuggestions`.
 - `test:e2e` includes Prompt Program Suggestion review coverage: PM Review accepts and rejects individual suggestion items and persists review state for the contract-first handoff.
 - `test:e2e` includes Contract-first backlog coverage (`PROMPT_PROGRAM_BACKLOG_OK true`): accepted Prompt Program Suggestions appear in Schema Reference with contract-source guidance.
+- `test:e2e` includes Experiment Workspace coverage (`EXPERIMENT_WORKSPACE_OK true`): PM Review creates a named workspace and links run, comparison, and suggestion artifacts.
 - `test:e2e` includes Prompt Promotion coverage: PM Review promotes only after passing Design/Regression/Holdout coverage, persists `promptPromotions`, freezes the promoted prompt version on a new runtime AI Check session, and injects the promoted patch into provider messages.
 
 Pending implementation validation:
@@ -291,6 +293,13 @@ Pending implementation validation:
 - Schema Reference now shows accepted Prompt Program Suggestions as a contract-first backlog.
 - The backlog surfaces source comparison ids and reminds implementers to update `ai-check-contract.json`, generated contract references, eval assertions or fixtures, and linked docs.
 - Issues document was updated because accepted suggestions now have a visible contract-work queue. Design document was updated to include the backlog in Contract Reference.
+
+2026-05-24 Experiment Workspace update:
+
+- Experiment Lab now persists named Experiment Workspaces in `experiments`.
+- Workspaces link existing run, comparison, Prompt Program Suggestion, release decision, and promotion artifact ids instead of duplicating those records.
+- This implements a first multi-run/multi-artifact management layer while keeping eval run, comparison, suggestion, release, and promotion records as the authoritative evidence.
+- Design document was updated to describe the implemented workspace artifact model.
 
 ## Update Checklist
 
