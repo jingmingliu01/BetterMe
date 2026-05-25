@@ -1,75 +1,102 @@
 # BetterMe
 
-BetterMe is a Chrome extension for people who want friction before opening distracting websites. When a user tries to visit a blocked site, BetterMe redirects them to an AI checkpoint and asks them to explain their purpose, time boundary, and exit plan before access is allowed.
+> A Chrome MV3 extension that adds an AI checkpoint before distracting websites, turning a user's stated purpose, time boundary, and exit plan into a concrete product outcome: allow, ask more, start a cooldown, or block.
+
+Most website blockers are binary: a site is either blocked or unblocked. BetterMe treats self-control as a decision moment. The user attempts a guarded site, gets redirected to a checkpoint, explains why access is needed now, and receives an outcome based on intent quality, recent behavior, strictness, and risk.
+
+This repository is the public portfolio version of BetterMe. It shows the extension architecture, AI Check decision loop, local PM Review workspace, evaluation tooling, and design process. Production backend, payment, account, and private launch work live outside this public repo.
+
+## Contents
+
+<p align="center">
+  <a href="#product-demo"><strong>Product Demo</strong></a>
+  ·
+  <a href="#product-idea"><strong>Product Idea</strong></a>
+  ·
+  <a href="#what-i-built"><strong>What I Built</strong></a>
+  ·
+  <a href="#technical-highlights"><strong>Technical Highlights</strong></a>
+</p>
+
+<p align="center">
+  <a href="#repository-map"><strong>Repository Map</strong></a>
+  ·
+  <a href="#data-persistence-note"><strong>Data Persistence</strong></a>
+  ·
+  <a href="#run-locally"><strong>Run Locally</strong></a>
+  ·
+  <a href="#validation"><strong>Validation</strong></a>
+</p>
+
+<p align="center">
+  <a href="#public-design-notes"><strong>Public Design Notes</strong></a>
+  ·
+  <a href="#portfolio-notes"><strong>Portfolio Notes</strong></a>
+  ·
+  <a href="#scope"><strong>Scope</strong></a>
+</p>
 
 ## Product Demo
 
-### The Core Moment: Redirected Checkpoint
+### Demo Video
 
-The main product experience is the redirected page. BetterMe interrupts the habit loop at the exact moment the user tries to open a distracting site, then asks them to make the visit intentional.
+> Placeholder: upload a short BetterMe demo video through GitHub's web UI, then replace this block with the generated video asset link.
+
+### Redirected AI Check
+
+BetterMe interrupts the habit loop at the moment the user tries to open a guarded site.
 
 ![BetterMe Redirected AI Check](docs/assets/readme/redirected-ai-check.png)
 
-### Personal Boundaries
+### Settings and Provider Setup
 
-Users choose the domains or exact URLs they want BetterMe to guard, set checkpoint strictness, and connect their own OpenAI-compatible provider key.
+Users choose guarded domains or URLs, set checkpoint strictness, and connect an OpenAI-compatible provider key.
 
 ![BetterMe Settings](docs/assets/readme/settings-provider-setup.png)
 
-### PM Review Loop
+### PM Review
 
-The PM Review workspace makes AI behavior inspectable: reviewers can see what the model received, what it returned, and how that decision should be evaluated in future cases.
+The PM Review workspace makes model behavior inspectable: what the model saw, what it returned, and how that decision can become a future evaluation case.
 
 ![PM Review Provider Messages](docs/assets/readme/pm-review-provider-messages.png)
 
-## Product Story
+### Run Review Console
 
-Most website blockers are binary: a site is either blocked or unblocked. BetterMe treats self-control as a decision moment:
+Experiment Lab turns evaluation runs into reviewable evidence: pass/fail metrics, run history, release-gate checks, and case-level drilldown.
 
-1. The user attempts to open a distracting site.
-2. BetterMe redirects them to a checkpoint instead of the site.
-3. The user explains why they need access now.
-4. The AI checkpoint classifies the request as clear, vague, repeated, or risky.
-5. BetterMe turns that decision into a product outcome: allow, ask one more question, start a cooldown, or block.
-6. Bad or surprising decisions can be reviewed and turned into evaluation cases.
+![Run Review Console](docs/assets/readme/run-review-console.png)
 
-The product goal is to make impulsive browsing slower, more explicit, and easier to learn from.
-
-## Product System
+## Product Idea
 
 ```mermaid
 flowchart LR
-  User["User"] --> Setup["Sets personal rules"]
-  User --> Attempt["Attempts blocked site"]
-
-  subgraph BetterMe["BetterMe Product"]
-    Setup --> Checkpoint["Redirected AI checkpoint"]
-    Attempt --> Checkpoint
-    Checkpoint --> Decision["Decision: allow, ask more, cooldown, block"]
-    Decision --> Outcome["Local outcome for this visit"]
-    Decision --> Review["PM review when behavior is wrong or surprising"]
-    Review --> Eval["Evaluation case"]
-    Eval -. improves .-> Checkpoint
-  end
+  User["User"] --> Attempt["Attempts guarded site"]
+  Attempt --> Checkpoint["AI checkpoint"]
+  Checkpoint --> Decision["Structured decision"]
+  Decision --> Outcome["Local product outcome"]
+  Decision --> Review["PM review"]
+  Review --> Eval["Evaluation case"]
+  Eval -. improves .-> Checkpoint
 ```
 
-This is the architecture from a user's point of view: setup creates the boundary, the redirected checkpoint handles the moment of temptation, local outcomes enforce the decision, and PM review keeps the AI behavior from staying a black box.
-
-## What a PM Interviewer Should Notice
-
-- **Clear user problem**: the product targets a specific high-friction moment, not a broad productivity dashboard.
-- **Concrete behavior loop**: blocked attempt -> checkpoint -> structured decision -> local outcome.
-- **AI as product logic**: the model does not just chat; it drives visible product states.
-- **Failure handling**: bad AI decisions can become review cases and regression cases.
-- **Scope discipline**: the MVP focuses on a Chrome extension, BYOK provider setup, local enforcement, and PM review before adding social or cloud features.
+The model does not just chat. It drives product state.
 
 ## What I Built
 
-- A Chrome MV3 extension with settings, popup, redirected block page, onboarding, and PM Review surfaces.
-- A checkpoint flow that turns a blocked-site attempt into a structured AI decision.
-- Local state for blocked targets, temporary access, cooldowns, review cases, evaluation cases, and encrypted provider settings.
-- A PM Review workspace that connects product review with AI evaluation cases.
-- Validation scripts for type checking, extension builds, AI Check behavior, and browser flows.
+- Chrome MV3 extension with popup, settings, onboarding, redirected block page, and PM Review surfaces.
+- AI Check session flow with bounded turns, strictness, provider calls, schema parsing, and product outcomes.
+- Local persistence for blocked targets, cooldowns, temporary unlocks, AI sessions, behavior events, pattern memory, PM reviews, eval cases, eval jobs, and run results.
+- Contract-first AI Check schema for prompt-visible input/output and evaluation expectations.
+- Prompt Engineering Console with case library, provider message reference, eval runs, A/B comparison, release gate, and run review.
+- Validation scripts for typecheck, build, AI Check logic, contract validation, eval runs, and browser E2E.
+
+## Technical Highlights
+
+- **MV3 architecture**: service worker message routing, declarativeNetRequest rules, redirected block page, and content script expiry guard.
+- **AI as deterministic product logic**: provider output is parsed into a strict JSON decision contract before product state changes.
+- **Local-first privacy boundary**: AI Check sessions, eval runs, review artifacts, and provider keys stay in extension storage in this public MVP.
+- **Prompt engineering workflow**: bad decisions can become structured evaluation cases, then feed regression runs and prompt comparison.
+- **Reviewability**: PM Review shows provider messages, output schema, evaluation schema, run results, and release-gate evidence.
 
 ## Repository Map
 
@@ -77,15 +104,22 @@ This is the architecture from a user's point of view: setup creates the boundary
 apps/extension/
   src/pages/              Extension pages and PM Review UI
   src/blocking/           Access rules, cooldowns, unlocks, and holds
-  src/ai/                 AI Check conversation, provider call, parsing, review store
-  src/background/         Chrome extension service worker and routing
-  src/shared/             Shared contracts, provider metadata, and constants
-  src/storage/            Local persistence and encrypted provider-key storage
-  evals/ai-check-cases/   Saved AI Check evaluation cases
+  src/ai/                 AI Check, provider calls, prompt/context, eval/review logic
+  src/background/         MV3 service worker and message router
+  src/shared/             Contracts, provider metadata, constants, shared types
+  src/storage/            IndexedDB, chrome.storage, encrypted provider-key storage
+  evals/ai-check-cases/   Built-in AI Check evaluation cases
 
-docs/design/              Product design, progress, and issue notes
+docs/design/              Implementation-linked design/progress/issues notes
+docs/portfolio/           Public-facing project notes
 docs/assets/readme/       README screenshots
 ```
+
+## Data Persistence Note
+
+BetterMe stores AI Check history, PM Review data, eval cases, eval jobs, eval runs, and eval results locally in the extension's IndexedDB. If the extension is uninstalled, Chrome removes that extension storage. Reinstalling the extension starts with a fresh local database.
+
+More detail: [Data Persistence](docs/portfolio/data-persistence.md)
 
 ## Run Locally
 
@@ -112,22 +146,29 @@ npm run dev
 ```bash
 npm run typecheck
 npm run build
+npm --workspace apps/extension run check:ai-check-contract
 npm --workspace apps/extension run test:ai-check
 npm --workspace apps/extension run eval:ai-check
 npm --workspace apps/extension run test:e2e
 ```
 
-## Design Notes
-
-The project keeps implementation-linked design notes under `docs/design/`.
+## Public Design Notes
 
 | Topic | Design | Progress | Issues |
 | --- | --- | --- | --- |
 | Access state and local enforcement | [design](docs/design/2026-05-12-access-state-design.md) | [progress](docs/design/2026-05-12-access-state-progress.md) | [issues](docs/design/2026-05-12-access-state-issues.md) |
 | AI Check session state machine | [design](docs/design/2026-05-12-ai-check-session-state-machine-design.md) | [progress](docs/design/2026-05-12-ai-check-session-state-machine-progress.md) | [issues](docs/design/2026-05-12-ai-check-session-state-machine-issues.md) |
 | PM Review workspace | [design](docs/design/2026-05-20-pm-review-workspace-design.md) | [progress](docs/design/2026-05-20-pm-review-workspace-progress.md) | [issues](docs/design/2026-05-20-pm-review-workspace-issues.md) |
-| Provider message contract | [design](docs/design/2026-05-21-ai-check-provider-message-contract-design.md) | [progress](docs/design/2026-05-21-ai-check-provider-message-contract-progress.md) | [issues](docs/design/2026-05-21-ai-check-provider-message-contract-issues.md) |
+| AI Check contract SSOT | [design](docs/design/2026-05-22-ai-check-contract-ssot-design.md) | [progress](docs/design/2026-05-22-ai-check-contract-ssot-progress.md) | [issues](docs/design/2026-05-22-ai-check-contract-ssot-issues.md) |
+| Prompt Engineering Console | [design](docs/design/2026-05-24-prompt-engineering-console-design.md) | [progress](docs/design/2026-05-24-prompt-engineering-console-progress.md) | [issues](docs/design/2026-05-24-prompt-engineering-console-issues.md) |
+| Eval Job Model | [design](docs/design/2026-05-25-eval-job-model-design.md) | [progress](docs/design/2026-05-25-eval-job-model-progress.md) | [issues](docs/design/2026-05-25-eval-job-model-issues.md) |
+| Run Review Console | [design](docs/design/2026-05-25-run-review-console-design.md) | [progress](docs/design/2026-05-25-run-review-console-progress.md) | [issues](docs/design/2026-05-25-run-review-console-issues.md) |
 
-## Current Scope
+## Portfolio Notes
 
-BetterMe is an MVP and portfolio project. The current scope focuses on the local browser experience, AI checkpoint decisioning, PM review, and evaluation loop. It does not yet include a mobile app, accountability partner workflows, community features, or a cloud sync product.
+- [Project Overview](docs/portfolio/project-overview.md)
+- [Data Persistence](docs/portfolio/data-persistence.md)
+
+## Scope
+
+This public repo is intentionally focused on the browser extension MVP and portfolio-friendly AI product engineering work. Backend ingestion, account, subscription, payment, and private production roadmap work are excluded from this public version.
