@@ -8,6 +8,7 @@ Related docs:
 - AI Check case schema: [2026-05-20-ai-check-case-schema-design.md](2026-05-20-ai-check-case-schema-design.md)
 - AI Check provider message contract: [2026-05-21-ai-check-provider-message-contract-design.md](2026-05-21-ai-check-provider-message-contract-design.md)
 - AI Check contract SSOT: [2026-05-22-ai-check-contract-ssot-design.md](2026-05-22-ai-check-contract-ssot-design.md)
+- Eval Job Model: [2026-05-25-eval-job-model-design.md](2026-05-25-eval-job-model-design.md)
 
 External reference:
 
@@ -195,6 +196,8 @@ Do not keep `bad_case_review` as a case source. It is represented by `provenance
 Experiment Run is a reproducible offline run of one or more Prompt Program arms against a dataset selection.
 
 First implementation should support the current Prompt Program only. Candidate Prompt A/B is intentionally second step scope.
+
+Long-running provider-mode execution should be represented by the Eval Job Model. Running state, progress, cancellation, resume, retries, and infrastructure errors belong to `EvalJob` and `JobCaseState`; completed `AICheckEvalRun` and `AICheckEvalResult` artifacts remain release-consumable evidence only.
 
 Minimum run inputs:
 

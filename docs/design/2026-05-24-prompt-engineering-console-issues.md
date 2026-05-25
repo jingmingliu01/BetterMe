@@ -6,6 +6,7 @@ Related docs:
 - Progress: [2026-05-24-prompt-engineering-console-progress.md](2026-05-24-prompt-engineering-console-progress.md)
 - PM Review workspace issues: [2026-05-20-pm-review-workspace-issues.md](2026-05-20-pm-review-workspace-issues.md)
 - AI Check contract SSOT issues: [2026-05-22-ai-check-contract-ssot-issues.md](2026-05-22-ai-check-contract-ssot-issues.md)
+- Eval Job Model issues: [2026-05-25-eval-job-model-issues.md](2026-05-25-eval-job-model-issues.md)
 
 Rule: when this document changes, check the design and progress documents for required updates.
 
@@ -212,6 +213,29 @@ Update 2026-05-24:
 - Promotion is intentionally separate: a candidate can replace the active local Prompt Program only through a PM action that writes a Prompt Promotion audit record.
 - Promotion requires passing Design, Regression, and Holdout dataset coverage.
 - New AI Check sessions freeze the active promoted Prompt Program version and use the promoted patch in provider messages.
+
+### ISSUE-007A: Long-running provider evals need durable job execution
+
+Status: open
+
+Risk:
+
+- Provider-mode eval and A/B runs can exceed the PM Review frontend message timeout.
+- The background may finish and save a result after the UI has already shown "BetterMe background did not respond".
+- Reloading PM Review can reveal results that were not visible while the work was running.
+- Release and workspace workflows stay hard to trust if the product cannot show active work, progress, cancellation, or failed infrastructure state.
+
+Expected behavior:
+
+- Experiment Lab creates durable jobs for long-running eval and comparison work.
+- Running state is visible without reload.
+- Completed run/result/comparison artifacts are created only after successful finalization.
+- Release Gate consumes completed evidence only.
+
+Mitigation:
+
+- Implement the Eval Job Model tracked in [2026-05-25-eval-job-model-design.md](2026-05-25-eval-job-model-design.md).
+- Keep `EvalJob` execution state separate from completed `AICheckEvalRun`, `AICheckEvalResult`, and `AICheckPromptComparison` artifacts.
 
 ### ISSUE-008: Textual Gradient can overfit visible cases
 
