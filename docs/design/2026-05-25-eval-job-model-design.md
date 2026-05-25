@@ -7,6 +7,7 @@ Related docs:
 - Prompt Engineering Console design: [2026-05-24-prompt-engineering-console-design.md](2026-05-24-prompt-engineering-console-design.md)
 - Prompt Engineering Console progress: [2026-05-24-prompt-engineering-console-progress.md](2026-05-24-prompt-engineering-console-progress.md)
 - Prompt Engineering Console issues: [2026-05-24-prompt-engineering-console-issues.md](2026-05-24-prompt-engineering-console-issues.md)
+- Run Review Console design: [2026-05-25-run-review-console-design.md](2026-05-25-run-review-console-design.md)
 
 Rule: when this document changes, check the progress and issues documents for required updates.
 
@@ -28,6 +29,8 @@ PM starts an eval or A/B comparison
 ```
 
 The goal is not just automatic refresh. The goal is to make eval execution observable, resumable, cancellable, and safe under Chrome MV3 service-worker lifecycle constraints.
+
+The Run Review Console design builds on this execution layer. This document owns running job semantics; the Run Review Console owns the finalized run/comparison review experience.
 
 ## Non-Goals
 
@@ -591,7 +594,7 @@ Unit and integration coverage should include:
 - release decision is disabled for running, failed, cancelled, or partial jobs.
 - `data/deleteAll` cannot leave old runner writes behind.
 
-## Open Product Decisions
+## Product Decisions
 
 Locked:
 
@@ -600,9 +603,8 @@ Locked:
 - A/B comparison is a parent workflow over two child eval jobs.
 - Completed artifacts remain the only evidence consumed by release and promotion.
 
-Still open:
+Implemented first-slice choices:
 
-- Exact default provider concurrency per provider after initial `maxConcurrency = 1`.
-- Whether failed jobs should support retry-all or only retry-failed-cases in the first UI slice.
-- Whether active job cards should be global across all workspaces or scoped by selected workspace with a global active count.
-
+- Provider-mode eval defaults are defined in `provider-config.json` with conservative `defaultMaxConcurrency = 1`, `retryLimit = 2`, and retry backoff.
+- Failed jobs support retrying failed cases at the job level in the first UI slice.
+- Active job cards are shown in Experiment Lab and biased toward the selected workspace while still showing global jobs that are not workspace-scoped.

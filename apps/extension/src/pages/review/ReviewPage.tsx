@@ -50,6 +50,7 @@ import type {
   AICheckContractChangePlan,
   AICheckContractChangePlanAppliedEvidence,
   AICheckDecisionExpectation,
+  AICheckEvalJobSummary,
   AICheckEvalRunFilters,
   AICheckEvalRunMode,
   AICheckEvalRunSummary,
@@ -58,6 +59,7 @@ import type {
   AICheckCaseProvenance,
   AICheckPromptCandidate,
   AICheckPromptComparison,
+  AICheckPromptComparisonWorkflowSummary,
   AICheckPromptPromotion,
   AICheckPromptProgramSuggestion,
   AICheckReleaseDecision,
@@ -78,7 +80,8 @@ import type {
   PromotePromptCandidateInput,
   ProviderId,
   ReviewPromptProgramSuggestionItemInput,
-  RunPromptComparisonInput,
+  StartEvalJobInput,
+  StartPromptComparisonWorkflowInput,
   StrictnessLevel,
   AICheckSchemaFieldReference,
   UpdateContractChangePlanInput,
@@ -217,6 +220,7 @@ export function ReviewPage() {
   const loadSessions = useCallback(() => sendMessage<AIPMReviewSession[]>({ type: "review/listSessions" }), []);
   const loadEvalCases = useCallback(() => sendMessage<AICheckCase[]>({ type: "review/listEvalCases" }), []);
   const loadEvalRuns = useCallback(() => sendMessage<AICheckEvalRunSummary[]>({ type: "review/listEvalRuns" }), []);
+  const loadEvalJobs = useCallback(() => sendMessage<AICheckEvalJobSummary[]>({ type: "review/listEvalJobs" }), []);
   const loadExperiments = useCallback(() => sendMessage<AICheckExperiment[]>({ type: "review/listExperiments" }), []);
   const loadReleaseDecisions = useCallback(
     () => sendMessage<AICheckReleaseDecision[]>({ type: "review/listReleaseDecisions" }),
@@ -228,6 +232,10 @@ export function ReviewPage() {
   );
   const loadPromptComparisons = useCallback(
     () => sendMessage<AICheckPromptComparison[]>({ type: "review/listPromptComparisons" }),
+    []
+  );
+  const loadPromptComparisonWorkflows = useCallback(
+    () => sendMessage<AICheckPromptComparisonWorkflowSummary[]>({ type: "review/listPromptComparisonWorkflows" }),
     []
   );
   const loadPromptPromotions = useCallback(
@@ -262,6 +270,12 @@ export function ReviewPage() {
     refresh: refreshEvalRuns
   } = useAsyncState(loadEvalRuns);
   const {
+    data: evalJobData,
+    error: evalJobError,
+    loading: evalJobsLoading,
+    refresh: refreshEvalJobs
+  } = useAsyncState(loadEvalJobs);
+  const {
     data: experimentData,
     error: experimentError,
     loading: experimentsLoading,
@@ -285,6 +299,12 @@ export function ReviewPage() {
     loading: promptComparisonsLoading,
     refresh: refreshPromptComparisons
   } = useAsyncState(loadPromptComparisons);
+  const {
+    data: promptComparisonWorkflowData,
+    error: promptComparisonWorkflowError,
+    loading: promptComparisonWorkflowsLoading,
+    refresh: refreshPromptComparisonWorkflows
+  } = useAsyncState(loadPromptComparisonWorkflows);
   const {
     data: promptPromotionData,
     error: promptPromotionError,
@@ -363,10 +383,12 @@ export function ReviewPage() {
   const sessions = sessionData ?? [];
   const evalCases = evalData ?? [];
   const evalRuns = evalRunData ?? [];
+  const evalJobs = evalJobData ?? [];
   const experiments = experimentData ?? [];
   const releaseDecisions = releaseDecisionData ?? [];
   const promptCandidates = promptCandidateData ?? [];
   const promptComparisons = promptComparisonData ?? [];
+  const promptComparisonWorkflows = promptComparisonWorkflowData ?? [];
   const promptPromotions = promptPromotionData ?? [];
   const promptProgramSuggestions = promptProgramSuggestionData ?? [];
   const contractChangePlans = contractChangePlanData ?? [];
@@ -449,6 +471,18 @@ export function ReviewPage() {
     () => experiments.find((experiment) => experiment.id === selectedExperimentId) ?? experiments[0] ?? null,
     [experiments, selectedExperimentId]
   );
+  const activeEvalJobs = useMemo(
+    () => evalJobs.filter((summary) => ["queued", "running", "cancel_requested"].includes(summary.job.status)),
+    [evalJobs]
+  );
+  const activePromptComparisonWorkflows = useMemo(
+    () =>
+      promptComparisonWorkflows.filter((summary) =>
+        ["queued", "running", "cancel_requested"].includes(summary.workflow.status)
+      ),
+    [promptComparisonWorkflows]
+  );
+  const hasActiveExperimentJobs = activeEvalJobs.length > 0 || activePromptComparisonWorkflows.length > 0;
 
   useEffect(() => {
     if (!selectedSession) return;
@@ -470,6 +504,59 @@ export function ReviewPage() {
       setEvalForm(formFromEvalCase(selectedEvalCase));
     }
   }, [creatingEvalCase, selectedEvalCase?.id]);
+
+  const refreshExperimentArtifacts = useCallback(async () => {
+    await Promise.all([
+      refreshEvalJobs(),
+      refreshPromptComparisonWorkflows(),
+      refreshEvalRuns(),
+      refreshExperiments(),
+      refreshProviderStatus(),
+      refreshReleaseDecisions(),
+      refreshPromptCandidates(),
+      refreshPromptComparisons(),
+      refreshContractChangePlans(),
+      refreshPromptProgramSuggestions(),
+      refreshPromptPromotions()
+    ]);
+  }, [
+    refreshContractChangePlans,
+    refreshEvalJobs,
+    refreshEvalRuns,
+    refreshExperiments,
+    refreshPromptCandidates,
+    refreshPromptComparisons,
+    refreshPromptComparisonWorkflows,
+    refreshPromptProgramSuggestions,
+    refreshPromptPromotions,
+    refreshProviderStatus,
+    refreshReleaseDecisions
+  ]);
+
+  useEffect(() => {
+    if (area !== "experiment" || !hasActiveExperimentJobs) return;
+    const intervalId = globalThis.setInterval(() => {
+      void refreshExperimentArtifacts();
+    }, 2_000);
+    return () => globalThis.clearInterval(intervalId);
+  }, [area, hasActiveExperimentJobs, refreshExperimentArtifacts]);
+
+  useEffect(() => {
+    if (area !== "experiment") return;
+    const completedJob = evalJobs.find((summary) => summary.job.status === "completed" && summary.job.outputRunId);
+    if (completedJob?.job.outputRunId && completedJob.job.outputRunId !== selectedEvalRunId) {
+      setSelectedEvalRunId(completedJob.job.outputRunId);
+    }
+  }, [area, evalJobs, selectedEvalRunId]);
+
+  useEffect(() => {
+    if (area !== "experiment") return;
+    const latestComparison = promptComparisons[0] ?? null;
+    if (latestComparison && latestComparison.id !== selectedPromptComparisonId) {
+      setSelectedPromptComparisonId(latestComparison.id);
+      setSelectedEvalRunId(latestComparison.candidateRunId);
+    }
+  }, [area, promptComparisons, selectedPromptComparisonId]);
 
   async function refreshAll() {
     await Promise.all([refreshSessions(), refreshEvalCases(), refreshEvalRuns()]);
@@ -600,20 +687,18 @@ export function ReviewPage() {
     setRunningEval(true);
     setStatus(null);
     try {
-      const summary = await sendMessage<AICheckEvalRunSummary>({
-        type: "review/runEvalExperiment",
+      const summary = await sendMessage<AICheckEvalJobSummary>({
+        type: "review/startEvalJob",
         payload: {
           filters: buildExperimentFilters(experimentForm),
           mode: experimentForm.mode,
           provider: experimentForm.provider,
-          model: experimentForm.model
-        }
+          model: experimentForm.model,
+          experimentId: selectedExperiment?.id
+        } satisfies StartEvalJobInput
       });
-      setSelectedEvalRunId(summary.run.id);
-      setStatus(
-        `Experiment ${summary.run.id} finished: ${summary.run.metrics.passed}/${summary.run.metrics.total} cases passed.`
-      );
-      await Promise.all([refreshEvalRuns(), refreshEvalCases()]);
+      setStatus(`Eval job started: ${summary.job.progress.total} case(s) queued.`);
+      await Promise.all([refreshEvalJobs(), refreshEvalRuns(), refreshExperiments(), refreshEvalCases()]);
     } catch (runError) {
       setStatus(runError instanceof Error ? runError.message : "Could not run eval experiment.");
     } finally {
@@ -669,26 +754,70 @@ export function ReviewPage() {
     setRunningPromptComparison(true);
     setStatus(null);
     try {
-      const comparison = await sendMessage<AICheckPromptComparison>({
-        type: "review/runPromptComparison",
+      const workflow = await sendMessage<AICheckPromptComparisonWorkflowSummary>({
+        type: "review/startPromptComparisonWorkflow",
         payload: {
           candidateId: selectedPromptCandidate.id,
           filters: buildExperimentFilters(experimentForm),
           mode: experimentForm.mode,
           provider: experimentForm.provider,
-          model: experimentForm.model
-        } satisfies RunPromptComparisonInput
+          model: experimentForm.model,
+          experimentId: selectedExperiment?.id
+        } satisfies StartPromptComparisonWorkflowInput
       });
-      setSelectedPromptComparisonId(comparison.id);
-      setSelectedEvalRunId(comparison.candidateRunId);
-      setStatus(
-        `Candidate A/B finished: ${comparison.improvedCaseIds.length} improved, ${comparison.regressedCaseIds.length} regressed.`
-      );
-      await Promise.all([refreshPromptComparisons(), refreshEvalRuns()]);
+      setStatus(`Candidate A/B workflow started: ${workflow.workflow.id}.`);
+      await Promise.all([refreshPromptComparisonWorkflows(), refreshEvalJobs(), refreshPromptComparisons(), refreshEvalRuns()]);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not run Candidate Prompt A/B.");
     } finally {
       setRunningPromptComparison(false);
+    }
+  }
+
+  async function cancelEvalJob(jobId: string) {
+    setStatus(null);
+    try {
+      await sendMessage<AICheckEvalJobSummary>({ type: "review/cancelEvalJob", payload: { jobId } });
+      setStatus("Eval job cancellation requested.");
+      await refreshExperimentArtifacts();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not cancel eval job.");
+    }
+  }
+
+  async function resumeEvalJob(jobId: string) {
+    setStatus(null);
+    try {
+      await sendMessage<AICheckEvalJobSummary>({ type: "review/resumeEvalJob", payload: { jobId } });
+      setStatus("Eval job resumed.");
+      await refreshExperimentArtifacts();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not resume eval job.");
+    }
+  }
+
+  async function retryEvalJob(jobId: string) {
+    setStatus(null);
+    try {
+      await sendMessage<AICheckEvalJobSummary>({ type: "review/retryEvalJobCases", payload: { jobId } });
+      setStatus("Failed eval cases queued for retry.");
+      await refreshExperimentArtifacts();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not retry eval job.");
+    }
+  }
+
+  async function cancelPromptComparisonWorkflow(workflowId: string) {
+    setStatus(null);
+    try {
+      await sendMessage<AICheckPromptComparisonWorkflowSummary>({
+        type: "review/cancelPromptComparisonWorkflow",
+        payload: { workflowId }
+      });
+      setStatus("Candidate A/B workflow cancellation requested.");
+      await refreshExperimentArtifacts();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not cancel Candidate A/B workflow.");
     }
   }
 
@@ -916,10 +1045,12 @@ export function ReviewPage() {
     (sessionsLoading && !sessionData) ||
     (evalLoading && !evalData) ||
     (evalRunsLoading && !evalRunData) ||
+    (evalJobsLoading && !evalJobData) ||
     (experimentsLoading && !experimentData) ||
     (releaseDecisionsLoading && !releaseDecisionData) ||
     (promptCandidatesLoading && !promptCandidateData) ||
     (promptComparisonsLoading && !promptComparisonData) ||
+    (promptComparisonWorkflowsLoading && !promptComparisonWorkflowData) ||
     (promptPromotionsLoading && !promptPromotionData) ||
     (promptProgramSuggestionsLoading && !promptProgramSuggestionData) ||
     (contractChangePlansLoading && !contractChangePlanData) ||
@@ -933,10 +1064,12 @@ export function ReviewPage() {
       {(sessionError ||
         evalError ||
         evalRunError ||
+        evalJobError ||
         experimentError ||
         releaseDecisionError ||
         promptCandidateError ||
         promptComparisonError ||
+        promptComparisonWorkflowError ||
         promptPromotionError ||
         promptProgramSuggestionError ||
         contractChangePlanError ||
@@ -945,10 +1078,12 @@ export function ReviewPage() {
           {sessionError ??
             evalError ??
             evalRunError ??
+            evalJobError ??
             experimentError ??
             releaseDecisionError ??
             promptCandidateError ??
             promptComparisonError ??
+            promptComparisonWorkflowError ??
             promptPromotionError ??
             promptProgramSuggestionError ??
             contractChangePlanError ??
@@ -1131,7 +1266,8 @@ export function ReviewPage() {
           availableTags={availableTags}
           evalCases={evalCases}
           form={experimentForm}
-          loading={evalRunsLoading}
+          loading={evalRunsLoading || evalJobsLoading || promptComparisonWorkflowsLoading}
+          evalJobs={evalJobs}
           experimentArmForm={experimentArmForm}
           experimentName={experimentName}
           experimentNotes={experimentNotes}
@@ -1147,6 +1283,7 @@ export function ReviewPage() {
           promptCandidateForm={promptCandidateForm}
           promptCandidates={promptCandidates}
           promptComparisons={promptComparisons}
+          promptComparisonWorkflows={promptComparisonWorkflows}
           promptProgramSuggestions={promptProgramSuggestions}
           promptPromotionNote={promptPromotionNote}
           promptPromotions={promptPromotions}
@@ -1173,6 +1310,8 @@ export function ReviewPage() {
           setSelectedExperimentId={setSelectedExperimentId}
           setSelectedRunId={setSelectedEvalRunId}
           onAddExperimentArm={addExperimentArm}
+          onCancelEvalJob={cancelEvalJob}
+          onCancelPromptComparisonWorkflow={cancelPromptComparisonWorkflow}
           onCreateReleaseDecision={createReleaseDecision}
           onCreateExperiment={createExperimentWorkspace}
           onCreatePromptCandidate={savePromptCandidate}
@@ -1182,19 +1321,9 @@ export function ReviewPage() {
           onPromotePromptCandidate={promoteSelectedPromptCandidate}
           onReviewPromptProgramSuggestionItem={reviewPromptProgramSuggestionItem}
           onLinkExperimentArtifact={linkSelectedExperimentArtifact}
-          onRefresh={() =>
-            void Promise.all([
-              refreshEvalRuns(),
-              refreshExperiments(),
-              refreshProviderStatus(),
-              refreshReleaseDecisions(),
-              refreshPromptCandidates(),
-              refreshPromptComparisons(),
-              refreshContractChangePlans(),
-              refreshPromptProgramSuggestions(),
-              refreshPromptPromotions()
-            ])
-          }
+          onRefresh={() => void refreshExperimentArtifacts()}
+          onResumeEvalJob={resumeEvalJob}
+          onRetryEvalJob={retryEvalJob}
           onRun={runExperiment}
           onRunPromptComparison={runPromptComparison}
         />
@@ -1231,6 +1360,7 @@ export function ReviewPage() {
 function ExperimentLab({
   availableTags,
   evalCases,
+  evalJobs,
   experimentArmForm,
   experimentName,
   experimentNotes,
@@ -1245,6 +1375,7 @@ function ExperimentLab({
   promptCandidateForm,
   promptCandidates,
   promptComparisons,
+  promptComparisonWorkflows,
   promptProgramSuggestions,
   promptPromotionNote,
   promptPromotions,
@@ -1284,11 +1415,16 @@ function ExperimentLab({
   onPromotePromptCandidate,
   onReviewPromptProgramSuggestionItem,
   onRefresh,
+  onCancelEvalJob,
+  onCancelPromptComparisonWorkflow,
+  onResumeEvalJob,
+  onRetryEvalJob,
   onRun,
   onRunPromptComparison
 }: {
   availableTags: string[];
   evalCases: AICheckCase[];
+  evalJobs: AICheckEvalJobSummary[];
   experimentArmForm: ExperimentArmFormState;
   experimentName: string;
   experimentNotes: string;
@@ -1303,6 +1439,7 @@ function ExperimentLab({
   promptCandidateForm: PromptCandidateFormState;
   promptCandidates: AICheckPromptCandidate[];
   promptComparisons: AICheckPromptComparison[];
+  promptComparisonWorkflows: AICheckPromptComparisonWorkflowSummary[];
   promptProgramSuggestions: AICheckPromptProgramSuggestion[];
   promptPromotionNote: string;
   promptPromotions: AICheckPromptPromotion[];
@@ -1342,6 +1479,10 @@ function ExperimentLab({
   onPromotePromptCandidate: () => void;
   onReviewPromptProgramSuggestionItem: (input: ReviewPromptProgramSuggestionItemInput) => void;
   onRefresh: () => void;
+  onCancelEvalJob: (jobId: string) => void;
+  onCancelPromptComparisonWorkflow: (workflowId: string) => void;
+  onResumeEvalJob: (jobId: string) => void;
+  onRetryEvalJob: (jobId: string) => void;
   onRun: () => void;
   onRunPromptComparison: () => void;
 }) {
@@ -1373,6 +1514,22 @@ function ExperimentLab({
     selectedRun?.run.metrics.releaseGate.status !== "fail" &&
     !releaseReviewRequiredForApproval &&
     !savingReleaseDecision;
+  const visibleEvalJobs = useMemo(() => {
+    const selectedExperimentId = selectedExperiment?.id;
+    const filtered = selectedExperimentId
+      ? evalJobs.filter((summary) => summary.job.context?.experimentId === selectedExperimentId || !summary.job.context?.experimentId)
+      : evalJobs;
+    return filtered.slice(0, 8);
+  }, [evalJobs, selectedExperiment?.id]);
+  const visiblePromptComparisonWorkflows = useMemo(() => {
+    const selectedExperimentId = selectedExperiment?.id;
+    const filtered = selectedExperimentId
+      ? promptComparisonWorkflows.filter(
+          (summary) => summary.workflow.context?.experimentId === selectedExperimentId || !summary.workflow.context?.experimentId
+        )
+      : promptComparisonWorkflows;
+    return filtered.slice(0, 6);
+  }, [promptComparisonWorkflows, selectedExperiment?.id]);
 
   return (
     <section className="experiment-workspace">
@@ -1845,6 +2002,15 @@ function ExperimentLab({
           </button>
         </div>
 
+        <ActiveJobsPanel
+          evalJobs={visibleEvalJobs}
+          promptComparisonWorkflows={visiblePromptComparisonWorkflows}
+          onCancelEvalJob={onCancelEvalJob}
+          onCancelPromptComparisonWorkflow={onCancelPromptComparisonWorkflow}
+          onResumeEvalJob={onResumeEvalJob}
+          onRetryEvalJob={onRetryEvalJob}
+        />
+
         {selectedRun ? (
           <>
             {selectedPromptComparison && (
@@ -2067,6 +2233,100 @@ function ExperimentLab({
       </aside>
     </section>
   );
+}
+
+function ActiveJobsPanel({
+  evalJobs,
+  promptComparisonWorkflows,
+  onCancelEvalJob,
+  onCancelPromptComparisonWorkflow,
+  onResumeEvalJob,
+  onRetryEvalJob
+}: {
+  evalJobs: AICheckEvalJobSummary[];
+  promptComparisonWorkflows: AICheckPromptComparisonWorkflowSummary[];
+  onCancelEvalJob: (jobId: string) => void;
+  onCancelPromptComparisonWorkflow: (workflowId: string) => void;
+  onResumeEvalJob: (jobId: string) => void;
+  onRetryEvalJob: (jobId: string) => void;
+}) {
+  const visibleEvalJobs = evalJobs.filter((summary) => summary.job.status !== "completed");
+  const visibleWorkflows = promptComparisonWorkflows.filter(
+    (summary) => summary.workflow.status !== "completed"
+  );
+  if (visibleEvalJobs.length === 0 && visibleWorkflows.length === 0) {
+    return null;
+  }
+  return (
+    <section className="release-decision-card stack">
+      <div className="section-heading">
+        <span className="section-label">Active jobs</span>
+        <h3>Background execution</h3>
+      </div>
+      {visibleWorkflows.map((summary) => (
+        <div className="release-decision-entry" key={summary.workflow.id}>
+          <div className="row space-between">
+            <strong>Candidate A/B workflow</strong>
+            <span className={`status-pill status-pill-${summary.workflow.status}`}>{formatStatusLabel(summary.workflow.status)}</span>
+          </div>
+          <small>
+            Baseline {formatCompactJobProgress(summary.baselineJob)} · Candidate {formatCompactJobProgress(summary.candidateJob)}
+          </small>
+          {summary.workflow.error && <small>{summary.workflow.error}</small>}
+          {["queued", "running", "cancel_requested"].includes(summary.workflow.status) && (
+            <button className="btn btn-ghost" onClick={() => onCancelPromptComparisonWorkflow(summary.workflow.id)}>
+              Cancel A/B
+            </button>
+          )}
+        </div>
+      ))}
+      {visibleEvalJobs.map((summary) => {
+        const canCancel = ["queued", "running", "cancel_requested"].includes(summary.job.status);
+        const canResume = summary.job.status === "failed";
+        const canRetry = summary.job.status === "failed" && summary.job.progress.failed > 0;
+        return (
+          <div className="release-decision-entry" key={summary.job.id}>
+            <div className="row space-between">
+              <strong>{summary.job.context?.comparisonRole ? `${formatStatusLabel(summary.job.context.comparisonRole)} eval` : "Eval job"}</strong>
+              <span className={`status-pill status-pill-${summary.job.status}`}>{formatStatusLabel(summary.job.status)}</span>
+            </div>
+            <span>
+              {summary.job.progress.succeeded}/{summary.job.progress.total} completed · {formatProvider(summary.job.request.provider)} ·{" "}
+              {summary.job.request.model} · {formatRunMode(summary.job.request.mode)}
+            </span>
+            <small>
+              {summary.job.progress.failed} infra failed · {summary.job.progress.running} running · updated{" "}
+              {formatDate(summary.job.updatedAt)}
+            </small>
+            {summary.job.error && <small>{summary.job.error}</small>}
+            <div className="row wrap-row">
+              {canCancel && (
+                <button className="btn btn-ghost" onClick={() => onCancelEvalJob(summary.job.id)}>
+                  Cancel
+                </button>
+              )}
+              {canResume && (
+                <button className="btn btn-ghost" onClick={() => onResumeEvalJob(summary.job.id)}>
+                  Resume
+                </button>
+              )}
+              {canRetry && (
+                <button className="btn btn-ghost" onClick={() => onRetryEvalJob(summary.job.id)}>
+                  Retry failed
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+      <p className="muted">Running metrics are provisional. Release decisions use finalized runs only.</p>
+    </section>
+  );
+}
+
+function formatCompactJobProgress(job: AICheckPromptComparisonWorkflowSummary["baselineJob"]): string {
+  if (!job) return "not created";
+  return `${job.progress.succeeded}/${job.progress.total} ${formatStatusLabel(job.status).toLowerCase()}`;
 }
 
 function PromptComparisonSummary({

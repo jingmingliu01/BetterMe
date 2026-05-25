@@ -1,5 +1,5 @@
 const DB_NAME = "betterme-db";
-const DB_VERSION = 13;
+const DB_VERSION = 14;
 
 const STORE_NAMES = [
   "aiCheckSessions",
@@ -11,8 +11,11 @@ const STORE_NAMES = [
   "behaviorEvents",
   "badCaseReviews",
   "evalCases",
+  "evalJobs",
+  "evalJobCaseStates",
   "evalRuns",
   "evalResults",
+  "promptComparisonWorkflows",
   "promptCandidates",
   "promptComparisons",
   "promptProgramSuggestions",
@@ -36,8 +39,11 @@ const AI_HISTORY_STORES_TO_CLEAR_ON_SCHEMA_UNIFICATION: StoreName[] = [
   "behaviorEvents",
   "badCaseReviews",
   "evalCases",
+  "evalJobs",
+  "evalJobCaseStates",
   "evalRuns",
   "evalResults",
+  "promptComparisonWorkflows",
   "promptCandidates",
   "promptComparisons",
   "promptProgramSuggestions",

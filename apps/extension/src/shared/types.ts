@@ -170,6 +170,11 @@ export interface ProviderConfig {
   baseUrl: string;
   defaultModel: string;
   models: string[];
+  evalExecution?: {
+    defaultMaxConcurrency: number;
+    retryLimit: number;
+    retryBackoffMs?: number[];
+  };
 }
 
 export interface ProviderKeyRevision {
@@ -330,6 +335,93 @@ export interface AICheckEvalRunSummary {
   results: AICheckEvalResult[];
 }
 
+export type AICheckEvalJobStatus = "queued" | "running" | "cancel_requested" | "completed" | "failed" | "cancelled";
+export type AICheckEvalJobCaseStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "retryable_failed"
+  | "failed"
+  | "cancelled"
+  | "skipped";
+
+export interface AICheckEvalJobProgress {
+  total: number;
+  pending: number;
+  running: number;
+  succeeded: number;
+  failed: number;
+  cancelled: number;
+}
+
+export interface AICheckEvalJob {
+  id: string;
+  kind: "eval_run";
+  reservedRunId: string;
+  outputRunId?: string;
+  request: {
+    filters: AICheckEvalRunFilters;
+    mode: AICheckEvalRunMode;
+    provider: AICheckEvalRun["provider"];
+    providerMode: AICheckEvalRun["providerMode"];
+    model: string;
+    promptVersion: string;
+    outputSchemaVersion: string;
+    evaluationSchemaVersion: string;
+    selectedCaseIds: string[];
+    systemPromptAddendum?: string;
+  };
+  execution: {
+    maxConcurrency: number;
+    retryLimit: number;
+    retryBackoffMs?: number[];
+    cancelRequestedAt?: string;
+    leaseOwner?: string;
+    leaseExpiresAt?: string;
+  };
+  progress: AICheckEvalJobProgress;
+  context?: {
+    experimentId?: string;
+    armId?: string;
+    promptComparisonWorkflowId?: string;
+    comparisonRole?: "baseline" | "candidate";
+    promptCandidateId?: string;
+  };
+  status: AICheckEvalJobStatus;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+export interface AICheckEvalJobCaseAttempt {
+  attempt: number;
+  status: "succeeded" | "failed" | "cancelled";
+  startedAt: string;
+  finishedAt?: string;
+  providerErrorCode?: ProviderErrorCode;
+  error?: string;
+}
+
+export interface AICheckEvalJobCaseState {
+  id: string;
+  jobId: string;
+  reservedRunId: string;
+  evalCaseId: string;
+  caseSnapshot: AICheckCase;
+  status: AICheckEvalJobCaseStatus;
+  attempts: AICheckEvalJobCaseAttempt[];
+  result?: AICheckEvalResult;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AICheckEvalJobSummary {
+  job: AICheckEvalJob;
+  cases: AICheckEvalJobCaseState[];
+}
+
 export interface ImportEvalRunArtifactInput {
   artifact: AICheckEvalRunSummary;
 }
@@ -387,6 +479,30 @@ export interface AICheckPromptComparison {
   promotionGate: AICheckPromptPromotionGate;
   textualGradient: AICheckTextualGradient;
   createdAt: string;
+}
+
+export interface AICheckPromptComparisonWorkflow {
+  id: string;
+  baselineJobId: string;
+  candidateJobId: string;
+  outputComparisonId?: string;
+  status: "queued" | "running" | "completed" | "failed" | "cancel_requested" | "cancelled";
+  context?: {
+    experimentId?: string;
+    baselineArmId?: string;
+    candidateArmId?: string;
+    promptCandidateId: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+  finishedAt?: string;
+  error?: string;
+}
+
+export interface AICheckPromptComparisonWorkflowSummary {
+  workflow: AICheckPromptComparisonWorkflow;
+  baselineJob?: AICheckEvalJob;
+  candidateJob?: AICheckEvalJob;
 }
 
 export interface AICheckPromptPromotion {
@@ -606,11 +722,21 @@ export type ExtensionMessage =
   | { type: "review/archiveEvalCase"; payload: { id: string; archivedReason?: string } }
   | { type: "review/listEvalRuns" }
   | { type: "review/runEvalExperiment"; payload: RunEvalExperimentInput }
+  | { type: "review/createEvalJob"; payload: StartEvalJobInput }
+  | { type: "review/startEvalJob"; payload: StartEvalJobInput | { jobId: string } }
+  | { type: "review/listEvalJobs" }
+  | { type: "review/getEvalJob"; payload: { jobId: string } }
+  | { type: "review/cancelEvalJob"; payload: { jobId: string } }
+  | { type: "review/resumeEvalJob"; payload: { jobId: string } }
+  | { type: "review/retryEvalJobCases"; payload: { jobId: string; evalCaseIds?: string[] } }
   | { type: "review/importEvalRunArtifact"; payload: ImportEvalRunArtifactInput }
   | { type: "review/listPromptCandidates" }
   | { type: "review/createPromptCandidate"; payload: CreatePromptCandidateInput }
   | { type: "review/listPromptComparisons" }
   | { type: "review/runPromptComparison"; payload: RunPromptComparisonInput }
+  | { type: "review/startPromptComparisonWorkflow"; payload: StartPromptComparisonWorkflowInput }
+  | { type: "review/listPromptComparisonWorkflows" }
+  | { type: "review/cancelPromptComparisonWorkflow"; payload: { workflowId: string } }
   | { type: "review/generatePromptCandidate"; payload: GeneratePromptCandidateInput }
   | { type: "review/listPromptProgramSuggestions" }
   | { type: "review/generatePromptProgramSuggestions"; payload: GeneratePromptProgramSuggestionsInput }
@@ -671,7 +797,11 @@ export interface RunEvalExperimentInput {
   mode?: AICheckEvalRunMode;
   provider?: AICheckEvalRun["provider"];
   model?: string;
+  experimentId?: string;
+  armId?: string;
 }
+
+export type StartEvalJobInput = RunEvalExperimentInput;
 
 export interface CreatePromptCandidateInput {
   name: string;
@@ -685,7 +815,12 @@ export interface RunPromptComparisonInput {
   mode?: AICheckEvalRunMode;
   provider?: AICheckEvalRun["provider"];
   model?: string;
+  experimentId?: string;
+  baselineArmId?: string;
+  candidateArmId?: string;
 }
+
+export type StartPromptComparisonWorkflowInput = RunPromptComparisonInput;
 
 export interface GeneratePromptCandidateInput {
   comparisonId: string;

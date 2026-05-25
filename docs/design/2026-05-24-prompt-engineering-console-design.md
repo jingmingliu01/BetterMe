@@ -9,6 +9,7 @@ Related docs:
 - AI Check provider message contract: [2026-05-21-ai-check-provider-message-contract-design.md](2026-05-21-ai-check-provider-message-contract-design.md)
 - AI Check contract SSOT: [2026-05-22-ai-check-contract-ssot-design.md](2026-05-22-ai-check-contract-ssot-design.md)
 - Eval Job Model: [2026-05-25-eval-job-model-design.md](2026-05-25-eval-job-model-design.md)
+- Run Review Console: [2026-05-25-run-review-console-design.md](2026-05-25-run-review-console-design.md)
 
 External reference:
 

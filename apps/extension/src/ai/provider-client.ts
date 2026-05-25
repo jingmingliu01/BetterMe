@@ -25,6 +25,7 @@ export async function requestCheckpointDecision(input: {
   sessionId: string;
   strictness: StrictnessLevel;
   isFinalTurn?: boolean;
+  signal?: AbortSignal;
 }): Promise<CheckpointDecision> {
   const provider = PROVIDERS.find((item) => item.id === input.provider);
   if (!provider) {
@@ -34,26 +35,32 @@ export async function requestCheckpointDecision(input: {
     throw new ProviderRequestError("invalid_model", "Selected model is not available for this provider.");
   }
 
-  const content = await requestProviderContent(provider, input.model, input.apiKey, input.messages);
+  const content = await requestProviderContent(provider, input.model, input.apiKey, input.messages, input.signal);
   try {
     const decision = parseCheckpointDecision(content, input.sessionId);
     validateDecisionConstraints(decision, input.strictness, { isFinalTurn: input.isFinalTurn });
     return decision;
   } catch (error) {
-    const repairContent = await requestProviderContent(provider, input.model, input.apiKey, [
-      ...input.messages,
-      { role: "assistant", content },
-      {
-        role: "user",
-        content: [
-          "The previous JSON did not satisfy the required schema.",
-          error instanceof Error ? `Validation error: ${error.message}` : "Validation error: unknown.",
-          "Return corrected JSON only.",
-          "Scores must be independent numbers from 0 to 100 and must not be omitted.",
-          "Do not change the user's facts."
-        ].join("\n")
-      }
-    ]);
+    const repairContent = await requestProviderContent(
+      provider,
+      input.model,
+      input.apiKey,
+      [
+        ...input.messages,
+        { role: "assistant", content },
+        {
+          role: "user",
+          content: [
+            "The previous JSON did not satisfy the required schema.",
+            error instanceof Error ? `Validation error: ${error.message}` : "Validation error: unknown.",
+            "Return corrected JSON only.",
+            "Scores must be independent numbers from 0 to 100 and must not be omitted.",
+            "Do not change the user's facts."
+          ].join("\n")
+        }
+      ],
+      input.signal
+    );
     const repairedDecision = parseCheckpointDecision(repairContent, input.sessionId);
     validateDecisionConstraints(repairedDecision, input.strictness, { isFinalTurn: input.isFinalTurn });
     return repairedDecision;
@@ -65,6 +72,7 @@ export async function requestProviderJsonObject(input: {
   model: string;
   apiKey: string;
   messages: ChatMessage[];
+  signal?: AbortSignal;
 }): Promise<string> {
   const provider = PROVIDERS.find((item) => item.id === input.provider);
   if (!provider) {
@@ -73,16 +81,22 @@ export async function requestProviderJsonObject(input: {
   if (!provider.models.includes(input.model)) {
     throw new ProviderRequestError("invalid_model", "Selected model is not available for this provider.");
   }
-  return requestProviderContent(provider, input.model, input.apiKey, input.messages);
+  return requestProviderContent(provider, input.model, input.apiKey, input.messages, input.signal);
 }
 
 async function requestProviderContent(
   provider: NonNullable<(typeof PROVIDERS)[number]>,
   model: string,
   apiKey: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
+  externalSignal?: AbortSignal
 ): Promise<string> {
   const controller = new AbortController();
+  const abortFromExternalSignal = () => controller.abort();
+  if (externalSignal?.aborted) {
+    throw new ProviderRequestError("provider_timeout", "Provider request was cancelled.");
+  }
+  externalSignal?.addEventListener("abort", abortFromExternalSignal, { once: true });
   const timeout = globalThis.setTimeout(() => controller.abort(), 30_000);
   let response: Response;
   try {
@@ -102,11 +116,15 @@ async function requestProviderContent(
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ProviderRequestError("provider_timeout", "Provider request timed out. Try again in a moment.");
+      throw new ProviderRequestError(
+        "provider_timeout",
+        externalSignal?.aborted ? "Provider request was cancelled." : "Provider request timed out. Try again in a moment."
+      );
     }
     throw new ProviderRequestError("network_error", "Provider network request failed.");
   } finally {
     globalThis.clearTimeout(timeout);
+    externalSignal?.removeEventListener("abort", abortFromExternalSignal);
   }
 
   if (!response.ok) {

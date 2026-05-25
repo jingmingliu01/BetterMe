@@ -4,7 +4,7 @@ import { createId, nowIso } from "../shared/id";
 import { loadDecryptedApiKey } from "../storage/crypto-key-store";
 import { BUILT_IN_AI_CHECK_CASES } from "./built-in-eval-cases";
 import { deriveDecisionPointSnapshotFromHistory } from "./decision-point-snapshot";
-import { filterEvalCasesForRun, runEvalExperimentForCases } from "./eval-engine";
+import { buildEvalMetrics, filterEvalCasesForRun, runEvalCase } from "./eval-engine";
 import type {
   AICheckCase,
   AICheckCaseInput,
@@ -13,6 +13,11 @@ import type {
   AICheckContractChangePlanTarget,
   AICheckDatasetType,
   AICheckDecisionPointSnapshot,
+  AICheckEvalJob,
+  AICheckEvalJobCaseAttempt,
+  AICheckEvalJobCaseState,
+  AICheckEvalJobProgress,
+  AICheckEvalJobSummary,
   AICheckExpectedOutput,
   AICheckEvalResult,
   AICheckEvalRun,
@@ -23,6 +28,8 @@ import type {
   AICheckExperimentArm,
   AICheckPromptCandidate,
   AICheckPromptComparison,
+  AICheckPromptComparisonWorkflow,
+  AICheckPromptComparisonWorkflowSummary,
   AICheckPromptPromotion,
   AICheckPromptProgramSuggestion,
   AICheckPromptProgramSuggestionItem,
@@ -49,16 +56,27 @@ import type {
   ReviewPromptProgramSuggestionItemInput,
   RunEvalExperimentInput,
   RunPromptComparisonInput,
+  StartEvalJobInput,
+  StartPromptComparisonWorkflowInput,
   StrictnessLevel,
   UpdateContractChangePlanInput,
   UpdateEvalCaseInput
 } from "../shared/types";
 import { getAllRecords, getRecord, putRecord } from "../storage/indexed-db";
-import { requestProviderJsonObject } from "./provider-client";
+import { ProviderRequestError, requestProviderJsonObject } from "./provider-client";
 
 export const AI_CHECK_PROMPT_VERSION = AI_CHECK_CURRENT_VERSIONS.promptVersion;
 export const AI_CHECK_OUTPUT_SCHEMA_VERSION = AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion;
 export const AI_CHECK_EVALUATION_SCHEMA_VERSION = AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion;
+
+const EVAL_JOB_LEASE_MS = 2 * 60 * 1000;
+const MOCK_EVAL_RETRY_LIMIT = 0;
+const MOCK_EVAL_MAX_CONCURRENCY = 4;
+const DEFAULT_PROVIDER_EVAL_RETRY_LIMIT = 2;
+const DEFAULT_PROVIDER_EVAL_MAX_CONCURRENCY = 1;
+
+const activeEvalJobControllers = new Map<string, AbortController>();
+const activePromptComparisonWorkflows = new Set<string>();
 
 export async function listReviewSessions(): Promise<AIPMReviewSession[]> {
   const [sessions, messages, decisions, decisionPoints, badCases, behaviorEvents] = await Promise.all([
@@ -406,6 +424,214 @@ export async function importEvalRunArtifact(input: ImportEvalRunArtifactInput): 
   return summary;
 }
 
+export async function createEvalJob(input: StartEvalJobInput): Promise<AICheckEvalJobSummary> {
+  const cases = await listEvalCases();
+  const selectedCases = filterEvalCasesForRun(cases, input.filters);
+  if (selectedCases.length === 0) {
+    throw new Error("No evaluation cases match this experiment filter.");
+  }
+  const job = await createEvalJobFromCases(selectedCases, input);
+  const states = await createEvalJobCaseStates(job, selectedCases);
+  return { job, cases: states };
+}
+
+export async function startEvalJob(input: StartEvalJobInput | { jobId: string }): Promise<AICheckEvalJobSummary> {
+  const summary = "jobId" in input ? await getEvalJobSummary(input.jobId) : await createEvalJob(input);
+  if (!summary) {
+    throw new Error("Eval job not found.");
+  }
+  void runEvalJob(summary.job.id);
+  return summary;
+}
+
+export async function listEvalJobs(): Promise<AICheckEvalJobSummary[]> {
+  await resumeStaleEvalJobs();
+  await startQueuedEvalJobs();
+  const [jobs, states] = await Promise.all([
+    getAllRecords<AICheckEvalJob>("evalJobs"),
+    getAllRecords<AICheckEvalJobCaseState>("evalJobCaseStates")
+  ]);
+  return jobs
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .map((job) => ({
+      job: { ...job, progress: deriveEvalJobProgress(states.filter((state) => state.jobId === job.id)) },
+      cases: states.filter((state) => state.jobId === job.id).sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+    }));
+}
+
+export async function getEvalJobSummary(jobId: string): Promise<AICheckEvalJobSummary | null> {
+  const [job, states] = await Promise.all([
+    getRecord<AICheckEvalJob>("evalJobs", jobId),
+    getAllRecords<AICheckEvalJobCaseState>("evalJobCaseStates")
+  ]);
+  if (!job) return null;
+  const cases = states.filter((state) => state.jobId === job.id).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  return {
+    job: { ...job, progress: deriveEvalJobProgress(cases) },
+    cases
+  };
+}
+
+export async function cancelEvalJob(input: { jobId: string }): Promise<AICheckEvalJobSummary> {
+  const summary = await getEvalJobSummary(input.jobId);
+  if (!summary) {
+    throw new Error("Eval job not found.");
+  }
+  if (["completed", "failed", "cancelled"].includes(summary.job.status)) {
+    return summary;
+  }
+  const now = nowIso();
+  await putRecord<AICheckEvalJob>("evalJobs", {
+    ...summary.job,
+    status: "cancel_requested",
+    execution: {
+      ...summary.job.execution,
+      cancelRequestedAt: summary.job.execution.cancelRequestedAt ?? now
+    },
+    updatedAt: now
+  });
+  activeEvalJobControllers.get(input.jobId)?.abort();
+  return (await getEvalJobSummary(input.jobId)) ?? summary;
+}
+
+export async function resumeEvalJob(input: { jobId: string }): Promise<AICheckEvalJobSummary> {
+  const summary = await getEvalJobSummary(input.jobId);
+  if (!summary) {
+    throw new Error("Eval job not found.");
+  }
+  if (summary.job.status === "completed" || summary.job.status === "cancelled") {
+    return summary;
+  }
+  const now = nowIso();
+  const updatedCases = summary.cases.map((state) =>
+    state.status === "running" ? { ...state, status: "pending" as const, updatedAt: now } : state
+  );
+  await Promise.all(updatedCases.map((state) => putRecord("evalJobCaseStates", state)));
+  await putRecord<AICheckEvalJob>("evalJobs", {
+    ...summary.job,
+    status: "queued",
+    error: undefined,
+    execution: {
+      ...summary.job.execution,
+      leaseOwner: undefined,
+      leaseExpiresAt: undefined,
+      cancelRequestedAt: undefined
+    },
+    progress: deriveEvalJobProgress(updatedCases),
+    updatedAt: now
+  });
+  void runEvalJob(input.jobId);
+  return (await getEvalJobSummary(input.jobId)) ?? summary;
+}
+
+export async function retryEvalJobCases(input: { jobId: string; evalCaseIds?: string[] }): Promise<AICheckEvalJobSummary> {
+  const summary = await getEvalJobSummary(input.jobId);
+  if (!summary) {
+    throw new Error("Eval job not found.");
+  }
+  const retryIds = input.evalCaseIds?.length ? new Set(input.evalCaseIds) : null;
+  const now = nowIso();
+  const retryCases = summary.cases.filter(
+    (state) => (state.status === "failed" || state.status === "retryable_failed") && (!retryIds || retryIds.has(state.evalCaseId))
+  );
+  if (retryCases.length === 0) {
+    return summary;
+  }
+  await Promise.all(
+    retryCases.map((state) =>
+      putRecord<AICheckEvalJobCaseState>("evalJobCaseStates", {
+        ...state,
+        status: "pending",
+        updatedAt: now
+      })
+    )
+  );
+  const retryLimit = Math.max(
+    summary.job.execution.retryLimit,
+    ...retryCases.map((state) => state.attempts.length + DEFAULT_PROVIDER_EVAL_RETRY_LIMIT)
+  );
+  await putRecord<AICheckEvalJob>("evalJobs", {
+    ...summary.job,
+    status: "queued",
+    error: undefined,
+    execution: {
+      ...summary.job.execution,
+      retryLimit,
+      leaseOwner: undefined,
+      leaseExpiresAt: undefined,
+      cancelRequestedAt: undefined
+    },
+    updatedAt: now
+  });
+  void runEvalJob(input.jobId);
+  return (await getEvalJobSummary(input.jobId)) ?? summary;
+}
+
+export async function listPromptComparisonWorkflows(): Promise<AICheckPromptComparisonWorkflowSummary[]> {
+  await startQueuedPromptComparisonWorkflows();
+  const [workflows, jobs] = await Promise.all([
+    getAllRecords<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows"),
+    getAllRecords<AICheckEvalJob>("evalJobs")
+  ]);
+  const jobById = new Map(jobs.map((job) => [job.id, job]));
+  return workflows
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .map((workflow) => ({
+      workflow,
+      baselineJob: jobById.get(workflow.baselineJobId),
+      candidateJob: jobById.get(workflow.candidateJobId)
+    }));
+}
+
+export async function startPromptComparisonWorkflow(
+  input: StartPromptComparisonWorkflowInput
+): Promise<AICheckPromptComparisonWorkflowSummary> {
+  const workflow = await createPromptComparisonWorkflow(input);
+  void runPromptComparisonWorkflow(workflow.id);
+  return summarizePromptComparisonWorkflow(workflow);
+}
+
+export async function cancelPromptComparisonWorkflow(input: {
+  workflowId: string;
+}): Promise<AICheckPromptComparisonWorkflowSummary> {
+  const workflow = await getRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", input.workflowId);
+  if (!workflow) {
+    throw new Error("Prompt comparison workflow not found.");
+  }
+  const now = nowIso();
+  const next: AICheckPromptComparisonWorkflow = {
+    ...workflow,
+    status: workflow.status === "completed" ? workflow.status : "cancel_requested",
+    updatedAt: now
+  };
+  await putRecord("promptComparisonWorkflows", next);
+  await Promise.all([
+    cancelEvalJob({ jobId: workflow.baselineJobId }).catch(() => null),
+    cancelEvalJob({ jobId: workflow.candidateJobId }).catch(() => null)
+  ]);
+  return summarizePromptComparisonWorkflow(next);
+}
+
+export async function cancelAllActiveEvalJobs(): Promise<void> {
+  const [jobs, workflows] = await Promise.all([
+    getAllRecords<AICheckEvalJob>("evalJobs"),
+    getAllRecords<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows")
+  ]);
+  await Promise.all(
+    workflows
+      .filter((workflow) => !["completed", "failed", "cancelled"].includes(workflow.status))
+      .map((workflow) => cancelPromptComparisonWorkflow({ workflowId: workflow.id }).catch(() => null))
+  );
+  await Promise.all(
+    jobs
+      .filter((job) => !["completed", "failed", "cancelled"].includes(job.status))
+      .map((job) => cancelEvalJob({ jobId: job.id }).catch(() => null))
+  );
+  for (const controller of activeEvalJobControllers.values()) {
+    controller.abort();
+  }
+}
+
 export async function listPromptCandidates(): Promise<AICheckPromptCandidate[]> {
   const candidates = await getAllRecords<AICheckPromptCandidate>("promptCandidates");
   return candidates.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
@@ -461,62 +687,16 @@ export async function getPromptPromotionByVersion(promptVersion: string | undefi
 }
 
 export async function runPromptComparison(input: RunPromptComparisonInput): Promise<AICheckPromptComparison> {
-  const candidate = await getRecord<AICheckPromptCandidate>("promptCandidates", input.candidateId);
-  if (!candidate || candidate.status === "archived") {
-    throw new Error("Prompt candidate not found.");
+  const workflow = await createPromptComparisonWorkflow(input);
+  await runPromptComparisonWorkflow(workflow.id);
+  const completed = await getRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", workflow.id);
+  if (!completed?.outputComparisonId) {
+    throw new Error(completed?.error ?? "Prompt comparison workflow did not complete.");
   }
-  const provider = input.provider ?? "mock";
-  if (provider === "mock") {
-    throw new Error("Candidate Prompt A/B requires a BYOK provider so the prompt patch can affect model behavior.");
+  const comparison = await getRecord<AICheckPromptComparison>("promptComparisons", completed.outputComparisonId);
+  if (!comparison) {
+    throw new Error("Prompt comparison artifact was not finalized.");
   }
-  const providerConfig = PROVIDERS.find((item) => item.id === provider);
-  const model = input.model ?? providerConfig?.defaultModel ?? "mock";
-  if (!providerConfig) {
-    throw new Error("Unknown provider.");
-  }
-  if (!providerConfig.models.includes(model)) {
-    throw new Error("Selected model is not available for this provider.");
-  }
-  const apiKey = await loadDecryptedApiKey(providerConfig.id);
-  if (!apiKey) {
-    throw new Error(`Save a ${providerConfig.label} API key before running Candidate Prompt A/B.`);
-  }
-
-  const cases = await listEvalCases();
-  const selectedCases = filterEvalCasesForRun(cases, input.filters);
-  if (selectedCases.length === 0) {
-    throw new Error("No evaluation cases match this comparison filter.");
-  }
-
-  const baselineSummary = await runEvalExperimentForCases(cases, {
-    filters: input.filters,
-    mode: input.mode ?? "tuning",
-    provider,
-    model,
-    apiKey
-  });
-  const candidateSummary = await runEvalExperimentForCases(cases, {
-    filters: input.filters,
-    mode: input.mode ?? "tuning",
-    provider,
-    model,
-    apiKey,
-    promptVersion: `${AI_CHECK_PROMPT_VERSION}+candidate:${candidate.id}`,
-    systemPromptAddendum: candidate.instructionPatch
-  });
-  await saveEvalRun(baselineSummary.run);
-  await Promise.all(baselineSummary.results.map((result) => saveEvalResult(result)));
-  await saveEvalRun(candidateSummary.run);
-  await Promise.all(candidateSummary.results.map((result) => saveEvalResult(result)));
-
-  const comparison = buildPromptComparison({
-    candidate,
-    filters: input.filters,
-    selectedCases,
-    baselineSummary,
-    candidateSummary
-  });
-  await putRecord("promptComparisons", comparison);
   return comparison;
 }
 
@@ -1132,27 +1312,641 @@ function addExperimentArtifactId(
 }
 
 export async function runEvalExperiment(input: RunEvalExperimentInput): Promise<AICheckEvalRunSummary> {
-  const cases = await listEvalCases();
+  const { job } = await createEvalJob(input);
+  await runEvalJob(job.id);
+  const completed = await getRecord<AICheckEvalJob>("evalJobs", job.id);
+  if (!completed?.outputRunId) {
+    throw new Error(completed?.error ?? "Eval job did not complete.");
+  }
+  const summary = await getEvalRunSummaryById(completed.outputRunId);
+  if (!summary) {
+    throw new Error("Eval run artifact was not finalized.");
+  }
+  return summary;
+}
+
+async function createEvalJobFromCases(
+  selectedCases: AICheckCase[],
+  input: StartEvalJobInput,
+  options: {
+    promptVersion?: string;
+    systemPromptAddendum?: string;
+    context?: AICheckEvalJob["context"];
+  } = {}
+): Promise<AICheckEvalJob> {
+  const { provider, model, providerMode, providerConfig } = await resolveEvalProvider(input);
+  const now = nowIso();
+  const job: AICheckEvalJob = {
+    id: createId("evaljob"),
+    kind: "eval_run",
+    reservedRunId: createId("evalrun"),
+    request: {
+      filters: input.filters,
+      mode: input.mode ?? "tuning",
+      provider,
+      providerMode,
+      model,
+      promptVersion: options.promptVersion ?? AI_CHECK_PROMPT_VERSION,
+      outputSchemaVersion: AI_CHECK_OUTPUT_SCHEMA_VERSION,
+      evaluationSchemaVersion: AI_CHECK_EVALUATION_SCHEMA_VERSION,
+      selectedCaseIds: selectedCases.map((testCase) => testCase.id),
+      systemPromptAddendum: options.systemPromptAddendum
+    },
+    execution: {
+      maxConcurrency:
+        provider === "mock"
+          ? MOCK_EVAL_MAX_CONCURRENCY
+          : providerConfig?.evalExecution?.defaultMaxConcurrency ?? DEFAULT_PROVIDER_EVAL_MAX_CONCURRENCY,
+      retryLimit:
+        provider === "mock"
+          ? MOCK_EVAL_RETRY_LIMIT
+          : providerConfig?.evalExecution?.retryLimit ?? DEFAULT_PROVIDER_EVAL_RETRY_LIMIT,
+      retryBackoffMs: provider === "mock" ? [] : providerConfig?.evalExecution?.retryBackoffMs ?? [1000, 3000, 10000]
+    },
+    progress: {
+      total: selectedCases.length,
+      pending: selectedCases.length,
+      running: 0,
+      succeeded: 0,
+      failed: 0,
+      cancelled: 0
+    },
+    context: {
+      experimentId: input.experimentId,
+      armId: input.armId,
+      ...options.context
+    },
+    status: "queued",
+    createdAt: now,
+    updatedAt: now
+  };
+  await putRecord("evalJobs", job);
+  return job;
+}
+
+async function createEvalJobCaseStates(
+  job: AICheckEvalJob,
+  selectedCases: AICheckCase[]
+): Promise<AICheckEvalJobCaseState[]> {
+  const now = nowIso();
+  const states = selectedCases.map((testCase) => ({
+    id: `${job.id}:${testCase.id}`,
+    jobId: job.id,
+    reservedRunId: job.reservedRunId,
+    evalCaseId: testCase.id,
+    caseSnapshot: testCase,
+    status: "pending" as const,
+    attempts: [],
+    createdAt: now,
+    updatedAt: now
+  }));
+  await Promise.all(states.map((state) => putRecord("evalJobCaseStates", state)));
+  return states;
+}
+
+async function resolveEvalProvider(input: StartEvalJobInput): Promise<{
+  provider: AICheckEvalRun["provider"];
+  providerMode: AICheckEvalRun["providerMode"];
+  model: string;
+  apiKey?: string;
+  providerConfig?: (typeof PROVIDERS)[number] | null;
+}> {
   const provider = input.provider ?? "mock";
   const providerConfig = provider === "mock" ? null : PROVIDERS.find((item) => item.id === provider);
   const model = input.model ?? providerConfig?.defaultModel ?? "mock";
-  if (providerConfig && !providerConfig.models.includes(model)) {
+  if (provider === "mock") {
+    return { provider, providerMode: "mock", model: "mock", providerConfig: null };
+  }
+  if (!providerConfig) {
+    throw new Error("Unknown provider.");
+  }
+  if (!providerConfig.models.includes(model)) {
     throw new Error("Selected model is not available for this provider.");
   }
-  const apiKey = providerConfig ? await loadDecryptedApiKey(providerConfig.id) : undefined;
-  if (providerConfig && !apiKey) {
+  const apiKey = await loadDecryptedApiKey(providerConfig.id);
+  if (!apiKey) {
     throw new Error(`Save a ${providerConfig.label} API key before running provider-mode evals.`);
   }
-  const summary = await runEvalExperimentForCases(cases, {
-    filters: input.filters,
-    mode: input.mode ?? "tuning",
-    provider,
-    model,
-    apiKey: apiKey ?? undefined
+  return { provider, providerMode: "byok", model, apiKey, providerConfig };
+}
+
+async function runEvalJob(jobId: string): Promise<void> {
+  if (activeEvalJobControllers.has(jobId)) {
+    await waitForEvalJobTerminal(jobId);
+    return;
+  }
+  const controller = new AbortController();
+  activeEvalJobControllers.set(jobId, controller);
+  try {
+    const started = await acquireEvalJobLease(jobId);
+    if (!started) return;
+    while (true) {
+      const summary = await getEvalJobSummary(jobId);
+      if (!summary) return;
+      const { job, cases } = summary;
+      if (job.status === "cancel_requested") {
+        await markEvalJobCancelled(job, cases);
+        return;
+      }
+      if (job.status !== "running") return;
+      const runnableCases = cases.filter((state) => state.status === "pending" || state.status === "retryable_failed");
+      if (runnableCases.length === 0) {
+        if (cases.some((state) => state.status === "failed")) {
+          await markEvalJobFailed(job, cases, "One or more cases failed for infrastructure reasons.");
+          return;
+        }
+        if (cases.every((state) => state.status === "succeeded")) {
+          await finalizeEvalJob(job, cases);
+          return;
+        }
+        if (cases.some((state) => state.status === "cancelled")) {
+          await markEvalJobCancelled(job, cases);
+          return;
+        }
+        await markEvalJobFailed(job, cases, "Eval job stopped with no runnable cases.");
+        return;
+      }
+      const batch = runnableCases.slice(0, Math.max(1, job.execution.maxConcurrency));
+      await Promise.all(batch.map((state) => runEvalJobCase(jobId, state.id, controller.signal)));
+    }
+  } finally {
+    activeEvalJobControllers.delete(jobId);
+  }
+}
+
+async function waitForEvalJobTerminal(jobId: string): Promise<void> {
+  while (activeEvalJobControllers.has(jobId)) {
+    await delay(200);
+  }
+  while (true) {
+    const job = await getRecord<AICheckEvalJob>("evalJobs", jobId);
+    if (!job || ["completed", "failed", "cancelled", "cancel_requested"].includes(job.status)) return;
+    if (job.status === "queued") {
+      void runEvalJob(jobId);
+    }
+    await delay(200);
+  }
+}
+
+async function acquireEvalJobLease(jobId: string): Promise<AICheckEvalJob | null> {
+  const summary = await getEvalJobSummary(jobId);
+  if (!summary) return null;
+  const { job } = summary;
+  if (job.status === "completed" || job.status === "cancelled") return null;
+  const now = nowIso();
+  const leaseOwner = createId("evallease");
+  const next: AICheckEvalJob = {
+    ...job,
+    status: job.status === "cancel_requested" ? "cancel_requested" : "running",
+    startedAt: job.startedAt ?? now,
+    updatedAt: now,
+    execution: {
+      ...job.execution,
+      leaseOwner,
+      leaseExpiresAt: new Date(Date.now() + EVAL_JOB_LEASE_MS).toISOString()
+    }
+  };
+  await putRecord("evalJobs", next);
+  return next;
+}
+
+async function runEvalJobCase(jobId: string, caseStateId: string, signal: AbortSignal): Promise<void> {
+  const summary = await getEvalJobSummary(jobId);
+  if (!summary) return;
+  const state = summary.cases.find((item) => item.id === caseStateId);
+  if (!state || state.status === "succeeded") return;
+  if (summary.job.status === "cancel_requested" || signal.aborted) {
+    await putRecord<AICheckEvalJobCaseState>("evalJobCaseStates", {
+      ...state,
+      status: "cancelled",
+      updatedAt: nowIso()
+    });
+    return;
+  }
+
+  if (state.status === "retryable_failed") {
+    const backoffMs = summary.job.execution.retryBackoffMs?.[Math.max(0, state.attempts.length - 1)] ?? 1000;
+    await delay(backoffMs);
+    if (!(await getRecord<AICheckEvalJob>("evalJobs", jobId))) return;
+  }
+
+  const startedAt = nowIso();
+  const attemptNumber = state.attempts.length + 1;
+  await putRecord<AICheckEvalJobCaseState>("evalJobCaseStates", {
+    ...state,
+    status: "running",
+    attempts: [
+      ...state.attempts,
+      {
+        attempt: attemptNumber,
+        status: "failed",
+        startedAt
+      }
+    ],
+    updatedAt: startedAt
   });
-  await saveEvalRun(summary.run);
-  await Promise.all(summary.results.map((result) => saveEvalResult(result)));
-  return summary;
+  await refreshEvalJobProgress(jobId);
+
+  try {
+    const apiKey =
+      summary.job.request.provider === "mock"
+        ? undefined
+        : await loadDecryptedApiKey(summary.job.request.provider as Exclude<AICheckEvalRun["provider"], "mock">);
+    if (summary.job.request.provider !== "mock" && !apiKey) {
+      throw new ProviderRequestError("missing_key", "Saved provider API key is missing.");
+    }
+    const result = await runEvalCase(state.caseSnapshot, {
+      runId: summary.job.reservedRunId,
+      resultId: `${summary.job.reservedRunId}:${state.evalCaseId}`,
+      createdAt: summary.job.createdAt,
+      provider: summary.job.request.provider,
+      model: summary.job.request.model,
+      apiKey: apiKey ?? undefined,
+      systemPromptAddendum: summary.job.request.systemPromptAddendum,
+      signal
+    });
+    if (!(await getRecord<AICheckEvalJob>("evalJobs", jobId))) return;
+    const latest = (await getRecord<AICheckEvalJobCaseState>("evalJobCaseStates", state.id)) ?? state;
+    const attempts = replaceLastAttempt(latest.attempts, {
+      attempt: attemptNumber,
+      status: "succeeded",
+      startedAt,
+      finishedAt: nowIso()
+    });
+    await putRecord<AICheckEvalJobCaseState>("evalJobCaseStates", {
+      ...latest,
+      status: "succeeded",
+      attempts,
+      result,
+      updatedAt: nowIso()
+    });
+  } catch (error) {
+    const latestSummary = await getEvalJobSummary(jobId);
+    if (!latestSummary) return;
+    const latest = (await getRecord<AICheckEvalJobCaseState>("evalJobCaseStates", state.id)) ?? state;
+    if (latestSummary?.job.status === "cancel_requested" || signal.aborted) {
+      await putRecord<AICheckEvalJobCaseState>("evalJobCaseStates", {
+        ...latest,
+        status: "cancelled",
+        attempts: replaceLastAttempt(latest.attempts, {
+          attempt: attemptNumber,
+          status: "cancelled",
+          startedAt,
+          finishedAt: nowIso(),
+          providerErrorCode: error instanceof ProviderRequestError ? error.code : undefined,
+          error: error instanceof Error ? error.message : "Cancelled"
+        }),
+        updatedAt: nowIso()
+      });
+      return;
+    }
+    const providerErrorCode = error instanceof ProviderRequestError ? error.code : "unknown_provider_error";
+    const canRetry = attemptNumber <= summary.job.execution.retryLimit;
+    await putRecord<AICheckEvalJobCaseState>("evalJobCaseStates", {
+      ...latest,
+      status: canRetry ? "retryable_failed" : "failed",
+      attempts: replaceLastAttempt(latest.attempts, {
+        attempt: attemptNumber,
+        status: "failed",
+        startedAt,
+        finishedAt: nowIso(),
+        providerErrorCode,
+        error: error instanceof Error ? error.message : "Unknown provider error."
+      }),
+      updatedAt: nowIso()
+    });
+  } finally {
+    await refreshEvalJobProgress(jobId);
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+}
+
+function replaceLastAttempt(
+  attempts: AICheckEvalJobCaseAttempt[],
+  nextAttempt: AICheckEvalJobCaseAttempt
+): AICheckEvalJobCaseAttempt[] {
+  const withoutLast = attempts.filter((attempt) => attempt.attempt !== nextAttempt.attempt);
+  return [...withoutLast, nextAttempt].sort((left, right) => left.attempt - right.attempt);
+}
+
+async function refreshEvalJobProgress(jobId: string): Promise<void> {
+  const summary = await getEvalJobSummary(jobId);
+  if (!summary) return;
+  await putRecord<AICheckEvalJob>("evalJobs", {
+    ...summary.job,
+    progress: deriveEvalJobProgress(summary.cases),
+    updatedAt: nowIso(),
+    execution:
+      summary.job.status === "running"
+        ? {
+            ...summary.job.execution,
+            leaseExpiresAt: new Date(Date.now() + EVAL_JOB_LEASE_MS).toISOString()
+          }
+        : summary.job.execution
+  });
+}
+
+function deriveEvalJobProgress(states: AICheckEvalJobCaseState[]): AICheckEvalJobProgress {
+  return {
+    total: states.length,
+    pending: states.filter((state) => state.status === "pending" || state.status === "retryable_failed").length,
+    running: states.filter((state) => state.status === "running").length,
+    succeeded: states.filter((state) => state.status === "succeeded").length,
+    failed: states.filter((state) => state.status === "failed").length,
+    cancelled: states.filter((state) => state.status === "cancelled").length
+  };
+}
+
+async function finalizeEvalJob(job: AICheckEvalJob, states: AICheckEvalJobCaseState[]): Promise<void> {
+  const results = states.map((state) => state.result).filter((result): result is AICheckEvalResult => Boolean(result));
+  if (results.length !== states.length) {
+    await markEvalJobFailed(job, states, "Eval job cannot finalize because one or more case results are missing.");
+    return;
+  }
+  const cases = states.map((state) => state.caseSnapshot);
+  const run: AICheckEvalRun = {
+    id: job.reservedRunId,
+    promptVersion: job.request.promptVersion,
+    outputSchemaVersion: job.request.outputSchemaVersion,
+    evaluationSchemaVersion: job.request.evaluationSchemaVersion,
+    mode: job.request.mode,
+    providerMode: job.request.providerMode,
+    provider: job.request.provider,
+    model: job.request.model,
+    filters: job.request.filters,
+    caseIds: cases.map((testCase) => testCase.id),
+    metrics: buildEvalMetrics(cases, results),
+    createdAt: job.createdAt
+  };
+  await saveEvalRun(run);
+  await Promise.all(results.map((result) => saveEvalResult(result)));
+  if (job.context?.experimentId) {
+    await linkExperimentArtifact({ experimentId: job.context.experimentId, artifactKind: "run", artifactId: run.id }).catch(() => null);
+  }
+  await putRecord<AICheckEvalJob>("evalJobs", {
+    ...job,
+    status: "completed",
+    outputRunId: run.id,
+    progress: deriveEvalJobProgress(states),
+    execution: {
+      ...job.execution,
+      leaseOwner: undefined,
+      leaseExpiresAt: undefined
+    },
+    updatedAt: nowIso(),
+    finishedAt: nowIso()
+  });
+}
+
+async function markEvalJobFailed(job: AICheckEvalJob, states: AICheckEvalJobCaseState[], error: string): Promise<void> {
+  await putRecord<AICheckEvalJob>("evalJobs", {
+    ...job,
+    status: "failed",
+    error,
+    progress: deriveEvalJobProgress(states),
+    execution: {
+      ...job.execution,
+      leaseOwner: undefined,
+      leaseExpiresAt: undefined
+    },
+    updatedAt: nowIso(),
+    finishedAt: nowIso()
+  });
+}
+
+async function markEvalJobCancelled(job: AICheckEvalJob, states: AICheckEvalJobCaseState[]): Promise<void> {
+  const now = nowIso();
+  const nextStates = states.map((state) =>
+    state.status === "pending" || state.status === "retryable_failed" || state.status === "running"
+      ? { ...state, status: "cancelled" as const, updatedAt: now }
+      : state
+  );
+  await Promise.all(nextStates.map((state) => putRecord("evalJobCaseStates", state)));
+  await putRecord<AICheckEvalJob>("evalJobs", {
+    ...job,
+    status: "cancelled",
+    progress: deriveEvalJobProgress(nextStates),
+    execution: {
+      ...job.execution,
+      leaseOwner: undefined,
+      leaseExpiresAt: undefined
+    },
+    updatedAt: now,
+    finishedAt: now
+  });
+}
+
+async function resumeStaleEvalJobs(): Promise<void> {
+  const nowMs = Date.now();
+  const [jobs, states] = await Promise.all([
+    getAllRecords<AICheckEvalJob>("evalJobs"),
+    getAllRecords<AICheckEvalJobCaseState>("evalJobCaseStates")
+  ]);
+  for (const job of jobs) {
+    if (job.status !== "running") continue;
+    if (job.execution.leaseExpiresAt && new Date(job.execution.leaseExpiresAt).getTime() > nowMs) continue;
+    const jobStates = states.filter((state) => state.jobId === job.id);
+    const now = nowIso();
+    const resetStates = jobStates.map((state) =>
+      state.status === "running" ? { ...state, status: "pending" as const, updatedAt: now } : state
+    );
+    await Promise.all(resetStates.map((state) => putRecord("evalJobCaseStates", state)));
+    await putRecord<AICheckEvalJob>("evalJobs", {
+      ...job,
+      status: "queued",
+      progress: deriveEvalJobProgress(resetStates),
+      execution: {
+        ...job.execution,
+        leaseOwner: undefined,
+        leaseExpiresAt: undefined
+      },
+      updatedAt: now
+    });
+    void runEvalJob(job.id);
+  }
+}
+
+async function startQueuedEvalJobs(): Promise<void> {
+  const jobs = await getAllRecords<AICheckEvalJob>("evalJobs");
+  for (const job of jobs) {
+    if (job.status === "queued") {
+      void runEvalJob(job.id);
+    }
+  }
+}
+
+async function getEvalRunSummaryById(runId: string): Promise<AICheckEvalRunSummary | null> {
+  const [run, results] = await Promise.all([
+    getRecord<AICheckEvalRun>("evalRuns", runId),
+    getAllRecords<AICheckEvalResult>("evalResults")
+  ]);
+  if (!run) return null;
+  return {
+    run,
+    results: results.filter((result) => result.runId === run.id)
+  };
+}
+
+async function createPromptComparisonWorkflow(input: StartPromptComparisonWorkflowInput): Promise<AICheckPromptComparisonWorkflow> {
+  const candidate = await getRecord<AICheckPromptCandidate>("promptCandidates", input.candidateId);
+  if (!candidate || candidate.status === "archived") {
+    throw new Error("Prompt candidate not found.");
+  }
+  if ((input.provider ?? "mock") === "mock") {
+    throw new Error("Candidate Prompt A/B requires a BYOK provider so the prompt patch can affect model behavior.");
+  }
+  await resolveEvalProvider(input);
+  const cases = await listEvalCases();
+  const selectedCases = filterEvalCasesForRun(cases, input.filters);
+  if (selectedCases.length === 0) {
+    throw new Error("No evaluation cases match this comparison filter.");
+  }
+  const workflowId = createId("promptcomparisonworkflow");
+  const baselineJob = await createEvalJobFromCases(selectedCases, input, {
+    context: {
+      experimentId: input.experimentId,
+      armId: input.baselineArmId,
+      promptComparisonWorkflowId: workflowId,
+      comparisonRole: "baseline",
+      promptCandidateId: candidate.id
+    }
+  });
+  await createEvalJobCaseStates(baselineJob, selectedCases);
+  const candidateJob = await createEvalJobFromCases(selectedCases, input, {
+    promptVersion: `${AI_CHECK_PROMPT_VERSION}+candidate:${candidate.id}`,
+    systemPromptAddendum: candidate.instructionPatch,
+    context: {
+      experimentId: input.experimentId,
+      armId: input.candidateArmId,
+      promptComparisonWorkflowId: workflowId,
+      comparisonRole: "candidate",
+      promptCandidateId: candidate.id
+    }
+  });
+  await createEvalJobCaseStates(candidateJob, selectedCases);
+  const now = nowIso();
+  const workflow: AICheckPromptComparisonWorkflow = {
+    id: workflowId,
+    baselineJobId: baselineJob.id,
+    candidateJobId: candidateJob.id,
+    status: "queued",
+    context: {
+      experimentId: input.experimentId,
+      baselineArmId: input.baselineArmId,
+      candidateArmId: input.candidateArmId,
+      promptCandidateId: candidate.id
+    },
+    createdAt: now,
+    updatedAt: now
+  };
+  await putRecord("promptComparisonWorkflows", workflow);
+  return workflow;
+}
+
+async function summarizePromptComparisonWorkflow(
+  workflow: AICheckPromptComparisonWorkflow
+): Promise<AICheckPromptComparisonWorkflowSummary> {
+  const [baselineJob, candidateJob] = await Promise.all([
+    getRecord<AICheckEvalJob>("evalJobs", workflow.baselineJobId),
+    getRecord<AICheckEvalJob>("evalJobs", workflow.candidateJobId)
+  ]);
+  return {
+    workflow,
+    baselineJob: baselineJob ?? undefined,
+    candidateJob: candidateJob ?? undefined
+  };
+}
+
+async function runPromptComparisonWorkflow(workflowId: string): Promise<void> {
+  if (activePromptComparisonWorkflows.has(workflowId)) return;
+  activePromptComparisonWorkflows.add(workflowId);
+  try {
+    const workflow = await getRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", workflowId);
+    if (!workflow || workflow.status === "completed" || workflow.status === "cancelled") return;
+    await putRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", {
+      ...workflow,
+      status: workflow.status === "cancel_requested" ? "cancel_requested" : "running",
+      updatedAt: nowIso()
+    });
+    await Promise.all([runEvalJob(workflow.baselineJobId), runEvalJob(workflow.candidateJobId)]);
+    const latest = await getRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", workflowId);
+    if (!latest) return;
+    if (latest.status === "cancel_requested") {
+      await putRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", {
+        ...latest,
+        status: "cancelled",
+        updatedAt: nowIso(),
+        finishedAt: nowIso()
+      });
+      return;
+    }
+    const [baselineJob, candidateJob] = await Promise.all([
+      getRecord<AICheckEvalJob>("evalJobs", latest.baselineJobId),
+      getRecord<AICheckEvalJob>("evalJobs", latest.candidateJobId)
+    ]);
+    if (!baselineJob?.outputRunId || !candidateJob?.outputRunId) {
+      await putRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", {
+        ...latest,
+        status: "failed",
+        error: baselineJob?.error ?? candidateJob?.error ?? "Comparison child eval job did not complete.",
+        updatedAt: nowIso(),
+        finishedAt: nowIso()
+      });
+      return;
+    }
+    const [candidate, baselineSummary, candidateSummary, baselineJobSummary] = await Promise.all([
+      getRecord<AICheckPromptCandidate>("promptCandidates", latest.context?.promptCandidateId ?? ""),
+      getEvalRunSummaryById(baselineJob.outputRunId),
+      getEvalRunSummaryById(candidateJob.outputRunId),
+      getEvalJobSummary(baselineJob.id)
+    ]);
+    if (!candidate || !baselineSummary || !candidateSummary || !baselineJobSummary) {
+      await putRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", {
+        ...latest,
+        status: "failed",
+        error: "Comparison workflow is missing finalized child artifacts.",
+        updatedAt: nowIso(),
+        finishedAt: nowIso()
+      });
+      return;
+    }
+    const comparison = buildPromptComparison({
+      candidate,
+      filters: baselineJob.request.filters,
+      selectedCases: baselineJobSummary.cases.map((state) => state.caseSnapshot),
+      baselineSummary,
+      candidateSummary
+    });
+    await putRecord("promptComparisons", comparison);
+    if (latest.context?.experimentId) {
+      await linkExperimentArtifact({
+        experimentId: latest.context.experimentId,
+        artifactKind: "comparison",
+        artifactId: comparison.id
+      }).catch(() => null);
+    }
+    await putRecord<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows", {
+      ...latest,
+      status: "completed",
+      outputComparisonId: comparison.id,
+      updatedAt: nowIso(),
+      finishedAt: nowIso()
+    });
+  } finally {
+    activePromptComparisonWorkflows.delete(workflowId);
+  }
+}
+
+async function startQueuedPromptComparisonWorkflows(): Promise<void> {
+  const workflows = await getAllRecords<AICheckPromptComparisonWorkflow>("promptComparisonWorkflows");
+  for (const workflow of workflows) {
+    if (workflow.status === "queued" || workflow.status === "running") {
+      void runPromptComparisonWorkflow(workflow.id);
+    }
+  }
 }
 
 function buildPromptComparison(input: {

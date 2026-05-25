@@ -49,31 +49,42 @@ import {
 import {
   addExperimentArm,
   archiveEvalCase,
+  cancelAllActiveEvalJobs,
+  cancelEvalJob,
+  cancelPromptComparisonWorkflow,
   createContractChangePlan,
   createExperiment,
   createReleaseDecision,
   convertBadCaseToEvalCase,
   createEvalCase,
   createBadCaseReview,
+  createEvalJob,
   createPromptCandidate,
   generatePromptCandidate,
   generatePromptProgramSuggestions,
+  getEvalJobSummary,
   importEvalRunArtifact,
   linkExperimentArtifact,
   listContractChangePlans,
+  listEvalJobs,
   listPromptPromotions,
   listEvalCases,
   listEvalRunSummaries,
   listPromptCandidates,
   listPromptComparisons,
+  listPromptComparisonWorkflows,
   listPromptProgramSuggestions,
   listReleaseDecisions,
   listExperiments,
   listReviewSessions,
   promotePromptCandidate,
   reviewPromptProgramSuggestionItem,
+  resumeEvalJob,
+  retryEvalJobCases,
   runPromptComparison,
   runEvalExperiment,
+  startEvalJob,
+  startPromptComparisonWorkflow,
   updateContractChangePlan,
   updateEvalCase,
   updateBadCaseReview
@@ -344,6 +355,20 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listEvalRunSummaries());
       case "review/runEvalExperiment":
         return ok(await runEvalExperiment(message.payload));
+      case "review/createEvalJob":
+        return ok(await createEvalJob(message.payload));
+      case "review/startEvalJob":
+        return ok(await startEvalJob(message.payload));
+      case "review/listEvalJobs":
+        return ok(await listEvalJobs());
+      case "review/getEvalJob":
+        return ok(await getEvalJobSummary(message.payload.jobId));
+      case "review/cancelEvalJob":
+        return ok(await cancelEvalJob(message.payload));
+      case "review/resumeEvalJob":
+        return ok(await resumeEvalJob(message.payload));
+      case "review/retryEvalJobCases":
+        return ok(await retryEvalJobCases(message.payload));
       case "review/importEvalRunArtifact":
         return ok(await importEvalRunArtifact(message.payload));
       case "review/listPromptCandidates":
@@ -354,6 +379,12 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await listPromptComparisons());
       case "review/runPromptComparison":
         return ok(await runPromptComparison(message.payload));
+      case "review/startPromptComparisonWorkflow":
+        return ok(await startPromptComparisonWorkflow(message.payload));
+      case "review/listPromptComparisonWorkflows":
+        return ok(await listPromptComparisonWorkflows());
+      case "review/cancelPromptComparisonWorkflow":
+        return ok(await cancelPromptComparisonWorkflow(message.payload));
       case "review/generatePromptCandidate":
         return ok(await generatePromptCandidate(message.payload));
       case "review/listPromptProgramSuggestions":
@@ -391,8 +422,10 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
           reviewSessions: await listReviewSessions(),
           evalCases: await listEvalCases(),
           evalRuns: await listEvalRunSummaries(),
+          evalJobs: await listEvalJobs(),
           promptCandidates: await listPromptCandidates(),
           promptComparisons: await listPromptComparisons(),
+          promptComparisonWorkflows: await listPromptComparisonWorkflows(),
           promptProgramSuggestions: await listPromptProgramSuggestions(),
           contractChangePlans: await listContractChangePlans(),
           promptPromotions: await listPromptPromotions(),
@@ -400,6 +433,7 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
           experiments: await listExperiments()
         });
       case "data/deleteAll":
+        await cancelAllActiveEvalJobs();
         await clearBetterMeLocalData();
         await clearAllIndexedDbStores();
         await rebuildDnrRules();

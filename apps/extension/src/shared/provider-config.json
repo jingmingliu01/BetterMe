@@ -5,7 +5,12 @@
     "envKey": "OPENAI_API_KEY",
     "baseUrl": "https://api.openai.com/v1",
     "defaultModel": "gpt-5.4-mini",
-    "models": ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"]
+    "models": ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"],
+    "evalExecution": {
+      "defaultMaxConcurrency": 1,
+      "retryLimit": 2,
+      "retryBackoffMs": [1000, 3000, 10000]
+    }
   },
   {
     "id": "deepseek",
@@ -13,7 +18,12 @@
     "envKey": "DEEPSEEK_API_KEY",
     "baseUrl": "https://api.deepseek.com",
     "defaultModel": "deepseek-v4-flash",
-    "models": ["deepseek-v4-flash", "deepseek-v4-pro"]
+    "models": ["deepseek-v4-flash", "deepseek-v4-pro"],
+    "evalExecution": {
+      "defaultMaxConcurrency": 1,
+      "retryLimit": 2,
+      "retryBackoffMs": [1000, 3000, 10000]
+    }
   },
   {
     "id": "kimi",
@@ -32,6 +42,11 @@
       "moonshot-v1-8k",
       "moonshot-v1-32k",
       "moonshot-v1-128k"
-    ]
+    ],
+    "evalExecution": {
+      "defaultMaxConcurrency": 1,
+      "retryLimit": 2,
+      "retryBackoffMs": [1000, 3000, 10000]
+    }
   }
 ]

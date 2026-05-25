@@ -7,6 +7,7 @@ Related docs:
 - PM Review workspace issues: [2026-05-20-pm-review-workspace-issues.md](2026-05-20-pm-review-workspace-issues.md)
 - AI Check contract SSOT issues: [2026-05-22-ai-check-contract-ssot-issues.md](2026-05-22-ai-check-contract-ssot-issues.md)
 - Eval Job Model issues: [2026-05-25-eval-job-model-issues.md](2026-05-25-eval-job-model-issues.md)
+- Run Review Console issues: [2026-05-25-run-review-console-issues.md](2026-05-25-run-review-console-issues.md)
 
 Rule: when this document changes, check the design and progress documents for required updates.
 
@@ -216,7 +217,7 @@ Update 2026-05-24:
 
 ### ISSUE-007A: Long-running provider evals need durable job execution
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -236,6 +237,11 @@ Mitigation:
 
 - Implement the Eval Job Model tracked in [2026-05-25-eval-job-model-design.md](2026-05-25-eval-job-model-design.md).
 - Keep `EvalJob` execution state separate from completed `AICheckEvalRun`, `AICheckEvalResult`, and `AICheckPromptComparison` artifacts.
+
+Update 2026-05-25:
+
+- Experiment Lab now starts evals through durable `EvalJob` records and Candidate Prompt A/B through `PromptComparisonWorkflow`.
+- PM Review shows active job progress, polls while jobs are running, supports cancellation/resume/retry actions, and keeps release decisions tied to finalized run artifacts only.
 
 ### ISSUE-008: Textual Gradient can overfit visible cases
 

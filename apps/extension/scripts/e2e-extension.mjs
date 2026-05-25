@@ -465,16 +465,20 @@ try {
   await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: "Experiment Lab" }).click();
   await page.getByLabel("Experiment dataset", { exact: true }).selectOption("holdout");
+  let evalRunCountBefore = (await getIndexedDbRecords(page, "evalRuns")).length;
   await page.getByRole("button", { name: /Run Eval/ }).click();
-  await page.getByText(/Experiment .* finished/).waitFor({ timeout: 3_000 });
+  await page.getByText(/Eval job started/).waitFor({ timeout: 3_000 });
+  await waitForNewEvalRun(page, evalRunCountBefore);
   const holdoutGuardText = (await page.locator(".holdout-guard").textContent({ timeout: 5_000 })) ?? "";
   assertIncludes(holdoutGuardText, "Holdout protected", "Tuning mode did not protect Holdout details.");
   assertIncludes(holdoutGuardText, "Detailed Holdout failures are hidden", "Holdout guard copy was not shown.");
   let resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertNotIncludes(resultPanelText, "Protected holdout failing case", "Tuning mode leaked Holdout failure title.");
   await page.getByLabel("Experiment mode", { exact: true }).selectOption("release_review");
+  evalRunCountBefore = (await getIndexedDbRecords(page, "evalRuns")).length;
   await page.getByRole("button", { name: /Run Eval/ }).click();
-  await page.getByText(/Experiment .* finished/).waitFor({ timeout: 3_000 });
+  await page.getByText(/Eval job started/).waitFor({ timeout: 3_000 });
+  await waitForNewEvalRun(page, evalRunCountBefore);
   await page.getByText("Protected holdout failing case").waitFor({ timeout: 5_000 });
   resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertIncludes(resultPanelText, "Protected holdout failing case", "Release review mode did not show Holdout failure summary.");
@@ -496,8 +500,10 @@ try {
   await page.getByRole("button", { name: "Experiment Lab" }).click();
   await page.getByLabel("Experiment dataset", { exact: true }).selectOption("holdout");
   await page.getByLabel("Experiment tag", { exact: true }).selectOption("low_risk");
+  evalRunCountBefore = (await getIndexedDbRecords(page, "evalRuns")).length;
   await page.getByRole("button", { name: /Run Eval/ }).click();
-  await page.getByText(/Experiment .* finished/).waitFor({ timeout: 3_000 });
+  await page.getByText(/Eval job started/).waitFor({ timeout: 3_000 });
+  await waitForNewEvalRun(page, evalRunCountBefore);
   resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertIncludes(resultPanelText, "1/1", `Holdout approval guard probe did not pass: ${resultPanelText}`);
   assertIncludes(
@@ -556,8 +562,10 @@ try {
   await page.getByLabel("Prompt candidate rationale").fill("Probe Holdout Textual Gradient protection.");
   await page.getByRole("button", { name: /Save Candidate/ }).click();
   await page.getByText("Saved prompt candidate E2E holdout-protected candidate.").waitFor({ timeout: 3_000 });
+  let promptComparisonCountBefore = (await getIndexedDbRecords(page, "promptComparisons")).length;
   await page.getByRole("button", { name: /Run A\/B/ }).click();
-  await page.getByText(/Candidate A\/B finished/).waitFor({ timeout: 8_000 });
+  await page.getByText(/Candidate A\/B workflow started/).waitFor({ timeout: 3_000 });
+  await waitForNewPromptComparison(page, promptComparisonCountBefore);
   await page.locator(".release-decision-card .holdout-guard strong", { hasText: "Holdout protected" }).waitFor({ timeout: 5_000 });
   const holdoutComparisonPanelText = await page.locator(".release-decision-card").first().innerText();
   assertIncludes(
@@ -640,8 +648,10 @@ try {
   await page.getByLabel("Experiment mode", { exact: true }).selectOption("tuning");
   await page.getByLabel("Experiment dataset", { exact: true }).selectOption("design");
   await page.getByLabel("Experiment tag", { exact: true }).selectOption("provider_probe");
+  evalRunCountBefore = (await getIndexedDbRecords(page, "evalRuns")).length;
   await page.getByRole("button", { name: /Run Eval/ }).click();
-  await page.getByText(/Experiment .* finished/).waitFor({ timeout: 5_000 });
+  await page.getByText(/Eval job started/).waitFor({ timeout: 3_000 });
+  await waitForNewEvalRun(page, evalRunCountBefore);
   resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertIncludes(resultPanelText, "1/1", `Provider-mode run did not pass the focused probe case: ${resultPanelText}`);
   const experimentProviderRequests = await getProviderRequestLog(serviceWorker);
@@ -778,8 +788,10 @@ try {
   await page.getByLabel("Prompt candidate rationale").fill("Probe candidate comparison regression handling.");
   await page.getByRole("button", { name: /Save Candidate/ }).click();
   await page.getByText("Saved prompt candidate E2E stricter candidate.").waitFor({ timeout: 3_000 });
+  promptComparisonCountBefore = (await getIndexedDbRecords(page, "promptComparisons")).length;
   await page.getByRole("button", { name: /Run A\/B/ }).click();
-  await page.getByText(/Candidate A\/B finished/).waitFor({ timeout: 8_000 });
+  await page.getByText(/Candidate A\/B workflow started/).waitFor({ timeout: 3_000 });
+  await waitForNewPromptComparison(page, promptComparisonCountBefore);
   await page.getByText("Textual Gradient", { exact: true }).waitFor({ timeout: 5_000 });
   const promptComparisons = await getIndexedDbRecords(page, "promptComparisons");
   const promptCandidates = await getIndexedDbRecords(page, "promptCandidates");
@@ -1057,52 +1069,28 @@ try {
   await page.reload();
   await page.getByRole("heading", { name: "AI PM Review" }).waitFor({ timeout: 5_000 });
   await page.getByRole("button", { name: "Experiment Lab" }).click();
+  const promotionBaselineDecision = buildProviderDecision({
+    decision: "BLOCK",
+    userFacingMessage: "Stay blocked for now.",
+    decisionReasonCategory: "high_risk_pattern",
+    scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
+    memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
+  });
+  const promotionCandidateDecision = buildProviderDecision({
+    decision: "ALLOW",
+    userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
+    decisionReasonCategory: "clear_intention",
+    unlockMinutes: 5,
+    scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
+    memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
+  });
   await queueProviderResponses(serviceWorker, [
-    buildProviderDecision({
-      decision: "BLOCK",
-      userFacingMessage: "Stay blocked for now.",
-      decisionReasonCategory: "high_risk_pattern",
-      scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
-      memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
-    }),
-    buildProviderDecision({
-      decision: "BLOCK",
-      userFacingMessage: "Stay blocked for now.",
-      decisionReasonCategory: "high_risk_pattern",
-      scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
-      memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
-    }),
-    buildProviderDecision({
-      decision: "BLOCK",
-      userFacingMessage: "Stay blocked for now.",
-      decisionReasonCategory: "high_risk_pattern",
-      scores: { repeatedReason: 20, impulse: 70, deliberateness: 20 },
-      memoryUpdate: { behaviorReasonCategory: "avoidance", patternNote: null }
-    }),
-    buildProviderDecision({
-      decision: "ALLOW",
-      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
-      decisionReasonCategory: "clear_intention",
-      unlockMinutes: 5,
-      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
-      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
-    }),
-    buildProviderDecision({
-      decision: "ALLOW",
-      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
-      decisionReasonCategory: "clear_intention",
-      unlockMinutes: 5,
-      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
-      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
-    }),
-    buildProviderDecision({
-      decision: "ALLOW",
-      userFacingMessage: "Your reason is specific and bounded. Keep it short and close the tab when done.",
-      decisionReasonCategory: "clear_intention",
-      unlockMinutes: 5,
-      scores: { repeatedReason: 0, impulse: 20, deliberateness: 86 },
-      memoryUpdate: { behaviorReasonCategory: "intentional", patternNote: null }
-    })
+    promotionBaselineDecision,
+    promotionCandidateDecision,
+    promotionBaselineDecision,
+    promotionCandidateDecision,
+    promotionBaselineDecision,
+    promotionCandidateDecision
   ]);
   await page.getByLabel("Experiment provider", { exact: true }).selectOption("openai");
   await page.getByLabel("Experiment mode", { exact: true }).selectOption("release_review");
@@ -1113,8 +1101,10 @@ try {
   await page.getByLabel("Prompt candidate rationale").fill("Probe candidate promotion handling.");
   await page.getByRole("button", { name: /Save Candidate/ }).click();
   await page.getByText("Saved prompt candidate E2E promoted candidate.").waitFor({ timeout: 3_000 });
+  promptComparisonCountBefore = (await getIndexedDbRecords(page, "promptComparisons")).length;
   await page.getByRole("button", { name: /Run A\/B/ }).click();
-  await page.getByText(/Candidate A\/B finished: 3 improved, 0 regressed/).waitFor({ timeout: 8_000 });
+  await page.getByText(/Candidate A\/B workflow started/).waitFor({ timeout: 3_000 });
+  await waitForNewPromptComparison(page, promptComparisonCountBefore);
   await page.getByText("Design, Regression, and Holdout coverage passed.").waitFor({ timeout: 5_000 });
   await page.getByLabel("Prompt promotion note").fill("Promote the bounded homework patch.");
   await page.getByRole("button", { name: "Promote Candidate", exact: true }).click();
@@ -1205,9 +1195,37 @@ async function getBehaviorEvents(page) {
   return getIndexedDbRecords(page, "behaviorEvents");
 }
 
+async function waitForNewEvalRun(page, previousCount, timeoutMs = 8_000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const runs = await getIndexedDbRecords(page, "evalRuns");
+    if (runs.length > previousCount) {
+      await page.getByLabel("Refresh experiment runs").click().catch(() => null);
+      await page.waitForTimeout(500);
+      return runs.at(-1);
+    }
+    await page.waitForTimeout(250);
+  }
+  throw new Error(`Timed out waiting for new eval run after ${previousCount} existing run(s).`);
+}
+
+async function waitForNewPromptComparison(page, previousCount, timeoutMs = 10_000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const comparisons = await getIndexedDbRecords(page, "promptComparisons");
+    if (comparisons.length > previousCount) {
+      await page.getByLabel("Refresh experiment runs").click().catch(() => null);
+      await page.waitForTimeout(500);
+      return comparisons.at(-1);
+    }
+    await page.waitForTimeout(250);
+  }
+  throw new Error(`Timed out waiting for new prompt comparison after ${previousCount} existing comparison(s).`);
+}
+
 async function getIndexedDbRecords(page, storeName) {
   return page.evaluate(async (selectedStore) => {
-    const request = indexedDB.open("betterme-db", 13);
+    const request = indexedDB.open("betterme-db", 14);
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
@@ -1225,7 +1243,7 @@ async function getIndexedDbRecords(page, storeName) {
 async function putIndexedDbRecord(page, storeName, record) {
   return page.evaluate(
     async ({ selectedStore, selectedRecord }) => {
-      const request = indexedDB.open("betterme-db", 13);
+      const request = indexedDB.open("betterme-db", 14);
       const db = await new Promise((resolve, reject) => {
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);

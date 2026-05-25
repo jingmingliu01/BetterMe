@@ -5,16 +5,19 @@ Related docs:
 - Design: [2026-05-25-eval-job-model-design.md](2026-05-25-eval-job-model-design.md)
 - Issues: [2026-05-25-eval-job-model-issues.md](2026-05-25-eval-job-model-issues.md)
 - Prompt Engineering Console progress: [2026-05-24-prompt-engineering-console-progress.md](2026-05-24-prompt-engineering-console-progress.md)
+- Run Review Console progress: [2026-05-25-run-review-console-progress.md](2026-05-25-run-review-console-progress.md)
 
 Rule: when this document changes, check the design and issues documents for required updates.
 
 ## Current Status
 
-Status: design accepted, implementation not started.
+Status: implemented and validated.
 
-The Prompt Engineering Console exists, but eval execution is still implemented as a long request/response path. Provider-mode runs can outlive the frontend timeout and only become visible after a later reload or refresh once the background has saved the completed run.
+The Prompt Engineering Console now starts eval and Candidate Prompt A/B work through durable local jobs instead of relying on one long frontend request. Provider-mode runs create visible job state immediately, persist per-case progress, finalize into normal run/result artifacts only after completion, and can be refreshed or polled without reloading the extension.
 
-This document tracks the implementation of the durable job model that should replace that behavior.
+Run Review Console design is now fixed as the next layer above this model. The job model remains responsible for execution control; Run Review Console is responsible for finalized run and comparison investigation.
+
+This document remains the scaffold for maintaining and extending the durable job model.
 
 ## Product Decisions Locked
 
@@ -39,30 +42,27 @@ This document tracks the implementation of the durable job model that should rep
 - Experiment Workspaces.
 - Completed `evalRuns` and `evalResults` stores.
 - Completed `promptComparisons` store.
+- Durable `evalJobs` and `evalJobCaseStates` stores.
+- Durable `promptComparisonWorkflows` store.
+- Job-oriented Review APIs for create/start/list/get/cancel/resume/retry.
+- Active job cards in Experiment Lab.
+- Automatic polling while jobs are active.
+- Provider-mode eval cancellation through external abort signals.
+- Per-provider eval execution policy in `provider-config.json`.
 - Release Gate and Release Decision flows over completed runs.
 - Manual refresh button for experiment artifacts.
 
 ## Confirmed Gaps
 
-- No durable `EvalJob` store.
-- No durable per-case job state.
-- No prompt-comparison workflow state.
-- No immediate job id returned to UI when an eval starts.
-- No active job card or progress UI.
-- No automatic polling of active jobs.
-- No job cancellation semantics.
-- No resume semantics for MV3 service-worker interruption.
-- No case snapshot freeze at job creation.
-- No bounded provider concurrency policy in provider config.
-- No provider external abort signal for user cancellation.
-- No infrastructure-failure boundary that prevents partial or contaminated runs from entering release gates.
-- No workspace auto-linking for active jobs.
+- IndexedDB stores currently rely on store scans rather than explicit indexes. This is acceptable for the current local dataset size but can be optimized later.
+- The first UI slice supports retrying failed cases as a job-level action, not per-case checkboxes.
+- Provider execution policy is configured with conservative defaults; provider-specific tuning can be adjusted later.
 
 ## Planned Phases
 
 ### Phase 1: Durable Job Foundation
 
-Status: not started
+Status: implemented
 
 Scope:
 
@@ -78,7 +78,7 @@ Validation target:
 
 ### Phase 2: Single Eval Job Runner
 
-Status: not started
+Status: implemented
 
 Scope:
 
@@ -95,7 +95,7 @@ Validation target:
 
 ### Phase 3: Experiment Lab Job UI
 
-Status: not started
+Status: implemented
 
 Scope:
 
@@ -113,7 +113,7 @@ Validation target:
 
 ### Phase 4: Lease, Resume, and Bounded Parallelism
 
-Status: not started
+Status: implemented
 
 Scope:
 
@@ -130,7 +130,7 @@ Validation target:
 
 ### Phase 5: Prompt Comparison Workflow
 
-Status: not started
+Status: implemented
 
 Scope:
 
@@ -146,17 +146,23 @@ Validation target:
 
 ## Validation Status
 
-No implementation validation has been run for the job model because this change is currently documentation-only.
-
-Design validation performed:
+Implementation validation performed:
 
 - Reviewed current PM Review, background message router, eval engine, review store, IndexedDB stores, provider client, and provider config boundaries.
 - Cross-reviewed the proposal through subagents focused on MV3 lifecycle, data/API model, and product UX risks.
 - Confirmed that the key implementation boundary should be job state separate from completed evidence artifacts.
+- `npm --workspace apps/extension run typecheck` passed.
+- `npm --workspace apps/extension run check:ai-check-contract` passed.
+- `npm --workspace apps/extension run test:ai-check` passed.
+- `npm --workspace apps/extension run build` passed.
+- `npm --workspace apps/extension run test:e2e` passed.
+
+Pending implementation validation:
+
+- None for the implemented Eval Job Model scope.
 
 ## Documentation Check
 
-This progress document was created together with the linked design and issues documents.
+This progress document was updated together with the linked design and issues documents.
 
-The existing Prompt Engineering Console documents were also checked because this job model affects Experiment Lab execution semantics. They now link to this design topic and track the long-running provider execution gap.
-
+The existing Prompt Engineering Console documents were also checked because this job model affects Experiment Lab execution semantics. They link to this design topic and track the long-running provider execution gap as mitigated by the durable job model.

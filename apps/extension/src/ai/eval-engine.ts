@@ -108,7 +108,7 @@ export async function runEvalExperimentForCases(
   return { run, results };
 }
 
-async function runEvalCase(
+export async function runEvalCase(
   testCase: AICheckCase,
   input: {
     runId: string;
@@ -117,6 +117,8 @@ async function runEvalCase(
     model: string;
     apiKey?: string;
     systemPromptAddendum?: string;
+    resultId?: string;
+    signal?: AbortSignal;
   }
 ): Promise<AICheckEvalResult> {
   const actual =
@@ -126,13 +128,14 @@ async function runEvalCase(
           provider: input.provider,
           model: input.model,
           apiKey: input.apiKey ?? "",
-          systemPromptAddendum: input.systemPromptAddendum
+          systemPromptAddendum: input.systemPromptAddendum,
+          signal: input.signal
         });
   const failureReasons = evaluateExpectedOutput(actual, testCase.eval?.expectedOutput ?? {});
   failureReasons.push(...evaluateExpectedInputEvidence(testCase));
   const rawProvider = (actual as Partial<CheckpointDecision>).rawProvider;
   return {
-    id: createId("evalresult"),
+    id: input.resultId ?? createId("evalresult"),
     runId: input.runId,
     evalCaseId: testCase.id,
     actualDecision: actual.decision,
@@ -145,7 +148,7 @@ async function runEvalCase(
 
 async function providerDecision(
   testCase: AICheckCase,
-  input: { provider: ProviderId; model: string; apiKey: string; systemPromptAddendum?: string }
+  input: { provider: ProviderId; model: string; apiKey: string; systemPromptAddendum?: string; signal?: AbortSignal }
 ): Promise<CheckpointDecision> {
   const round = buildRoundSnapshotFromCaseInput(testCase.input, { sessionId: `eval_${testCase.id}` });
   const turn = buildTurnStateFromCaseInput(testCase.input);
@@ -161,7 +164,8 @@ async function providerDecision(
     }),
     sessionId: `eval_${testCase.id}`,
     strictness: testCase.input.strictness,
-    isFinalTurn: turn.isFinalTurn
+    isFinalTurn: turn.isFinalTurn,
+    signal: input.signal
   });
 }
 
@@ -232,7 +236,7 @@ function deriveInputEvidence(messages: AICheckCase["input"]["messages"]): { hasE
   };
 }
 
-function buildEvalMetrics(cases: AICheckCase[], results: AICheckEvalResult[]): AICheckEvalMetrics {
+export function buildEvalMetrics(cases: AICheckCase[], results: AICheckEvalResult[]): AICheckEvalMetrics {
   const resultByCaseId = new Map(results.map((result) => [result.evalCaseId, result]));
   const failedCases = cases.filter((testCase) => !resultByCaseId.get(testCase.id)?.pass);
   const falseAllowFailures = failedCases.filter((testCase) => resultByCaseId.get(testCase.id)?.actualDecision === "ALLOW").length;

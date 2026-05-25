@@ -7,6 +7,7 @@ Related docs:
 - PM Review workspace progress: [2026-05-20-pm-review-workspace-progress.md](2026-05-20-pm-review-workspace-progress.md)
 - AI Check contract SSOT progress: [2026-05-22-ai-check-contract-ssot-progress.md](2026-05-22-ai-check-contract-ssot-progress.md)
 - Eval Job Model progress: [2026-05-25-eval-job-model-progress.md](2026-05-25-eval-job-model-progress.md)
+- Run Review Console progress: [2026-05-25-run-review-console-progress.md](2026-05-25-run-review-console-progress.md)
 
 Rule: when this document changes, check the design and issues documents for required updates.
 
@@ -16,7 +17,9 @@ Phase 1, Phase 2, the Phase 3 Experiment Lab first slice, and the Phase 4 Candid
 
 This document set remains the scaffold for the Prompt Engineering Console implementation. Candidate Prompt A/B, Textual Gradient, Prompt Program Suggestions, Contract Change Plans, Experiment Workspaces, and guarded local promotion now have implemented product flows.
 
-Long-running provider eval execution is tracked separately in the Eval Job Model design. The current implementation can still rely on blocking message calls for provider-mode runs, so durable job progress, resume, cancellation, and workspace auto-linking remain follow-up work.
+Long-running provider eval execution is now implemented through the Eval Job Model. Experiment Lab creates durable jobs, shows active progress, polls while work is running, supports cancellation/resume/retry actions, and finalizes completed runs before release consumption.
+
+Run Review Console design is now fixed as the next Experiment Lab review-layer improvement. It keeps the existing top-level navigation and specifies full run result tables, case detail drawers, A/B case diff, release gate drilldown, and stable review view models.
 
 ## Product Decisions Locked
 
@@ -27,7 +30,7 @@ Long-running provider eval execution is tracked separately in the Eval Job Model
 - Decision-point snapshots should be accepted as the reliable way to make review/eval reproducible.
 - `datasetType` should be independent from lifecycle `status`.
 - Candidate Prompt A/B and Textual Gradient are Phase 4 capabilities layered on top of the persisted run/result foundation.
-- Long-running provider evals should move to the Eval Job Model before the Experiment Lab is considered robust for normal provider-mode use.
+- Long-running provider evals use the Eval Job Model before the Experiment Lab is considered robust for normal provider-mode use.
 
 ## Already Exists
 
@@ -183,7 +186,7 @@ Implemented now:
 
 Still remaining:
 
-- Durable job execution is not part of the already implemented Prompt Engineering Console foundation and is now tracked by [2026-05-25-eval-job-model-design.md](2026-05-25-eval-job-model-design.md).
+- Durable job execution is implemented and tracked by [2026-05-25-eval-job-model-design.md](2026-05-25-eval-job-model-design.md).
 - Applying a future accepted output-schema change remains a concrete contract/code/docs implementation task tracked by a version-gated Contract Change Plan.
 
 ## Validation Status
@@ -221,7 +224,7 @@ Implementation validation performed:
 
 Pending implementation validation:
 
-- Eval Job Model implementation validation is pending because that follow-up design is not implemented yet.
+- None for the implemented Prompt Engineering Console and Eval Job Model scope.
 
 ## Synchronization Note
 
