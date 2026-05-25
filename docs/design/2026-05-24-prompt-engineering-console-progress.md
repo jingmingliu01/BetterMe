@@ -19,7 +19,7 @@ This document set remains the scaffold for the Prompt Engineering Console implem
 
 Long-running provider eval execution is now implemented through the Eval Job Model. Experiment Lab creates durable jobs, shows active progress, polls while work is running, supports cancellation/resume/retry actions, and finalizes completed runs before release consumption.
 
-Run Review Console design is now fixed as the next Experiment Lab review-layer improvement. It keeps the existing top-level navigation and specifies full run result tables, case detail drawers, A/B case diff, release gate drilldown, and stable review view models.
+Run Review Console is now implemented as the Experiment Lab review layer. It keeps the existing top-level navigation and adds stable review view models, full run result tables, case detail drawers, A/B case diff, release gate drilldown, Dataset Health, and provider attempt visibility.
 
 ## Product Decisions Locked
 

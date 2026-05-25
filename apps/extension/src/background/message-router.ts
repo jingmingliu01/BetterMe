@@ -63,6 +63,8 @@ import {
   generatePromptCandidate,
   generatePromptProgramSuggestions,
   getEvalJobSummary,
+  getPromptComparisonReview,
+  getRunReview,
   importEvalRunArtifact,
   linkExperimentArtifact,
   listContractChangePlans,
@@ -353,6 +355,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await archiveEvalCase(message.payload));
       case "review/listEvalRuns":
         return ok(await listEvalRunSummaries());
+      case "review/getRunReview":
+        return ok(await getRunReview(message.payload));
       case "review/runEvalExperiment":
         return ok(await runEvalExperiment(message.payload));
       case "review/createEvalJob":
@@ -377,6 +381,8 @@ export async function routeMessage(message: ExtensionMessage): Promise<Extension
         return ok(await createPromptCandidate(message.payload));
       case "review/listPromptComparisons":
         return ok(await listPromptComparisons());
+      case "review/getPromptComparisonReview":
+        return ok(await getPromptComparisonReview(message.payload));
       case "review/runPromptComparison":
         return ok(await runPromptComparison(message.payload));
       case "review/startPromptComparisonWorkflow":

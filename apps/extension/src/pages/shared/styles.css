@@ -1156,6 +1156,10 @@ button {
   border-collapse: collapse;
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
 .icon-btn {
   display: inline-grid;
   width: 36px;
@@ -1462,6 +1466,17 @@ button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.review-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.compact-select {
+  width: fit-content;
+  min-width: 190px;
 }
 
 .experiment-workspace {
@@ -2242,6 +2257,37 @@ button {
   border-bottom: 1px solid rgba(29, 62, 46, 0.1);
   text-align: left;
   vertical-align: top;
+}
+
+.review-result-table th {
+  color: #66736b;
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.review-result-table tr {
+  cursor: pointer;
+}
+
+.review-result-table tr:hover,
+.selected-table-row {
+  background: #eef6f1;
+}
+
+.review-result-table td {
+  min-width: 130px;
+}
+
+.review-result-table td:nth-child(2),
+.review-result-table td:nth-child(5) {
+  min-width: 220px;
+}
+
+.review-result-table strong,
+.review-result-table small {
+  display: block;
 }
 
 .code {

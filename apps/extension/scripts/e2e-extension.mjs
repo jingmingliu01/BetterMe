@@ -469,8 +469,9 @@ try {
   await page.getByRole("button", { name: /Run Eval/ }).click();
   await page.getByText(/Eval job started/).waitFor({ timeout: 3_000 });
   await waitForNewEvalRun(page, evalRunCountBefore);
-  const holdoutGuardText = (await page.locator(".holdout-guard").textContent({ timeout: 5_000 })) ?? "";
-  assertIncludes(holdoutGuardText, "Holdout protected", "Tuning mode did not protect Holdout details.");
+  await page.getByText("Detailed Holdout failures are hidden in tuning mode.").waitFor({ timeout: 5_000 });
+  const holdoutGuardText = await page.locator(".experiment-results-panel").innerText({ timeout: 5_000 });
+  assertIncludes(holdoutGuardText.toLowerCase(), "holdout protected", "Tuning mode did not protect Holdout details.");
   assertIncludes(holdoutGuardText, "Detailed Holdout failures are hidden", "Holdout guard copy was not shown.");
   let resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertNotIncludes(resultPanelText, "Protected holdout failing case", "Tuning mode leaked Holdout failure title.");
@@ -479,7 +480,7 @@ try {
   await page.getByRole("button", { name: /Run Eval/ }).click();
   await page.getByText(/Eval job started/).waitFor({ timeout: 3_000 });
   await waitForNewEvalRun(page, evalRunCountBefore);
-  await page.getByText("Protected holdout failing case").waitFor({ timeout: 5_000 });
+  await page.getByRole("heading", { name: "Protected holdout failing case" }).waitFor({ timeout: 5_000 });
   resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertIncludes(resultPanelText, "Protected holdout failing case", "Release review mode did not show Holdout failure summary.");
   console.log("HOLDOUT_VISIBILITY_OK true");
@@ -654,6 +655,14 @@ try {
   await waitForNewEvalRun(page, evalRunCountBefore);
   resultPanelText = await page.locator(".experiment-results-panel").innerText();
   assertIncludes(resultPanelText, "1/1", `Provider-mode run did not pass the focused probe case: ${resultPanelText}`);
+  await page.getByRole("table", { name: "Run result table" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("heading", { name: "Provider mode passing case" }).waitFor({ timeout: 5_000 });
+  await page.getByText("Case Detail Drawer").waitFor({ timeout: 5_000 });
+  await page.getByText("Expected output assertions").waitFor({ timeout: 5_000 });
+  await page.getByText("Actual provider output").waitFor({ timeout: 5_000 });
+  await page.getByText("Release Gate Drilldown").waitFor({ timeout: 5_000 });
+  await page.getByRole("table", { name: "Run result table" }).getByText("Job snapshot").waitFor({ timeout: 5_000 });
+  console.log("RUN_REVIEW_CONSOLE_OK true");
   const experimentProviderRequests = await getProviderRequestLog(serviceWorker);
   if (experimentProviderRequests.length !== providerRequestCountBefore + 1) {
     throw new Error(`Provider-mode eval did not send exactly one provider request: ${experimentProviderRequests.length}`);
@@ -738,6 +747,10 @@ try {
   await page.getByLabel("Eval run artifact JSON").fill(JSON.stringify(importedArtifact));
   await page.getByRole("button", { name: /Import Run/ }).click();
   await page.getByText(new RegExp(`Imported eval run ${importedRunId}`)).waitFor({ timeout: 3_000 });
+  const importedRunReview = await sendRuntimeMessage(page, "review/getRunReview", { runId: importedRunId });
+  if (importedRunReview?.rows?.[0]?.snapshotSource !== "missing") {
+    throw new Error(`Imported run did not expose missing snapshot source: ${JSON.stringify(importedRunReview)}`);
+  }
   const importedEvalRuns = await getIndexedDbRecords(page, "evalRuns");
   const importedEvalResults = await getIndexedDbRecords(page, "evalResults");
   if (
@@ -793,6 +806,11 @@ try {
   await page.getByText(/Candidate A\/B workflow started/).waitFor({ timeout: 3_000 });
   await waitForNewPromptComparison(page, promptComparisonCountBefore);
   await page.getByText("Textual Gradient", { exact: true }).waitFor({ timeout: 5_000 });
+  await page.getByText("A/B Case Diff").waitFor({ timeout: 5_000 });
+  await page.getByRole("table", { name: "A/B case diff table" }).waitFor({ timeout: 5_000 });
+  await page.getByRole("table", { name: "A/B case diff table" }).getByText("Candidate A/B probe case").waitFor({ timeout: 5_000 });
+  await page.getByText("Pass · ALLOW").waitFor({ timeout: 5_000 });
+  await page.getByText("Fail · BLOCK").waitFor({ timeout: 5_000 });
   const promptComparisons = await getIndexedDbRecords(page, "promptComparisons");
   const promptCandidates = await getIndexedDbRecords(page, "promptCandidates");
   const latestComparison = promptComparisons.at(-1);

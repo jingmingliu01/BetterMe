@@ -11,11 +11,11 @@ Rule: when this document changes, check the design and issues documents for requ
 
 ## Current Status
 
-Status: design fixed, not implemented.
+Status: implemented and validated.
 
 Sub-agent review of the current codebase and the proposed product direction is complete. The recommended direction is to keep the existing top-level AIPM navigation and refactor the internal `Experiment Lab` experience into a Run Review Console workflow.
 
-The durable execution layer is already implemented through the Eval Job Model. The remaining work is mostly the finalized run/comparison review layer: result table, case detail drawer, A/B case diff, release gate drilldown, and stable store-layer view models.
+The durable execution layer is already implemented through the Eval Job Model. The finalized run/comparison review layer is now implemented with store-layer view models, result table, case detail drawer, A/B case diff, release gate drilldown, Dataset Health, and provider attempt visibility.
 
 ## Product Decisions Locked
 
@@ -45,25 +45,26 @@ The durable execution layer is already implemented through the Eval Job Model. T
 - Holdout protection in tuning mode.
 - Prompt Program Suggestions and Textual Gradient from completed comparisons.
 - Experiment Workspaces that link artifacts.
+- `RunReviewSummary`, `RunReviewCaseRow`, `RunReviewCaseDetail`, `ComparisonReviewSummary`, `ComparisonReviewDiffRow`, and `ReleaseGateDrilldownRow`.
+- `review/getRunReview` and `review/getPromptComparisonReview` message routes.
+- Full finalized run result table.
+- Run case detail drawer with expected output, raw provider output, attempts, provenance, and snapshot source.
+- Per-case A/B diff table.
+- Release Gate Drilldown rows.
+- Dataset Health section.
+- Active job cards with filter and workspace context.
 
 ## Confirmed Gaps
 
-- No stable `RunReviewSummary` or `ComparisonReview` store-layer view model exists yet.
-- Finished run review uses aggregate cards and a failure-only list instead of a full result table.
-- Case detail from a run result row does not exist yet.
-- Run review can be polluted by current-case edits because finalized run artifacts do not carry all case metadata directly.
-- A/B comparison does not yet show per-case baseline-vs-candidate rows.
-- Release Gate does not yet provide reason-to-case drilldown.
-- Snapshot source is not visible in the UI.
-- Dataset Health is not implemented.
-- Provider latency, retry, timeout, token, and cost metrics are not yet exposed as review metrics.
+- Provider latency, timeout, token, and cost metrics are not yet exposed as review metrics. Provider attempts and retry errors are visible when job state exists.
 - Service-worker restart and duplicate-finalize scenarios have limited explicit E2E coverage.
+- IndexedDB review view models still use local store scans. This remains acceptable for the current local dataset scale.
 
 ## Planned Phases
 
 ### Phase 1: Review View Models
 
-Status: planned
+Status: implemented
 
 Scope:
 
@@ -81,7 +82,7 @@ Validation target:
 
 ### Phase 2: Result Table and Case Detail Drawer
 
-Status: planned
+Status: implemented
 
 Scope:
 
@@ -97,7 +98,7 @@ Validation target:
 
 ### Phase 3: A/B Case Diff
 
-Status: planned
+Status: implemented
 
 Scope:
 
@@ -112,7 +113,7 @@ Validation target:
 
 ### Phase 4: Release Gate Drilldown
 
-Status: planned
+Status: implemented
 
 Scope:
 
@@ -127,7 +128,7 @@ Validation target:
 
 ### Phase 5: Dataset Health and Policy Hardening
 
-Status: planned
+Status: implemented for Dataset Health; policy extraction remains deferred
 
 Scope:
 
@@ -142,20 +143,19 @@ Validation target:
 
 ## Validation Status
 
-No implementation validation has run for this design because this change fixes the design scaffold only.
+Implementation validation completed.
 
-Current related validation from the Eval Job Model implementation remains relevant:
+Validated commands:
 
-- AI Check contract validation.
-- Typecheck.
-- AI Check tests.
-- Extension build.
-- Extension E2E.
-- Diff whitespace check.
+- `npm --workspace apps/extension run check:ai-check-contract`
+- `npm --workspace apps/extension run typecheck`
+- `npm --workspace apps/extension run test:ai-check`
+- `npm --workspace apps/extension run build`
+- `npm --workspace apps/extension run test:e2e`
+- `git diff --check`
 
-These should be rerun after implementing the Run Review Console phases.
+The extension E2E suite now includes Run Review Console assertions for the result table, Case Detail Drawer, Release Gate Drilldown, snapshot source, Holdout protection, imported missing snapshots, and A/B case diff.
 
 ## Document Maintenance Notes
 
-The Prompt Engineering Console and Eval Job Model document sets were checked because this design depends on both. They should link to this design as the review-layer continuation after durable job execution.
-
+The Prompt Engineering Console and Eval Job Model document sets were checked because this design depends on both. The Prompt Engineering Console progress document now references the implemented Run Review Console layer. The Run Review Console issues document was updated with mitigation notes for the implementation. The design document did not need a content change after validation because the implementation follows the fixed scope rather than changing the product direction.

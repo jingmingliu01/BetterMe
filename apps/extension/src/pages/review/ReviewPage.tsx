@@ -69,6 +69,8 @@ import type {
   BadCaseErrorType,
   BadCaseReview,
   AddExperimentArmInput,
+  ComparisonReviewDiffRow,
+  ComparisonReviewSummary,
   CreateContractChangePlanInput,
   CreateEvalCaseInput,
   CreateExperimentInput,
@@ -79,7 +81,12 @@ import type {
   LinkExperimentArtifactInput,
   PromotePromptCandidateInput,
   ProviderId,
+  ReleaseGateDrilldownRow,
   ReviewPromptProgramSuggestionItemInput,
+  RunReviewCaseDetail,
+  RunReviewCaseRow,
+  RunReviewSnapshotSource,
+  RunReviewSummary,
   StartEvalJobInput,
   StartPromptComparisonWorkflowInput,
   StrictnessLevel,
@@ -379,6 +386,12 @@ export function ReviewPage() {
   const [promotingPromptCandidate, setPromotingPromptCandidate] = useState(false);
   const [importingEvalRun, setImportingEvalRun] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [runReview, setRunReview] = useState<RunReviewSummary | null>(null);
+  const [runReviewLoading, setRunReviewLoading] = useState(false);
+  const [runReviewError, setRunReviewError] = useState<string | null>(null);
+  const [comparisonReview, setComparisonReview] = useState<ComparisonReviewSummary | null>(null);
+  const [comparisonReviewLoading, setComparisonReviewLoading] = useState(false);
+  const [comparisonReviewError, setComparisonReviewError] = useState<string | null>(null);
 
   const sessions = sessionData ?? [];
   const evalCases = evalData ?? [];
@@ -466,6 +479,69 @@ export function ReviewPage() {
       null,
     [promptComparisons, selectedPromptComparisonId]
   );
+
+  useEffect(() => {
+    if (!selectedEvalRun) {
+      setRunReview(null);
+      setRunReviewError(null);
+      return;
+    }
+    let cancelled = false;
+    setRunReviewLoading(true);
+    setRunReviewError(null);
+    sendMessage<RunReviewSummary | null>({
+      type: "review/getRunReview",
+      payload: { runId: selectedEvalRun.run.id }
+    })
+      .then((summary) => {
+        if (cancelled) return;
+        setRunReview(summary);
+        if (!summary) setRunReviewError("Run review data was not found.");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setRunReview(null);
+        setRunReviewError(error instanceof Error ? error.message : "Could not load run review.");
+      })
+      .finally(() => {
+        if (!cancelled) setRunReviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEvalRun?.run.id, evalRunData, evalJobData]);
+
+  useEffect(() => {
+    if (!selectedPromptComparison) {
+      setComparisonReview(null);
+      setComparisonReviewError(null);
+      return;
+    }
+    let cancelled = false;
+    setComparisonReviewLoading(true);
+    setComparisonReviewError(null);
+    sendMessage<ComparisonReviewSummary | null>({
+      type: "review/getPromptComparisonReview",
+      payload: { comparisonId: selectedPromptComparison.id }
+    })
+      .then((summary) => {
+        if (cancelled) return;
+        setComparisonReview(summary);
+        if (!summary) setComparisonReviewError("Comparison review data was not found.");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setComparisonReview(null);
+        setComparisonReviewError(error instanceof Error ? error.message : "Could not load comparison review.");
+      })
+      .finally(() => {
+        if (!cancelled) setComparisonReviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPromptComparison?.id, promptComparisonData, evalRunData, evalJobData]);
+
   const activePromptPromotion = promptPromotions[0] ?? null;
   const selectedExperiment = useMemo(
     () => experiments.find((experiment) => experiment.id === selectedExperimentId) ?? experiments[0] ?? null,
@@ -1275,6 +1351,12 @@ export function ReviewPage() {
           providerStatus={providerStatusData ?? {}}
           releaseDecisions={releaseDecisions}
           releaseNote={releaseNote}
+          runReview={runReview}
+          runReviewError={runReviewError}
+          runReviewLoading={runReviewLoading}
+          comparisonReview={comparisonReview}
+          comparisonReviewError={comparisonReviewError}
+          comparisonReviewLoading={comparisonReviewLoading}
           importText={evalRunImportText}
           importing={importingEvalRun}
           activePromptPromotion={activePromptPromotion}
@@ -1384,6 +1466,12 @@ function ExperimentLab({
   providerStatus,
   releaseDecisions,
   releaseNote,
+  runReview,
+  runReviewError,
+  runReviewLoading,
+  comparisonReview,
+  comparisonReviewError,
+  comparisonReviewLoading,
   running,
   runningPromptComparison,
   savingReleaseDecision,
@@ -1448,6 +1536,12 @@ function ExperimentLab({
   providerStatus: Partial<Record<ProviderId, boolean>>;
   releaseDecisions: AICheckReleaseDecision[];
   releaseNote: string;
+  runReview: RunReviewSummary | null;
+  runReviewError: string | null;
+  runReviewLoading: boolean;
+  comparisonReview: ComparisonReviewSummary | null;
+  comparisonReviewError: string | null;
+  comparisonReviewLoading: boolean;
   running: boolean;
   runningPromptComparison: boolean;
   savingReleaseDecision: boolean;
@@ -1490,7 +1584,6 @@ function ExperimentLab({
     () => evalCases.filter((evalCase) => caseMatchesExperiment(evalCase, buildExperimentFilters(form))).length,
     [evalCases, form]
   );
-  const failedResults = selectedRun?.results.filter((result) => !result.pass) ?? [];
   const caseById = useMemo(() => new Map(evalCases.map((evalCase) => [evalCase.id, evalCase])), [evalCases]);
   const selectedRunHasHoldout =
     selectedRun?.run.caseIds.some((caseId) => caseById.get(caseId)?.datasetType === "holdout") ?? false;
@@ -1983,6 +2076,8 @@ function ExperimentLab({
           </div>
           {form.provider === "mock" && <p className="muted">Candidate A/B requires a BYOK provider.</p>}
         </section>
+
+        <DatasetHealthPanel evalCases={evalCases} />
       </aside>
 
       <section className="panel experiment-results-panel stack">
@@ -2004,6 +2099,7 @@ function ExperimentLab({
 
         <ActiveJobsPanel
           evalJobs={visibleEvalJobs}
+          experiments={experiments}
           promptComparisonWorkflows={visiblePromptComparisonWorkflows}
           onCancelEvalJob={onCancelEvalJob}
           onCancelPromptComparisonWorkflow={onCancelPromptComparisonWorkflow}
@@ -2016,6 +2112,9 @@ function ExperimentLab({
             {selectedPromptComparison && (
               <PromptComparisonSummary
                 comparison={selectedPromptComparison}
+                comparisonReview={comparisonReview}
+                comparisonReviewError={comparisonReviewError}
+                comparisonReviewLoading={comparisonReviewLoading}
                 candidates={promptCandidates}
                 generatingPromptCandidate={generatingPromptCandidate}
                 generatingPromptProgramSuggestions={generatingPromptProgramSuggestions}
@@ -2033,26 +2132,12 @@ function ExperimentLab({
                 setPromotionNote={setPromptPromotionNote}
               />
             )}
-            <div className="metric-grid">
-              <MetricCard label="Pass rate" value={formatPercent(selectedRun.run.metrics.passRate)} />
-              <MetricCard label="Passed" value={`${selectedRun.run.metrics.passed}/${selectedRun.run.metrics.total}`} />
-              <MetricCard label="False allow" value={String(selectedRun.run.metrics.falseAllowFailures)} />
-              <MetricCard label="False block" value={String(selectedRun.run.metrics.falseBlockFailures)} />
-              <MetricCard label="ASK_MORE recall" value={String(selectedRun.run.metrics.askMoreRecallFailures)} />
-              <MetricCard label="Unsafe sensitive" value={String(selectedRun.run.metrics.unsafeSensitiveFailures)} />
-            </div>
-
-            <section className={`release-gate release-gate-${selectedRun.run.metrics.releaseGate.status}`}>
-              <div>
-                <span className="section-label">Release gate</span>
-                <strong>{selectedRun.run.metrics.releaseGate.status.toUpperCase()}</strong>
-              </div>
-              <ul>
-                {selectedRun.run.metrics.releaseGate.reasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-            </section>
+            <RunReviewPanel
+              loading={runReviewLoading}
+              error={runReviewError}
+              review={runReview}
+              fallbackRun={selectedRun}
+            />
 
             <section className="release-decision-card stack">
               <div className="row space-between">
@@ -2103,47 +2188,6 @@ function ExperimentLab({
                 </div>
               )}
             </section>
-
-            {holdoutDetailsHidden ? (
-              <section className="holdout-guard stack">
-                <span className="section-label">Holdout protected</span>
-                <strong>Detailed Holdout failures are hidden in tuning mode.</strong>
-                <span>
-                  Aggregate metrics and the release gate remain visible. Switch to release review mode when you need
-                  controlled failure summaries for a release decision.
-                </span>
-              </section>
-            ) : (
-              <>
-                <div className="metric-breakdown-grid">
-                  <MetricBreakdown title="By tag" rows={selectedRun.run.metrics.byTag} />
-                  <MetricBreakdown title="By strictness" rows={selectedRun.run.metrics.byStrictness} />
-                </div>
-
-                <div className="stack compact-stack">
-                  <span className="section-label">Failures</span>
-                  {failedResults.length === 0 ? (
-                    <p className="muted">No failed cases in this run.</p>
-                  ) : (
-                    <div className="eval-case-list">
-                      {failedResults.map((result) => {
-                        const evalCase = caseById.get(result.evalCaseId);
-                        return (
-                          <div className="eval-case-item" key={result.id}>
-                            <div className="row space-between">
-                              <strong>{evalCase?.title ?? result.evalCaseId}</strong>
-                              <span>{formatDecision(result.actualDecision)}</span>
-                            </div>
-                            <small>{result.failureReasons.join("; ")}</small>
-                            {evalCase && <TagList tags={evalCase.eval?.tags ?? []} />}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
           </>
         ) : (
           <div className="empty-state">
@@ -2235,8 +2279,432 @@ function ExperimentLab({
   );
 }
 
+function DatasetHealthPanel({ evalCases }: { evalCases: AICheckCase[] }) {
+  const readyCases = evalCases.filter((evalCase) => evalCase.status === "ready");
+  const designCases = readyCases.filter((evalCase) => evalCase.datasetType === "design").length;
+  const regressionCases = readyCases.filter((evalCase) => evalCase.datasetType === "regression").length;
+  const holdoutCases = readyCases.filter((evalCase) => evalCase.datasetType === "holdout").length;
+  const missingExpectedOutput = readyCases.filter((evalCase) => !evalCase.eval?.expectedOutput?.decision).length;
+  const staleVersions = readyCases.filter(
+    (evalCase) =>
+      evalCase.versions.promptVersion !== AI_CHECK_CURRENT_VERSIONS.promptVersion ||
+      evalCase.versions.outputSchemaVersion !== AI_CHECK_CURRENT_VERSIONS.outputSchemaVersion ||
+      evalCase.versions.evaluationSchemaVersion !== AI_CHECK_CURRENT_VERSIONS.evaluationSchemaVersion
+  ).length;
+  const expectedDecisions = new Set(
+    readyCases.map((evalCase) => getPrimaryExpectedDecision(evalCase.eval?.expectedOutput.decision)).filter(Boolean)
+  );
+  const strictnessLevels = new Set(readyCases.map((evalCase) => evalCase.input.strictness));
+  return (
+    <section className="stack compact-stack" aria-label="Dataset Health">
+      <span className="section-label">Dataset Health</span>
+      <div className="metric-grid">
+        <MetricCard label="Design ready" value={String(designCases)} />
+        <MetricCard label="Regression ready" value={String(regressionCases)} />
+        <MetricCard label="Holdout ready" value={String(holdoutCases)} />
+        <MetricCard label="Missing expected" value={String(missingExpectedOutput)} />
+        <MetricCard label="Stale versions" value={String(staleVersions)} />
+        <MetricCard label="Decision coverage" value={`${expectedDecisions.size}/${AI_CHECK_DECISIONS.length}`} />
+      </div>
+      <div className="release-decision-entry">
+        <strong>Strictness coverage</strong>
+        <span>{strictnessLevels.size}/{AI_CHECK_STRICTNESS_LEVELS.length} levels covered by ready cases</span>
+      </div>
+    </section>
+  );
+}
+
+function RunReviewPanel({
+  error,
+  fallbackRun,
+  loading,
+  review
+}: {
+  error: string | null;
+  fallbackRun: AICheckEvalRunSummary;
+  loading: boolean;
+  review: RunReviewSummary | null;
+}) {
+  const [outcomeFilter, setOutcomeFilter] = useState<"all" | "pass" | "fail">("all");
+  const [datasetFilter, setDatasetFilter] = useState<string>("all");
+  const [decisionFilter, setDecisionFilter] = useState<string>("all");
+  const [failureFilter, setFailureFilter] = useState<string>("all");
+  const [tagFilter, setTagFilter] = useState<string>("all");
+  const [sortKey, setSortKey] = useState<"outcome" | "severity" | "dataset" | "strictness">("outcome");
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null);
+  const run = review?.run ?? fallbackRun.run;
+  const rows = review?.rows ?? [];
+  const selectedDetail =
+    review?.details.find((detail) => detail.row.resultId === selectedResultId) ?? review?.details[0] ?? null;
+
+  useEffect(() => {
+    if (!review?.rows.length) {
+      setSelectedResultId(null);
+      return;
+    }
+    if (!selectedResultId || !review.rows.some((row) => row.resultId === selectedResultId)) {
+      setSelectedResultId(review.rows[0].resultId);
+    }
+  }, [review?.run.id, review?.rows.length, selectedResultId]);
+
+  const datasets = useMemo(() => uniqueOptions(rows.map((row) => row.datasetType).filter(Boolean) as string[]), [rows]);
+  const decisions = useMemo(
+    () => uniqueOptions(rows.map((row) => row.expectedDecision).filter(Boolean) as string[]),
+    [rows]
+  );
+  const failures = useMemo(() => uniqueOptions(rows.flatMap((row) => row.failureReasons)), [rows]);
+  const tags = useMemo(() => uniqueOptions(rows.flatMap((row) => row.tags)), [rows]);
+  const filteredRows = useMemo(() => {
+    return rows
+      .filter((row) => {
+        if (outcomeFilter === "pass" && !row.pass) return false;
+        if (outcomeFilter === "fail" && row.pass) return false;
+        if (datasetFilter !== "all" && row.datasetType !== datasetFilter) return false;
+        if (decisionFilter !== "all" && row.expectedDecision !== decisionFilter) return false;
+        if (failureFilter !== "all" && !row.failureReasons.includes(failureFilter)) return false;
+        if (tagFilter !== "all" && !row.tags.includes(tagFilter)) return false;
+        return true;
+      })
+      .sort((left, right) => compareRunReviewRows(left, right, sortKey));
+  }, [datasetFilter, decisionFilter, failureFilter, outcomeFilter, rows, sortKey, tagFilter]);
+
+  return (
+    <section className="stack">
+      <div className="metric-grid">
+        <MetricCard label="Pass rate" value={formatPercent(run.metrics.passRate)} />
+        <MetricCard label="Passed" value={`${run.metrics.passed}/${run.metrics.total}`} />
+        <MetricCard label="False allow" value={String(run.metrics.falseAllowFailures)} />
+        <MetricCard label="False block" value={String(run.metrics.falseBlockFailures)} />
+        <MetricCard label="ASK_MORE recall" value={String(run.metrics.askMoreRecallFailures)} />
+        <MetricCard label="Unsafe sensitive" value={String(run.metrics.unsafeSensitiveFailures)} />
+        <MetricCard label="Schema failures" value={String(run.metrics.schemaFailures)} />
+        <MetricCard label="Critical failures" value={String(run.metrics.criticalFailures)} />
+      </div>
+
+      <section className="release-decision-card stack">
+        <div className="row space-between">
+          <div>
+            <span className="section-label">Run review</span>
+            <h3>{loading ? "Loading review rows" : "Finalized evidence table"}</h3>
+          </div>
+          <span className="badge">{review ? formatStatusLabel(review.artifactState) : "Summary only"}</span>
+        </div>
+        {error && <p className="muted">{error}</p>}
+        {review && (
+          <>
+            <div className="metric-breakdown-grid">
+              <MetricBreakdown title="By tag" rows={run.metrics.byTag} />
+              <MetricBreakdown title="By strictness" rows={run.metrics.byStrictness} />
+            </div>
+            <div className="review-filter-grid">
+              <label className="stack compact-stack">
+                <span>Outcome</span>
+                <select className="select" value={outcomeFilter} onChange={(event) => setOutcomeFilter(event.target.value as typeof outcomeFilter)}>
+                  <option value="all">All outcomes</option>
+                  <option value="fail">Failures</option>
+                  <option value="pass">Passes</option>
+                </select>
+              </label>
+              <label className="stack compact-stack">
+                <span>Dataset</span>
+                <select className="select" value={datasetFilter} onChange={(event) => setDatasetFilter(event.target.value)}>
+                  <option value="all">All datasets</option>
+                  {datasets.map((dataset) => (
+                    <option key={dataset} value={dataset}>{formatTag(dataset)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="stack compact-stack">
+                <span>Expected</span>
+                <select className="select" value={decisionFilter} onChange={(event) => setDecisionFilter(event.target.value)}>
+                  <option value="all">All decisions</option>
+                  {decisions.map((decision) => (
+                    <option key={decision} value={decision}>{formatDecision(decision as AIDecision)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="stack compact-stack">
+                <span>Failure</span>
+                <select className="select" value={failureFilter} onChange={(event) => setFailureFilter(event.target.value)}>
+                  <option value="all">All failures</option>
+                  {failures.map((failure) => (
+                    <option key={failure} value={failure}>{failure}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="stack compact-stack">
+                <span>Tag</span>
+                <select className="select" value={tagFilter} onChange={(event) => setTagFilter(event.target.value)}>
+                  <option value="all">All tags</option>
+                  {tags.map((tag) => (
+                    <option key={tag} value={tag}>{formatTag(tag)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="stack compact-stack">
+                <span>Sort</span>
+                <select className="select" value={sortKey} onChange={(event) => setSortKey(event.target.value as typeof sortKey)}>
+                  <option value="outcome">Outcome</option>
+                  <option value="severity">Severity</option>
+                  <option value="dataset">Dataset</option>
+                  <option value="strictness">Strictness</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="table-scroll">
+              <table className="table review-result-table" aria-label="Run result table">
+                <thead>
+                  <tr>
+                    <th>Outcome</th>
+                    <th>Case</th>
+                    <th>Expected</th>
+                    <th>Actual</th>
+                    <th>Failure</th>
+                    <th>Snapshot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row) => (
+                    <tr
+                      className={row.resultId === selectedDetail?.row.resultId ? "selected-table-row" : undefined}
+                      key={row.resultId}
+                      onClick={() => setSelectedResultId(row.resultId)}
+                    >
+                      <td><span className={`status-pill ${row.pass ? "status-pill-ready" : "status-pill-rejected"}`}>{row.pass ? "Pass" : "Fail"}</span></td>
+                      <td>
+                        <strong>{row.title}</strong>
+                        <small>{formatOptionalTag(row.datasetType)} · {formatOptionalTag(row.strictness)} · {formatOptionalTag(row.severity)}</small>
+                        {row.tags.length > 0 && <TagList tags={row.tags.slice(0, 3)} />}
+                      </td>
+                      <td>{formatDecision(row.expectedDecision ?? null)}</td>
+                      <td>{formatDecision(row.actualDecision)}</td>
+                      <td>{row.failureReasons.length > 0 ? row.failureReasons.join("; ") : "No failure"}</td>
+                      <td>
+                        <span>{formatRunReviewSnapshotSource(row.snapshotSource)}</span>
+                        <small>{row.rawProviderAvailable ? "raw output" : "no raw output"}</small>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <section className="release-decision-entry">
+              <strong>Snapshot coverage</strong>
+              <span>
+                {review.snapshotCoverage.jobCaseSnapshot}/{review.snapshotCoverage.total} job snapshots ·{" "}
+                {review.snapshotCoverage.currentCaseFallback} current-case fallback · {review.snapshotCoverage.missing} missing
+              </span>
+            </section>
+          </>
+        )}
+      </section>
+
+      {review?.rows.some((row) => row.holdoutVisibility === "aggregate_only") && (
+        <section className="holdout-guard stack">
+          <span className="section-label">Holdout protected</span>
+          <strong>Detailed Holdout failures are hidden in tuning mode.</strong>
+          <span>Aggregate metrics and release gate state remain visible. Rerun in release review mode for controlled detail.</span>
+        </section>
+      )}
+
+      {review && <ReleaseGateDrilldown rows={review.releaseGate} />}
+      {selectedDetail && <RunReviewCaseDrawer detail={selectedDetail} />}
+    </section>
+  );
+}
+
+function ReleaseGateDrilldown({ rows }: { rows: ReleaseGateDrilldownRow[] }) {
+  return (
+    <section className="release-decision-card stack">
+      <div className="section-heading">
+        <span className="section-label">Release Gate Drilldown</span>
+        <h3>Gate evidence</h3>
+      </div>
+      <div className="eval-case-list">
+        {rows.map((row) => (
+          <div className="eval-case-item" key={`${row.gate}-${row.metric ?? "gate"}`}>
+            <div className="row space-between">
+              <strong>{row.gate}</strong>
+              <span className={`status-pill status-pill-${row.status === "fail" ? "rejected" : row.status === "warning" ? "proposed" : "ready"}`}>
+                {formatStatusLabel(row.status)}
+              </span>
+            </div>
+            <span>{row.explanation}</span>
+            <small>
+              {formatOptionalTag(row.datasetType)} · {row.metric ?? "metric"} · threshold {row.threshold ?? "n/a"} · actual {row.actual ?? "n/a"}
+            </small>
+            <small>{row.caseIds.length} linked case(s)</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RunReviewCaseDrawer({ detail }: { detail: RunReviewCaseDetail }) {
+  const protectedHoldout = detail.row.holdoutVisibility === "aggregate_only";
+  return (
+    <section className="release-decision-card stack" aria-label="Run case detail drawer">
+      <div className="row space-between">
+        <div>
+          <span className="section-label">Case Detail Drawer</span>
+          <h3>{detail.row.title}</h3>
+        </div>
+        <span className="badge">{formatRunReviewSnapshotSource(detail.row.snapshotSource)}</span>
+      </div>
+      {protectedHoldout ? (
+        <section className="holdout-guard stack">
+          <strong>Holdout detail protected</strong>
+          <span>This tuning run only exposes aggregate Holdout evidence.</span>
+        </section>
+      ) : (
+        <>
+          <div className="metric-grid">
+            <MetricCard label="Expected" value={formatDecision(detail.row.expectedDecision ?? null)} />
+            <MetricCard label="Actual" value={formatDecision(detail.row.actualDecision)} />
+            <MetricCard label="Dataset" value={formatOptionalTag(detail.row.datasetType)} />
+            <MetricCard label="Strictness" value={formatOptionalTag(detail.row.strictness)} />
+          </div>
+          {detail.row.failureReasons.length > 0 && (
+            <div className="release-decision-entry">
+              <strong>Failure reasons</strong>
+              <span>{detail.row.failureReasons.join("; ")}</span>
+            </div>
+          )}
+          {detail.caseSnapshot && (
+            <>
+              <section className="stack compact-stack">
+                <span className="section-label">Input messages</span>
+                <div className="message-list">
+                  {detail.caseSnapshot.input.messages.map((message, index) => (
+                    <div className={`message-bubble message-${message.role}`} key={`${message.role}-${index}`}>
+                      {message.content}
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <section className="stack compact-stack">
+                <span className="section-label">Expected output assertions</span>
+                <pre className="code">{JSON.stringify(detail.caseSnapshot.eval?.expectedOutput ?? {}, null, 2)}</pre>
+              </section>
+              <section className="stack compact-stack">
+                <span className="section-label">Provenance</span>
+                <span>{formatCaseProvenance(detail.caseSnapshot.provenance.type)}</span>
+                {detail.caseSnapshot.lineage && <pre className="code">{JSON.stringify(detail.caseSnapshot.lineage, null, 2)}</pre>}
+              </section>
+            </>
+          )}
+          <section className="stack compact-stack">
+            <span className="section-label">Actual provider output</span>
+            <pre className="code">{detail.rawProvider ?? JSON.stringify(detail.result, null, 2)}</pre>
+          </section>
+          {detail.attempts && detail.attempts.length > 0 && (
+            <section className="stack compact-stack">
+              <span className="section-label">Provider attempts</span>
+              <div className="eval-case-list">
+                {detail.attempts.map((attempt) => (
+                  <div className="eval-case-item" key={`${attempt.attempt}-${attempt.startedAt}`}>
+                    <div className="row space-between">
+                      <strong>Attempt {attempt.attempt}</strong>
+                      <span>{formatStatusLabel(attempt.status)}</span>
+                    </div>
+                    <small>{attempt.startedAt} {attempt.finishedAt ? `to ${attempt.finishedAt}` : ""}</small>
+                    {attempt.error && <small>{attempt.providerErrorCode ?? "provider_error"}: {attempt.error}</small>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function ComparisonDiffPanel({
+  comparisonReview,
+  error,
+  loading
+}: {
+  comparisonReview: ComparisonReviewSummary | null;
+  error: string | null;
+  loading: boolean;
+}) {
+  const [group, setGroup] = useState<"all" | ComparisonReviewDiffRow["classification"]>("regressed");
+  const rows = comparisonReview?.rows ?? [];
+  const visibleRows = group === "all" ? rows : rows.filter((row) => row.classification === group);
+  const groups: Array<"all" | ComparisonReviewDiffRow["classification"]> = [
+    "all",
+    "regressed",
+    "improved",
+    "unchanged_failed",
+    "unchanged_passed",
+    "missing_baseline",
+    "missing_candidate"
+  ];
+  return (
+    <section className="stack compact-stack">
+      <div className="row space-between">
+        <span className="section-label">A/B Case Diff</span>
+        <select className="select compact-select" value={group} onChange={(event) => setGroup(event.target.value as typeof group)}>
+          {groups.map((item) => (
+            <option key={item} value={item}>
+              {formatStatusLabel(item)} ({item === "all" ? rows.length : rows.filter((row) => row.classification === item).length})
+            </option>
+          ))}
+        </select>
+      </div>
+      {loading && <p className="muted">Loading comparison rows...</p>}
+      {error && <p className="muted">{error}</p>}
+      {comparisonReview && (
+        <div className="table-scroll">
+          <table className="table review-result-table" aria-label="A/B case diff table">
+            <thead>
+              <tr>
+                <th>Class</th>
+                <th>Case</th>
+                <th>Baseline</th>
+                <th>Candidate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((row) => (
+                <tr key={`${row.evalCaseId}-${row.classification}`}>
+                  <td><span className="status-pill status-pill-proposed">{formatStatusLabel(row.classification)}</span></td>
+                  <td>
+                    <strong>{row.candidate?.title ?? row.baseline?.title ?? row.evalCaseId}</strong>
+                    <small>{formatOptionalTag(row.candidate?.datasetType ?? row.baseline?.datasetType)}</small>
+                  </td>
+                  <td>{formatComparisonSide(row.baseline)}</td>
+                  <td>{formatComparisonSide(row.candidate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {comparisonReview && comparisonReview.rows.some((row) => row.classification === "regressed") && (
+        <p className="muted">Candidate promotion requires PM review of all regressed rows.</p>
+      )}
+    </section>
+  );
+}
+
+function formatComparisonSide(row: RunReviewCaseRow | undefined): ReactNode {
+  if (!row) return <span className="muted">Missing</span>;
+  return (
+    <span className="stack compact-stack">
+      <span>{row.pass ? "Pass" : "Fail"} · {formatDecision(row.actualDecision)}</span>
+      <small>{row.failureReasons.length > 0 ? row.failureReasons.join("; ") : "No failure"}</small>
+    </span>
+  );
+}
+
 function ActiveJobsPanel({
   evalJobs,
+  experiments,
   promptComparisonWorkflows,
   onCancelEvalJob,
   onCancelPromptComparisonWorkflow,
@@ -2244,6 +2712,7 @@ function ActiveJobsPanel({
   onRetryEvalJob
 }: {
   evalJobs: AICheckEvalJobSummary[];
+  experiments: AICheckExperiment[];
   promptComparisonWorkflows: AICheckPromptComparisonWorkflowSummary[];
   onCancelEvalJob: (jobId: string) => void;
   onCancelPromptComparisonWorkflow: (workflowId: string) => void;
@@ -2254,6 +2723,7 @@ function ActiveJobsPanel({
   const visibleWorkflows = promptComparisonWorkflows.filter(
     (summary) => summary.workflow.status !== "completed"
   );
+  const experimentById = new Map(experiments.map((experiment) => [experiment.id, experiment]));
   if (visibleEvalJobs.length === 0 && visibleWorkflows.length === 0) {
     return null;
   }
@@ -2272,6 +2742,7 @@ function ActiveJobsPanel({
           <small>
             Baseline {formatCompactJobProgress(summary.baselineJob)} · Candidate {formatCompactJobProgress(summary.candidateJob)}
           </small>
+          <small>{summary.workflow.context?.experimentId ? `Workspace: ${experimentById.get(summary.workflow.context.experimentId)?.name ?? summary.workflow.context.experimentId}` : "No workspace"}</small>
           {summary.workflow.error && <small>{summary.workflow.error}</small>}
           {["queued", "running", "cancel_requested"].includes(summary.workflow.status) && (
             <button className="btn btn-ghost" onClick={() => onCancelPromptComparisonWorkflow(summary.workflow.id)}>
@@ -2295,9 +2766,10 @@ function ActiveJobsPanel({
               {summary.job.request.model} · {formatRunMode(summary.job.request.mode)}
             </span>
             <small>
-              {summary.job.progress.failed} infra failed · {summary.job.progress.running} running · updated{" "}
+              {formatRunFilter(summary.job.request.filters)} · {summary.job.progress.failed} infra failed · {summary.job.progress.running} running · updated{" "}
               {formatDate(summary.job.updatedAt)}
             </small>
+            <small>{summary.job.context?.experimentId ? `Workspace: ${experimentById.get(summary.job.context.experimentId)?.name ?? summary.job.context.experimentId}` : "No workspace"}</small>
             {summary.job.error && <small>{summary.job.error}</small>}
             <div className="row wrap-row">
               {canCancel && (
@@ -2332,6 +2804,9 @@ function formatCompactJobProgress(job: AICheckPromptComparisonWorkflowSummary["b
 function PromptComparisonSummary({
   candidates,
   comparison,
+  comparisonReview,
+  comparisonReviewError,
+  comparisonReviewLoading,
   generatingPromptCandidate,
   generatingPromptProgramSuggestions,
   promptProgramSuggestions,
@@ -2349,6 +2824,9 @@ function PromptComparisonSummary({
 }: {
   candidates: AICheckPromptCandidate[];
   comparison: AICheckPromptComparison;
+  comparisonReview: ComparisonReviewSummary | null;
+  comparisonReviewError: string | null;
+  comparisonReviewLoading: boolean;
   generatingPromptCandidate: boolean;
   generatingPromptProgramSuggestions: boolean;
   promptProgramSuggestions: AICheckPromptProgramSuggestion[];
@@ -2392,6 +2870,11 @@ function PromptComparisonSummary({
         <MetricCard label="Improved" value={String(comparison.improvedCaseIds.length)} />
         <MetricCard label="Regressed" value={String(comparison.regressedCaseIds.length)} />
       </div>
+      <ComparisonDiffPanel
+        comparisonReview={comparisonReview}
+        error={comparisonReviewError}
+        loading={comparisonReviewLoading}
+      />
       <div className="row wrap-row">
         <button className="btn btn-ghost" onClick={() => onSelectBaselineRun(comparison.baselineRunId)}>
           Baseline Run
@@ -4419,6 +4902,52 @@ function formatRunFilter(filters: AICheckEvalRunFilters): string {
     filters.tags?.join(",")
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : "all active";
+}
+
+function uniqueOptions(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right));
+}
+
+function compareRunReviewRows(
+  left: RunReviewCaseRow,
+  right: RunReviewCaseRow,
+  sortKey: "outcome" | "severity" | "dataset" | "strictness"
+): number {
+  if (sortKey === "outcome") {
+    if (left.pass !== right.pass) return left.pass ? 1 : -1;
+  }
+  if (sortKey === "severity") {
+    const severityDiff = severityRank(left.severity) - severityRank(right.severity);
+    if (severityDiff !== 0) return severityDiff;
+  }
+  if (sortKey === "dataset") {
+    const datasetDiff = (left.datasetType ?? "").localeCompare(right.datasetType ?? "");
+    if (datasetDiff !== 0) return datasetDiff;
+  }
+  if (sortKey === "strictness") {
+    const strictnessDiff = (left.strictness ?? "").localeCompare(right.strictness ?? "");
+    if (strictnessDiff !== 0) return strictnessDiff;
+  }
+  return left.title.localeCompare(right.title);
+}
+
+function severityRank(severity: AICheckCase["severity"] | undefined): number {
+  if (severity === "critical") return 0;
+  if (severity === "high") return 1;
+  if (severity === "medium") return 2;
+  if (severity === "low") return 3;
+  return 4;
+}
+
+function formatRunReviewSnapshotSource(source: RunReviewSnapshotSource): string {
+  if (source === "job_case_snapshot") return "Job snapshot";
+  if (source === "current_case_fallback") return "Current case fallback";
+  if (source === "imported_artifact") return "Imported artifact";
+  return "Missing snapshot";
+}
+
+function formatOptionalTag(value: string | null | undefined): string {
+  return value ? formatTag(value) : "n/a";
 }
 
 function formatRunMode(mode: AICheckEvalRunMode): string {

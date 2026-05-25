@@ -13,7 +13,7 @@ Rule: when this document changes, check the design and progress documents for re
 
 ### ISSUE-001: Experiment Lab information architecture is overloaded
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -29,9 +29,13 @@ Mitigation:
 - Refactor Experiment Lab into Run Setup, Active Jobs, Run Results, Case Detail Drawer, A/B Case Diff, Release Gate Drilldown, and Experiment Workspace sections.
 - Keep the existing top-level navigation.
 
+Update 2026-05-25:
+
+- Experiment Lab now exposes the run review workflow inside the existing top-level area. Active jobs, finalized run review, A/B diff, release gate drilldown, Dataset Health, and workspace context are visible without adding a new top-level tab.
+
 ### ISSUE-002: Finished run review is too shallow
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -49,9 +53,13 @@ Mitigation:
 - Add `RunReviewSummary`, `RunReviewCaseRow`, and `RunReviewCaseDetail`.
 - Build result table and drawer from store-layer view models.
 
+Update 2026-05-25:
+
+- Finished runs now load `RunReviewSummary` and render a full result table plus a Case Detail Drawer with expected output, actual provider output, failure reasons, attempts, and provenance.
+
 ### ISSUE-003: Historical runs can be interpreted using current case metadata
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -71,9 +79,13 @@ Mitigation:
 - Display `current_case_fallback` and `missing` as degraded evidence.
 - Do not silently treat current cases as historical snapshots.
 
+Update 2026-05-25:
+
+- Run review rows now carry `snapshotSource`. Durable job snapshots are preferred, current-case fallback is labeled, and missing snapshots are displayed explicitly for imported or degraded artifacts.
+
 ### ISSUE-004: Holdout details can leak through result table or drawer
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -91,9 +103,13 @@ Mitigation:
 - Gate row fields at the view-model layer, not only in React rendering.
 - Add E2E coverage proving tuning-mode Holdout details are hidden in table, drawer, A/B diff, and Textual Gradient.
 
+Update 2026-05-25:
+
+- Run review rows and details now carry `holdoutVisibility`. Tuning-mode Holdout rows are protected at the store view-model layer before the UI renders them.
+
 ### ISSUE-005: Active jobs can be confused with release evidence
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -111,9 +127,13 @@ Mitigation:
 - Release controls must accept finalized run ids only.
 - No UI path should approve using a job id or workflow id.
 
+Update 2026-05-25:
+
+- Active job cards remain separated from finalized run review and explicitly describe running metrics as provisional. Release decisions continue to use finalized run ids only.
+
 ### ISSUE-006: A/B comparison lacks per-case evidence
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -133,9 +153,13 @@ Mitigation:
 - Group rows by improved, regressed, unchanged failed, unchanged passed, and missing.
 - Require review of regressed rows before promotion.
 
+Update 2026-05-25:
+
+- A/B comparison now loads `ComparisonReviewSummary` and renders a per-case diff table grouped by regression/improvement/missing classifications.
+
 ### ISSUE-007: Release Gate reasons are not drillable
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -152,9 +176,13 @@ Mitigation:
 - Map gates to dataset, metric, threshold, actual value, severity, case ids, and explanation.
 - Add minimum dataset coverage as a warning before making it a blocker.
 
+Update 2026-05-25:
+
+- Run review now includes Release Gate Drilldown rows for overall gate status, schema validity, false allow failures, unsafe sensitive failures, regression critical failures, Holdout degradation, minimum coverage, and provider infrastructure history.
+
 ### ISSUE-008: Review view models can bypass contract-first boundaries
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -172,9 +200,13 @@ Mitigation:
 - Any new model output, case input, or eval expectation field must start in `apps/extension/src/shared/ai-check-contract.json`.
 - Run `npm run check:ai-check-contract` after contract changes.
 
+Update 2026-05-25:
+
+- Review view models were added in `types.ts` as product-layer review models. No AI Check input, output, or evaluation schema change was made.
+
 ### ISSUE-009: Dataset health remains invisible
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -190,9 +222,13 @@ Mitigation:
 - Add Dataset Health after the core review table and A/B diff.
 - Track distribution, stale versions, missing expected outputs, duplicates, and uncovered decision/risk areas.
 
+Update 2026-05-25:
+
+- Experiment Lab now includes Dataset Health with dataset distribution, missing expected-output count, stale version count, decision coverage, and strictness coverage.
+
 ### ISSUE-010: Provider reliability and cost signals are missing
 
-Status: open
+Status: mitigated
 
 Risk:
 
@@ -210,3 +246,6 @@ Mitigation:
 - Add provider reliability summary to Run Results.
 - Defer token/cost unless provider response metadata is stable enough.
 
+Update 2026-05-25:
+
+- Case Detail Drawer shows provider attempt history and infrastructure errors when durable job state exists. Release Gate Drilldown includes provider infrastructure status. Token and cost remain deferred until provider metadata is stable enough.

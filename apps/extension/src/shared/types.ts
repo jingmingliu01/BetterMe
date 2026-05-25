@@ -335,6 +335,73 @@ export interface AICheckEvalRunSummary {
   results: AICheckEvalResult[];
 }
 
+export type RunReviewSnapshotSource =
+  | "job_case_snapshot"
+  | "imported_artifact"
+  | "current_case_fallback"
+  | "missing";
+
+export type RunReviewHoldoutVisibility = "aggregate_only" | "detail_allowed";
+
+export type RunReviewArtifactState = "finalized" | "active_job" | "imported_missing_snapshot";
+
+export interface ReleaseGateDrilldownRow {
+  gate: string;
+  status: "pass" | "fail" | "warning";
+  datasetType?: AICheckDatasetType;
+  metric?: string;
+  threshold?: string;
+  actual?: string;
+  severity?: AICheckSeverity;
+  caseIds: string[];
+  explanation: string;
+}
+
+export interface RunReviewCaseRow {
+  resultId: string;
+  runId: string;
+  evalCaseId: string;
+  title: string;
+  datasetType?: AICheckDatasetType;
+  caseStatus?: AICheckCaseStatus;
+  strictness?: StrictnessLevel;
+  expectedDecision?: AIDecision;
+  actualDecision: AIDecision | null;
+  pass: boolean;
+  failureReasons: string[];
+  tags: string[];
+  severity?: AICheckSeverity;
+  snapshotSource: RunReviewSnapshotSource;
+  holdoutVisibility: RunReviewHoldoutVisibility;
+  rawProviderAvailable: boolean;
+}
+
+export interface RunReviewCaseDetail {
+  row: RunReviewCaseRow;
+  result: AICheckEvalResult;
+  caseSnapshot?: AICheckCase;
+  rawProvider?: string;
+  attempts?: AICheckEvalJobCaseAttempt[];
+  infrastructureErrors?: string[];
+}
+
+export interface RunReviewSnapshotCoverage {
+  total: number;
+  jobCaseSnapshot: number;
+  importedArtifact: number;
+  currentCaseFallback: number;
+  missing: number;
+}
+
+export interface RunReviewSummary {
+  run: AICheckEvalRun;
+  rows: RunReviewCaseRow[];
+  details: RunReviewCaseDetail[];
+  releaseGate: ReleaseGateDrilldownRow[];
+  snapshotCoverage: RunReviewSnapshotCoverage;
+  artifactState: RunReviewArtifactState;
+}
+
 export type AICheckEvalJobStatus = "queued" | "running" | "cancel_requested" | "completed" | "failed" | "cancelled";
 export type AICheckEvalJobCaseStatus =
   | "pending"
@@ -503,6 +570,26 @@ export interface AICheckPromptComparisonWorkflowSummary {
   workflow: AICheckPromptComparisonWorkflow;
   baselineJob?: AICheckEvalJob;
   candidateJob?: AICheckEvalJob;
+}
+
+export interface ComparisonReviewDiffRow {
+  evalCaseId: string;
+  classification:
+    | "improved"
+    | "regressed"
+    | "unchanged_failed"
+    | "unchanged_passed"
+    | "missing_baseline"
+    | "missing_candidate";
+  baseline?: RunReviewCaseRow;
+  candidate?: RunReviewCaseRow;
+}
+
+export interface ComparisonReviewSummary {
+  comparison: AICheckPromptComparison;
+  baselineRun: RunReviewSummary;
+  candidateRun: RunReviewSummary;
+  rows: ComparisonReviewDiffRow[];
 }
 
 export interface AICheckPromptPromotion {
@@ -721,6 +808,7 @@ export type ExtensionMessage =
   | { type: "review/updateEvalCase"; payload: UpdateEvalCaseInput }
   | { type: "review/archiveEvalCase"; payload: { id: string; archivedReason?: string } }
   | { type: "review/listEvalRuns" }
+  | { type: "review/getRunReview"; payload: { runId: string } }
   | { type: "review/runEvalExperiment"; payload: RunEvalExperimentInput }
   | { type: "review/createEvalJob"; payload: StartEvalJobInput }
   | { type: "review/startEvalJob"; payload: StartEvalJobInput | { jobId: string } }
@@ -733,6 +821,7 @@ export type ExtensionMessage =
   | { type: "review/listPromptCandidates" }
   | { type: "review/createPromptCandidate"; payload: CreatePromptCandidateInput }
   | { type: "review/listPromptComparisons" }
+  | { type: "review/getPromptComparisonReview"; payload: { comparisonId: string } }
   | { type: "review/runPromptComparison"; payload: RunPromptComparisonInput }
   | { type: "review/startPromptComparisonWorkflow"; payload: StartPromptComparisonWorkflowInput }
   | { type: "review/listPromptComparisonWorkflows" }
